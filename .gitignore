@@ -1,0 +1,54 @@
+# dependencies
+node_modules/
+
+# Expo
+.expo/
+dist/
+web-build/
+expo-env.d.ts
+
+# native / code-signing keys (SECRET private keys — never commit)
+# Broadened globs (*.p8*, not just *.p8) so macOS duplicate suffixes like ".p8 copy" / ".p8 2"
+# cannot slip past the ignore, plus Apple key filenames by prefix regardless of extension.
+*.orig.*
+*.jks
+*.p8*
+*.p12*
+*.key
+*.mobileprovision*
+AuthKey_*
+SubscriptionKey_*
+
+# build artifacts (compiled app archives should never live in the repo)
+*.tar.gz
+*.ipa
+*.aab
+*.apk
+
+# secrets
+.env
+.env*.local
+env.local.txt
+*.local.txt
+
+# GCP / service-account keys (server-side only, never commit or bundle)
+siutimsiutai-camera-ai-*.json
+*service-account*.json
+*-serviceaccount.json
+gcp-*.json
+
+# EAS store metadata, produced by `eas metadata:pull`.
+# store.config.json carries the iOS keyword field, which Apple never renders publicly;
+# committing it here would publish the ASO strategy, since this repo is also the
+# public siutimsiudai.app site. store/ is ~11 MB of screenshots the App Store already serves.
+store.config.json
+store/
+
+# misc
+npm-debug.*
+yarn-debug.*
+yarn-error.*
+.DS_Store
+
+# Claude Code local config (per-machine paths & permission grants, keep local, not shared)
+.claude/

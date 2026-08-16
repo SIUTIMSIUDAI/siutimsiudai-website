@@ -1,0 +1,11 @@
+{
+  "applinks": {
+    "apps": [],
+    "details": [
+      {
+        "appID": "3K2498P24T.app.siutimsiudai.mobile",
+        "paths": ["/invite/*"]
+      }
+    ]
+  }
+}
