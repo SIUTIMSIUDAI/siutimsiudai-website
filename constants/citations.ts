@@ -157,6 +157,19 @@ export const CITATIONS: Citation[] = [
     url: "https://www.cfs.gov.hk/english/nutrient/",
     urlZh: "https://www.cfs.gov.hk/tc_chi/nutrient/",
   },
+  {
+    key: "open-food-facts",
+    topic: "food",
+    title: "Open Food Facts",
+    titleZh: "Open Food Facts 開放食品資料庫",
+    publisher: "Open Food Facts (non-profit, ODbL licence)",
+    publisherZh: "Open Food Facts（非牟利，ODbL 授權）",
+    backs:
+      "Every figure the barcode scanner shows. Scanning a packet looks the code up in this open database and reports what its contributors recorded from the packet's own nutrition label. We estimate nothing here. A barcode nobody has catalogued returns no result, and the app asks you to enter the food by hand instead.",
+    backsZh:
+      "掃條碼見到嘅所有數字。掃描時會攞條碼去呢個開放資料庫查，顯示貢獻者由包裝營養標籤抄低嘅數值，我哋唔會自己估。如果個條碼未有人收錄，就會搵唔到，app會叫你自己手動輸入。",
+    url: "https://world.openfoodfacts.org/",
+  },
 ];
 
 /** Citations for one topic, in registry order. */

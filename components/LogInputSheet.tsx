@@ -15,6 +15,7 @@ import { ScalableText } from "./ScalableText";
 import { Button } from "./Button";
 import { MealTypePicker } from "./MealTypePicker";
 import { PaywallModal } from "./PaywallModal";
+import { SourcesLink } from "./SourcesLink";
 import { colors } from "@/constants/theme";
 import { useLocale } from "@/hooks/useLocale";
 import { formatCalories } from "@/utils/formatters";
@@ -80,10 +81,17 @@ const TABS: { key: Tab; icon: keyof typeof Ionicons.glyphMap; labelKey: string }
   { key: "manual", icon: "create-outline", labelKey: "log.manual" },
 ];
 
+// Barcodes you can tap when there is no camera to hand (simulator, or just trying the feature).
+// They are labelled by what the food IS, not by who makes it: the brand shown after the lookup
+// comes from Open Food Facts, so it is that database's attribution rather than ours. These used
+// to be brand-name chips wired to a hardcoded catalogue we had made the numbers up for.
+//
+// The three cover the three outcomes worth seeing: nutrition stated per serving, nutrition stated
+// per 100 g, and a barcode nobody has catalogued, which is the honest miss.
 const SAMPLE_CODES = [
-  { code: "4891028714842", label: "Vitasoy" },
-  { code: "4892327000019", label: "Garden" },
-  { code: "0123456789012", label: "?" },
+  { code: "4891028717614", label: "Soy milk", labelZh: "豆奶" },
+  { code: "4892294418038", label: "Crisps", labelZh: "薯片" },
+  { code: "4899999999995", label: "Not in database", labelZh: "查唔到" },
 ];
 
 const INPUT =
@@ -602,7 +610,9 @@ export function LogInputSheet({ visible, date, onClose }: Props) {
                       }}
                       className="min-h-[44px] justify-center rounded-full bg-surface-sunken px-4 py-2"
                     >
-                      <ScalableText className="text-sm font-semibold text-ink">{s.label}</ScalableText>
+                      <ScalableText className="text-sm font-semibold text-ink">
+                        {tl(s.label, s.labelZh)}
+                      </ScalableText>
                     </Pressable>
                   ))}
                 </View>
@@ -826,6 +836,11 @@ export function LogInputSheet({ visible, date, onClose }: Props) {
                     </View>
                   );
                 })}
+                {/* Guideline 1.4.1: the order slips above are the moment a health figure is put in
+                    front of someone, so the way to the sources sits with them. Photo and voice
+                    estimates come from the AI, a scanned barcode comes from Open Food Facts, and
+                    the sources screen names both. */}
+                <SourcesLink />
               </View>
             )}
           </ScrollView>
