@@ -37,6 +37,12 @@ siutimsiutai-camera-ai-*.json
 *-serviceaccount.json
 gcp-*.json
 
+# Demo-data refresh for App Review. It names the two review accounts by email, and this repo is
+# also the public siutimsiudai.app site, so committing it would publish which accounts Apple signs
+# in with and invite password-reset pokes at them. The numbered migrations beside it are schema and
+# stay committed.
+database/refresh_demo_data.sql
+
 # EAS store metadata, produced by `eas metadata:pull`.
 # store.config.json carries the iOS keyword field, which Apple never renders publicly;
 # committing it here would publish the ASO strategy, since this repo is also the
