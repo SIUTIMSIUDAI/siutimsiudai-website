@@ -1,19 +1,21 @@
-// Guard for the bug where the two offline demo chips hijacked two real recipe sites.
+// Guard for the bug where the offline demo chips hijacked real recipe sites.
 //
 // AddRecipeSheet offers two sample URLs so the walkthrough works with no network. urlScrapeService
-// served those from bundled fixtures — but it matched the DOMAIN (/cookpad/i, /daydaycook/i), not
-// the two links. Cookpad and DayDayCook are among the biggest recipe sites in Hong Kong, so the
-// most likely URL an HK user would ever paste was also the one guaranteed not to be scraped: any
-// cookpad.com page returned the bundled steamed sea bass, stamped with the sourceUrl the user had
-// pasted. It looked like the import had worked, and the wrong recipe was saved to their box.
+// serves those from bundled fixtures — but it used to match the DOMAIN, not the exact link, and the
+// domains it matched belonged to two of the largest recipe sites in Hong Kong. So the most likely
+// URL an HK user would ever paste was also the one guaranteed not to be scraped: any page on those
+// sites returned our bundled steamed sea bass, stamped with the sourceUrl the user had pasted. It
+// looked like the import had worked, and the wrong recipe was saved to their box.
 //
-// The rule enforced here: exactly two links answer from a fixture. Everything else, including any
-// other page on those same domains, goes to the real scraper.
+// Two rules are enforced here:
+//   1. Exactly two links answer from a fixture. Everything else goes to the real scraper.
+//   2. That includes other pages on our OWN domain. Now that the demo links live on
+//      siutimsiudai.app, /siutimsiudai\.app/ is the new tempting shortcut, and it is the same bug.
 
 import { urlScrapeService } from "@/services/urlScrapeService";
 
-const DEMO_FISH = "https://cookpad.com/hk/recipes/steamed-fish";
-const DEMO_BEEF = "https://daydaycook.com/recipes/braised-beef-brisket";
+const DEMO_FISH = "https://siutimsiudai.app/sample/steamed-fish";
+const DEMO_BEEF = "https://siutimsiudai.app/sample/braised-beef-brisket";
 
 const realFetch = global.fetch;
 
@@ -52,31 +54,32 @@ describe("urlScrapeService.scrape — the demo chips", () => {
   });
 });
 
-describe("urlScrapeService.scrape — real pages on the demo domains", () => {
-  // The bug in one list: each of these is a genuine page a Hong Kong user might paste, and each
-  // used to come back as the bundled fixture.
+describe("urlScrapeService.scrape — everything that is not a demo link", () => {
+  // Each of these is a page a real user might paste, and under domain matching each would have
+  // come back as a bundled fixture. The last two are on our own domain: that is the live risk now.
   const realUrls = [
-    "https://cookpad.com/hk/recipes/24601-char-siu",
-    "https://cookpad.com/hk/search/蘿蔔糕",
-    "https://daydaycook.com/recipes/steamed-egg-custard",
-    "https://www.daydaycook.com/recipe/12345",
+    "https://recipes.example.com/hk/recipes/24601-char-siu",
+    "https://recipes.example.com/hk/search/蘿蔔糕",
+    "https://another-cookbook.example.org/recipes/steamed-egg-custard",
+    "https://siutimsiudai.app/sample/something-else",
+    "https://siutimsiudai.app/blog/how-to-braise",
   ];
 
   for (const url of realUrls) {
     it(`scrapes ${url} for real instead of serving a fixture`, async () => {
       // The scraper is the only path, and here it fails because fetch is stubbed to reject. A
       // failure is the correct outcome: it is honest, and the sheet reports it. Silently returning
-      // someone else's recipe is not.
+      // a recipe the user did not ask for is not.
       await expect(urlScrapeService.scrape(url)).rejects.toThrow();
       expect(global.fetch).toHaveBeenCalled();
     });
   }
 
-  it("never returns a fixture title for a real page on a demo domain", async () => {
+  it("never returns a fixture title for a non-demo page on our own domain", async () => {
     // Belt and braces: if a future change reintroduces domain matching, this fails even if the
     // scraper somehow resolves.
     const outcome = await urlScrapeService
-      .scrape("https://cookpad.com/hk/recipes/99999-something-else")
+      .scrape("https://siutimsiudai.app/sample/99999-something-else")
       .catch(() => null);
 
     expect(outcome).toBeNull();

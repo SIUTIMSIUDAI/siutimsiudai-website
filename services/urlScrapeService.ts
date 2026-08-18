@@ -3,6 +3,7 @@ import { RecipeIngredient, RecipeStep, StructuredRecipe } from "@/types";
 import { toCanonical } from "@/utils/unitConverter";
 import { reconcileToNature } from "@/utils/ingredientNature";
 import { BRAISED_BEEF, STEAMED_FISH } from "./sampleStructured";
+import { isSupabaseConfigured, supabase } from "./supabase";
 
 type StructuredIngredient = Omit<RecipeIngredient, "id" | "recipeId">;
 type StructuredStep = Omit<RecipeStep, "id" | "recipeId">;
@@ -10,8 +11,11 @@ type StructuredStep = Omit<RecipeStep, "id" | "recipeId">;
 export interface UrlScrapeService {
   // Fetches a recipe page and parses its schema.org/Recipe JSON-LD into our structured
   // shape, with the source URL attached so the recipe card can link back. The two demo
-  // links (DayDayCook / Cookpad HK) resolve to bundled fixtures so the walkthrough works
-  // offline; every other URL is fetched and parsed for real.
+  // links point at our own domain and resolve to bundled fixtures of our own recipes, so
+  // the walkthrough works offline; every other URL is fetched and parsed for real.
+  //
+  // The fetch goes through our own Edge Function (supabase/functions/fetch-recipe). Parsing
+  // stays here on the device, so the server hop is a plain "read this page" and nothing else.
   scrape(url: string): Promise<StructuredRecipe>;
 }
 
@@ -548,31 +552,44 @@ export function parseRecipeFromHtml(html: string, url: string): StructuredRecipe
   };
 }
 
-// Public read-only CORS proxies. Browsers block cross-origin fetches to recipe sites
-// (they send no Access-Control-Allow-Origin), so on web we route through a proxy. Native
-// (Expo Go, real builds) is not CORS-bound and hits the site directly. For production,
-// replace these with your own proxy or a Supabase Edge Function.
-const CORS_PROXIES: ((url: string) => string)[] = [
-  (url) => `https://api.allorigins.win/raw?url=${encodeURIComponent(url)}`,
-  (url) => `https://corsproxy.io/?url=${encodeURIComponent(url)}`,
-];
+// How the HTML gets here.
+//
+// This used to go through two public CORS proxies, api.allorigins.win and corsproxy.io, because a
+// browser cannot fetch a recipe site directly: those sites send no Access-Control-Allow-Origin.
+// It worked, and it meant every recipe URL our users imported was handed to a third party we have
+// no agreement with and no disclosure for, who could log it, alter the HTML on the way back, or
+// disappear. They are gone.
+//
+// The fetch now happens in our own Edge Function (supabase/functions/fetch-recipe), which is
+// authenticated, rate limited, and guarded against being pointed at anything that is not a public
+// https web page. One path on every platform, so web and native behave identically and there is
+// one honest answer to "what does your app talk to".
+//
+// The direct fetch below survives only for the unconfigured case: Expo Go with no env, and tests.
+// On native it reaches the site straight from the device, which is fine but is not what a shipped
+// build does. On web it cannot work at all, and saying so is better than a proxy nobody vetted.
+async function fetchViaEdge(url: string): Promise<string> {
+  // isSupabaseConfigured already guarantees this, but the client is typed nullable and an
+  // assertion here would be the one place the guarantee could rot silently.
+  if (!supabase) throw new Error("scrape_unavailable");
 
-// Order the fetch attempts. On web the direct hit is doomed by CORS, so try proxies first
-// and keep the direct URL as a last resort (some sites do send permissive headers). On
-// native, go direct first and only fall back to a proxy if the site refuses us.
-function candidateUrls(url: string): string[] {
-  const proxied = CORS_PROXIES.map((build) => build(url));
-  return Platform.OS === "web" ? [...proxied, url] : [url, ...proxied];
+  const { data, error } = await supabase.functions.invoke<{ html?: unknown }>("fetch-recipe", {
+    body: { url },
+  });
+  if (error) throw error;
+  const html = data?.html;
+  if (typeof html !== "string" || !html) throw new Error("scrape_failed");
+  return html;
 }
 
-async function fetchOnce(target: string): Promise<string> {
+async function fetchDirect(url: string): Promise<string> {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
   try {
-    const res = await fetch(target, {
+    const res = await fetch(url, {
       signal: controller.signal,
-      // User-Agent is a forbidden header in browsers (silently dropped); only set it on
-      // native, where some sites gate on a browser-like agent.
+      // User-Agent is a forbidden header in browsers (silently dropped), so it is only worth
+      // setting on native, where some sites gate on a browser-like agent.
       headers:
         Platform.OS === "web"
           ? { Accept: "text/html,application/xhtml+xml" }
@@ -589,33 +606,36 @@ async function fetchOnce(target: string): Promise<string> {
   }
 }
 
-// Walk the candidate URLs, running the full fetch+parse for each so a proxy that returns
-// a 200 with junk (no recipe markup) falls through to the next candidate instead of
-// failing outright. sourceUrl stays the real page, never the proxy wrapper.
+// sourceUrl stays the page the user pasted, never an intermediary, so a saved recipe always links
+// back to where it actually came from.
 async function fetchAndParse(url: string): Promise<StructuredRecipe> {
-  let lastError: unknown;
-  for (const target of candidateUrls(url)) {
-    try {
-      const html = await fetchOnce(target);
-      return parseRecipeFromHtml(html, url);
-    } catch (err) {
-      lastError = err;
-    }
+  if (isSupabaseConfigured) {
+    return parseRecipeFromHtml(await fetchViaEdge(url), url);
   }
-  throw lastError instanceof Error ? lastError : new Error("scrape_failed");
+  // Unconfigured. Web has no route that does not involve a third party, so it fails honestly
+  // rather than quietly borrowing someone's proxy.
+  if (Platform.OS === "web") throw new Error("scrape_unavailable");
+  return parseRecipeFromHtml(await fetchDirect(url), url);
 }
 
 // The two demo chips in AddRecipeSheet, and ONLY those two exact URLs, answer from a bundled
-// fixture so the walkthrough works offline and in Expo Go.
+// fixture so the walkthrough works offline and in Expo Go. Both point at our own domain and
+// resolve to recipes we wrote ourselves, so no other publisher's name sits on our content.
 //
-// This used to match the DOMAIN (/cookpad/i, /daydaycook/i), which quietly broke the feature for
-// the two biggest recipe sites in Hong Kong: a real cookpad.com/hk/recipes/<anything> URL returned
-// the bundled steamed fish, stamped with the sourceUrl the user had pasted, so it looked like the
-// scrape had worked and the wrong recipe was saved to their box. Anything that is not one of these
-// two demo links now goes to the real scraper, which fails honestly when it cannot parse a page.
+// Two things this must never go back to being:
+//
+// 1. Matching the DOMAIN rather than the exact URL. That quietly broke the feature for the two
+//    biggest recipe sites in Hong Kong: any real URL on those domains returned a bundled fixture,
+//    stamped with the sourceUrl the user had pasted, so it looked like the scrape had worked and
+//    the wrong recipe was saved to their box.
+// 2. Keying the fixtures off a third party's domain at all. A recipe we authored must not be
+//    presented under someone else's brand.
+//
+// Anything that is not one of these two demo links goes to the real scraper, which fails honestly
+// when it cannot parse a page.
 const DEMO_FIXTURES: Record<string, StructuredRecipe> = {
-  "https://cookpad.com/hk/recipes/steamed-fish": STEAMED_FISH,
-  "https://daydaycook.com/recipes/braised-beef-brisket": BRAISED_BEEF,
+  "https://siutimsiudai.app/sample/steamed-fish": STEAMED_FISH,
+  "https://siutimsiudai.app/sample/braised-beef-brisket": BRAISED_BEEF,
 };
 
 export const urlScrapeService: UrlScrapeService = {

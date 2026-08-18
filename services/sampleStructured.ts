@@ -28,7 +28,8 @@ function step(
   return { stepNumber, instruction, instructionZh, imageUri: null, durationSeconds };
 }
 
-// DayDayCook-style braise. Uses 斤 (catty) and 兩 (tael) so the converter is exercised.
+// Home-style Cantonese braise, written for this app. Uses 斤 (catty) and 兩 (tael) so the
+// converter is exercised.
 export const BRAISED_BEEF: StructuredRecipe = {
   title: "Braised Beef Brisket with Radish",
   titleZh: "蘿蔔炆牛腩",

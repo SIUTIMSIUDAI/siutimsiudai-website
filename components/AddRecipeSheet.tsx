@@ -14,7 +14,7 @@ import { Button } from "./Button";
 import { colors } from "@/constants/theme";
 import { useLocale } from "@/hooks/useLocale";
 import { useFeatureAccess } from "@/hooks/useFeatureAccess";
-import { urlScrapeService } from "@/services";
+import { classifyInvokeError, urlScrapeService } from "@/services";
 import { parseIngredientLine } from "@/services/urlScrapeService";
 import { useRecipeStore } from "@/stores/recipeStore";
 import { Recipe, StructuredRecipe } from "@/types";
@@ -35,9 +35,22 @@ const TABS: { key: Tab; icon: keyof typeof Ionicons.glyphMap; labelKey: string }
   { key: "manual", icon: "create-outline", labelKey: "recipes.manual" },
 ];
 
+// Two sample links so the URL tab can be tried without hunting for a cookbook page. Both point at
+// our own domain and resolve to recipes we wrote ourselves (see DEMO_FIXTURES in urlScrapeService).
+// These chips used to carry other cookbooks' brand names, which put someone else's badge on our
+// own content. Never name a third-party publisher on a recipe that is not theirs. Labels below
+// must match the fixture titles, so tapping a chip imports what the chip said it would.
 const SAMPLE_URLS = [
-  { url: "https://daydaycook.com/recipes/braised-beef-brisket", label: "DayDayCook" },
-  { url: "https://cookpad.com/hk/recipes/steamed-fish", label: "Cookpad HK" },
+  {
+    url: "https://siutimsiudai.app/sample/braised-beef-brisket",
+    label: "Braised beef brisket",
+    labelZh: "蘿蔔炆牛腩",
+  },
+  {
+    url: "https://siutimsiudai.app/sample/steamed-fish",
+    label: "Steamed sea bass",
+    labelZh: "清蒸鱸魚",
+  },
 ];
 
 const INPUT = "rounded-xl border border-[#E4DCCB] bg-surface px-3 py-2 text-base text-ink";
@@ -94,14 +107,25 @@ export function AddRecipeSheet({ visible, onClose, onCreated }: Props) {
       const structured = await urlScrapeService.scrape(url.trim());
       const recipe = addRecipe(structured, "url");
       finish(recipe);
-    } catch {
-      // Network failure, no recipe markup, or a page we can't read. Keep the sheet open
-      // so the user can try another link or switch to manual entry.
+    } catch (err) {
+      // Say WHY, not merely that it failed. The import now runs through our own Edge Function
+      // (supabase/functions/fetch-recipe), which refuses with 429 once the daily allowance is
+      // spent. "Try another link" is the wrong advice for that: no other link will work today,
+      // and telling someone to retry is how you get them hammering the button against a cap.
+      // Same reasoning, and the same helper, as the AI surfaces in LogInputSheet and pantry-scan.
+      const reason = await classifyInvokeError(err);
       setUrlError(
-        tl(
-          "Couldn't read that page. Try another link or add it manually.",
-          "讀取唔到呢個網頁，試下另一條連結或手動加入。",
-        ),
+        reason === "rate_limited"
+          ? tl(
+              "You have used today's recipe imports. Add it manually, or try again tomorrow.",
+              "今日嘅食譜匯入次數用晒喇。可以手動加入，或者聽日再試。",
+            )
+          : // Network failure, no recipe markup, a page we cannot read, or a link that is not a
+            // public web page. Keep the sheet open so another link or manual entry is one tap away.
+            tl(
+              "Couldn't read that page. Try another link or add it manually.",
+              "讀取唔到呢個網頁，試下另一條連結或手動加入。",
+            ),
       );
     } finally {
       setLoading(false);
@@ -228,7 +252,9 @@ export function AddRecipeSheet({ visible, onClose, onCreated }: Props) {
                         onPress={() => setUrl(s.url)}
                         className="min-h-[44px] justify-center rounded-full bg-surface-sunken px-4 py-2"
                       >
-                        <ScalableText className="text-sm font-semibold text-ink">{s.label}</ScalableText>
+                        <ScalableText className="text-sm font-semibold text-ink">
+                          {tl(s.label, s.labelZh)}
+                        </ScalableText>
                       </Pressable>
                     ))}
                   </View>

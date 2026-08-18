@@ -1,4 +1,5 @@
-// Shared per-user daily cap for every Edge Function that spends money at Google.
+// Shared per-user daily cap for every Edge Function that spends money at Google, plus fetch-recipe,
+// which spends no money but must not be usable as an unmetered relay. See BUCKETS below.
 //
 // WHY THIS IS NOT A GOOGLE CLOUD QUOTA
 //
@@ -34,12 +35,19 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
  * Importing a stack of recipes must not eat the allowance the user needs to log dinner, hence a
  * separate and much higher ceiling.
  *
- * Both are overridable per environment (`supabase secrets set AI_DAILY_LIMIT=...`) without a
+ * `scrape` (fetch-recipe) costs us no third-party money at all: it fetches a public web page. It is
+ * capped anyway, for a different reason. That function makes our server fetch a URL a caller chose,
+ * which is an SSRF surface however well guarded, and an uncapped one would also let one account use
+ * us as a bandwidth relay. So the number here is not a budget, it is a blast radius. 100 is far
+ * more recipes than a person imports in a day and small enough to be useless as a relay.
+ *
+ * All three are overridable per environment (`supabase secrets set AI_DAILY_LIMIT=...`) without a
  * redeploy, so the numbers can be tuned against real usage rather than guessed at once.
  */
 const BUCKETS = {
   ai: { env: "AI_DAILY_LIMIT", fallback: 50 },
   translate: { env: "AI_TRANSLATE_DAILY_LIMIT", fallback: 500 },
+  scrape: { env: "SCRAPE_DAILY_LIMIT", fallback: 100 },
 } as const;
 
 export type QuotaBucket = keyof typeof BUCKETS;
