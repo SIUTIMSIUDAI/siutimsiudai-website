@@ -1,5 +1,6 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import {
+  Keyboard,
   KeyboardAvoidingView,
   Modal,
   Platform,
@@ -8,8 +9,10 @@ import {
   TextInput,
   View,
 } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
 import * as ImagePicker from "expo-image-picker";
 import * as FileSystem from "expo-file-system/legacy";
+import { CameraView, useCameraPermissions } from "expo-camera";
 import { Ionicons } from "@expo/vector-icons";
 import { ScalableText } from "./ScalableText";
 import { Button } from "./Button";
@@ -28,6 +31,7 @@ import { barcodeService, nlpMealService, visionFoodService } from "@/services";
 import type { InvokeFailure } from "@/services/functionError";
 import { HK_DISHES } from "@/constants/hkDishes";
 import { tapLight } from "@/utils/haptics";
+import { createScanLatch } from "@/utils/scanLatch";
 import { EntryMicronutrients, LogSource, MealType } from "@/types";
 
 interface Props {
@@ -93,6 +97,11 @@ const SAMPLE_CODES = [
   { code: "4892294418038", label: "Crisps", labelZh: "薯片" },
   { code: "4899999999995", label: "Not in database", labelZh: "查唔到" },
 ];
+
+// Retail product symbologies only. CameraView will happily decode a QR code or a boarding pass if
+// you let it, and every one of those would be handed to a food database that cannot answer for it.
+// EAN-13 covers Hong Kong retail (the 489 prefix); the rest cover imports and small packages.
+const BARCODE_FORMATS = ["ean13", "ean8", "upc_a", "upc_e"] as const;
 
 const INPUT =
   "rounded-xl border border-[#E4DCCB] bg-surface px-3 py-2 text-base text-ink";
@@ -208,6 +217,19 @@ export function LogInputSheet({ visible, date, onClose }: Props) {
   const [text, setText] = useState("");
   const [code, setCode] = useState("");
 
+  // Live camera barcode scanning. The typed field below stays the whole feature's fallback: it is
+  // the only way in on a simulator, when camera permission is refused, and when a packet is too
+  // creased or too shiny to read.
+  const [scannerOpen, setScannerOpen] = useState(false);
+  const [permission, requestPermission] = useCameraPermissions();
+  // True once the user has been asked and said no, so we can explain rather than silently do
+  // nothing. Distinct from "not yet asked", which should just prompt.
+  const [cameraDenied, setCameraDenied] = useState(false);
+  // onBarcodeScanned fires continuously while the code is in frame, many times a second. The latch
+  // reduces that to one lookup per opening of the scanner. A ref, not state, because the callback
+  // must observe the change on its very next frame, not after a re-render.
+  const scanLatch = useRef(createScanLatch());
+
   const [mName, setMName] = useState("");
   const [mNameZh, setMNameZh] = useState("");
   // Optional serving multiplier for the manual entry. Blank means one serving; when set it scales
@@ -228,6 +250,11 @@ export function LogInputSheet({ visible, date, onClose }: Props) {
     setManualMiss(false);
   }
 
+  function closeScanner() {
+    setScannerOpen(false);
+    scanLatch.current.rearm();
+  }
+
   function close() {
     setCandidates([]);
     setBarcodeMiss(false);
@@ -236,6 +263,7 @@ export function LogInputSheet({ visible, date, onClose }: Props) {
     setText("");
     setCode("");
     setLoading(false);
+    closeScanner();
     resetManual();
     onClose();
   }
@@ -247,6 +275,8 @@ export function LogInputSheet({ visible, date, onClose }: Props) {
     setManualMiss(false);
     setAiError(null);
     setAiMiss(false);
+    // Leaving the barcode tab with the camera still live would keep it running behind another tab.
+    closeScanner();
   }
 
   // Free tier gets a metered number of AI-assisted logs a week (photo/voice/barcode/label).
@@ -326,6 +356,38 @@ export function LogInputSheet({ visible, date, onClose }: Props) {
       })),
     );
     setLoading(false);
+  }
+
+  // Ask for the camera and open the live scanner. The quota is checked here rather than after the
+  // scan so a user out of AI logs meets the paywall instead of a camera that turns out to be a dead
+  // end, and so the paywall never has to stack on top of a live preview.
+  async function openScanner() {
+    if (!guardAiLog()) return;
+    // The typed field sits right below the button, so the keyboard is often up when this is
+    // tapped. It would otherwise sit over the camera preview.
+    Keyboard.dismiss();
+    setBarcodeMiss(false);
+    setCameraDenied(false);
+    if (!permission?.granted) {
+      const next = await requestPermission();
+      if (!next.granted) {
+        // Refused. The typed field is still right there, so say that rather than nothing.
+        setCameraDenied(true);
+        return;
+      }
+    }
+    scanLatch.current.rearm();
+    setScannerOpen(true);
+  }
+
+  // One barcode, one lookup. The latch closes on the first frame that decodes and only reopens when
+  // the scanner is opened again.
+  function handleScanned(value: string) {
+    if (!scanLatch.current.accept()) return;
+    tapLight();
+    setScannerOpen(false);
+    setCode(value);
+    void runBarcode(value);
   }
 
   async function runBarcode(value: string) {
@@ -591,6 +653,22 @@ export function LogInputSheet({ visible, date, onClose }: Props) {
             {tab === "barcode" && (
               <View className="gap-3">
                 <ScalableText className="text-sm text-ink-muted">{t("log.scanHint")}</ScalableText>
+                <Button
+                  label={t("log.scanOpen")}
+                  icon="camera-outline"
+                  onPress={openScanner}
+                />
+                {/* Refused the camera. Not an error state: the field below still works, and saying
+                    so is more use than a dead button. */}
+                {cameraDenied && (
+                  <ScalableText
+                    accessibilityRole="alert"
+                    className="text-sm leading-5 text-ink-muted"
+                  >
+                    {t("log.scanDenied")}
+                  </ScalableText>
+                )}
+                <ScalableText className="text-sm text-ink-muted">{t("log.typeHint")}</ScalableText>
                 <TextInput
                   className={INPUT}
                   value={code}
@@ -846,6 +924,61 @@ export function LogInputSheet({ visible, date, onClose }: Props) {
           </ScrollView>
         </View>
       </KeyboardAvoidingView>
+
+      {/* Live barcode scanner. An absolute overlay inside this Modal rather than a nested Modal:
+          stacking Modals on iOS fights the sheet's own slide animation, and the camera has to be
+          gone the instant a code decodes. Mounted only while open so the camera is released the
+          moment it is not needed. */}
+      {scannerOpen && (
+        <View className="absolute inset-0 bg-black">
+          <CameraView
+            style={{ flex: 1 }}
+            facing="back"
+            barcodeScannerSettings={{ barcodeTypes: [...BARCODE_FORMATS] }}
+            onBarcodeScanned={({ data }) => handleScanned(data)}
+          />
+          <SafeAreaView edges={["top", "bottom"]} className="absolute inset-0 justify-between">
+            <View className="flex-row items-start justify-between p-3">
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel={t("common.cancel")}
+                onPress={closeScanner}
+                className="h-11 w-11 items-center justify-center rounded-full bg-black/50"
+              >
+                <Ionicons name="close" size={24} color={colors.white} />
+              </Pressable>
+              <View className="flex-1 items-center px-3">
+                <ScalableText className="text-center text-base font-bold text-white">
+                  {t("log.scanTitle")}
+                </ScalableText>
+                <ScalableText className="text-center text-xs text-white/80">
+                  {t("log.scanAim")}
+                </ScalableText>
+              </View>
+              {/* Spacer so the title stays optically centred against the close button. */}
+              <View className="h-11 w-11" />
+            </View>
+
+            {/* A window to line the barcode up in. Purely a sighting aid: CameraView reads the
+                whole frame, so a code outside this box still scans. */}
+            <View className="items-center">
+              <View className="h-32 w-4/5 rounded-2xl border-2 border-white/80" />
+            </View>
+
+            <View className="items-center pb-6">
+              <Pressable
+                accessibilityRole="button"
+                onPress={closeScanner}
+                className="min-h-[44px] justify-center rounded-full bg-black/60 px-5"
+              >
+                <ScalableText className="text-sm font-semibold text-white">
+                  {t("log.scanTypeInstead")}
+                </ScalableText>
+              </Pressable>
+            </View>
+          </SafeAreaView>
+        </View>
+      )}
     </Modal>
 
     {/* Contextual paywall: pops over the sheet when the weekly AI quota is spent. Manual entry
