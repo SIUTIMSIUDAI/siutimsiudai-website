@@ -1,0 +1,247 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<title>Steamed Sea Bass · 清蒸鱸魚 · Siu Tim Siu Dai</title>
+<meta name="description" content="A sample Cantonese recipe written for the Siu Tim Siu Dai app, used to demonstrate recipe import. 清蒸鱸魚。" />
+<meta name="theme-color" content="#A0602F" />
+<link rel="canonical" href="https://siutimsiudai.app/sample/steamed-fish" />
+<meta property="og:type" content="article" />
+<meta property="og:site_name" content="少甜少底 · Siu Tim Siu Dai" />
+<meta property="og:title" content="Steamed Sea Bass · 清蒸鱸魚" />
+<meta property="og:description" content="A sample Cantonese recipe written for the Siu Tim Siu Dai app." />
+<meta property="og:url" content="https://siutimsiudai.app/sample/steamed-fish" />
+<meta name="twitter:card" content="summary" />
+
+<!--
+  WHY THIS PAGE EXISTS
+
+  The "add a recipe" sheet in the app offers two sample links so the walkthrough works with no
+  network and with nobody else's recipe. Both point here, at our own domain, and the app answers
+  them from a bundled fixture (services/sampleStructured.ts) rather than fetching. That left the
+  URLs themselves returning 404, which reads as though the app is pointing at a link that does not
+  exist. It does now.
+
+  Two audiences, one recipe:
+
+  - A person who taps the link. The ingredient lines below are the exact strings the app shows on
+    the recipe card, so the page and the phone read identically side by side.
+  - A parser. The JSON-LD block carries the same recipe in a normalised form: quantities in units
+    schema.org consumers understand, with the wet-market original kept in brackets. Our own scraper
+    (services/urlScrapeService.ts) reads recipeIngredient, recipeInstructions, totalTime and
+    recipeYield, so this page parses into the same dish if it is ever fetched for real, which
+    happens for any spelling of the URL that is not the exact demo link.
+
+  The two forms differ in wording, not in substance: "2 tbsp steamed-fish soy sauce (蒸魚豉油 2 湯匙)"
+  and "steamed-fish soy / 蒸魚豉油 2 湯匙" are the same ingredient.
+
+  The Chinese in the ingredient and step lines is reproduced verbatim from the app fixture, so it
+  keeps the fixture's full-width commas. The surrounding prose follows the house rule used by the
+  privacy and terms pages: ASCII comma, full-width period.
+
+  Written for this app. Not reproduced from any other publisher.
+-->
+
+<style>
+  :root {
+    --brand: #A0602F;
+    --brand-dark: #824B24;
+    --ink: #211E18;
+    --ink-muted: #6F695C;
+    --ink-faint: #9C9484;
+    --surface: #FBF8F1;
+    --surface-subtle: #F3EEE3;
+    --border: #E4DCCB;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--surface-subtle);
+    color: var(--ink);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang HK",
+      "Hiragino Sans", "Microsoft JhengHei", "Noto Sans TC", Roboto, Helvetica, Arial, sans-serif;
+    line-height: 1.7;
+    -webkit-font-smoothing: antialiased;
+  }
+  .doc {
+    max-width: 44rem;
+    margin: 0 auto;
+    padding: 2.5rem 1.5rem 3rem;
+  }
+  .back {
+    display: inline-block;
+    margin-bottom: 1.5rem;
+    color: var(--brand);
+    text-decoration: none;
+    font-weight: 700;
+    font-size: 0.875rem;
+  }
+  .back:hover { text-decoration: underline; }
+  h1 { font-size: 1.75rem; line-height: 1.3; margin: 0 0 0.35rem; }
+  h1 .zh { color: var(--ink-muted); font-weight: 600; font-size: 1.25rem; }
+  .govern {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 0.75rem;
+    padding: 0.75rem 1rem;
+    font-size: 0.85rem;
+    color: var(--ink-muted);
+    margin: 1.25rem 0 2rem;
+  }
+  .govern p { margin: 0 0 0.4rem; }
+  .govern p:last-child { margin: 0; }
+  h2 { font-size: 1.1rem; margin: 1.75rem 0 0.75rem; color: var(--brand-dark); }
+  p { margin: 0 0 0.9rem; }
+  a { color: var(--brand); }
+  .facts {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    list-style: none;
+    margin: 0.75rem 0 0;
+    padding: 0;
+  }
+  .facts li {
+    margin: 0;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 999px;
+    padding: 0.25rem 0.75rem;
+    font-size: 0.8125rem;
+    color: var(--ink-muted);
+  }
+  ul.ing { list-style: none; margin: 0; padding: 0; }
+  ul.ing li {
+    margin: 0;
+    padding: 0.55rem 0;
+    border-bottom: 1px solid var(--border);
+  }
+  ul.ing li:last-child { border-bottom: 0; }
+  .metric { color: var(--ink-faint); font-size: 0.85rem; }
+  ol.method { margin: 0; padding-left: 1.35rem; }
+  ol.method li { margin: 0 0 1.1rem; }
+  ol.method li:last-child { margin-bottom: 0; }
+  .zh-line { display: block; color: var(--ink-muted); }
+  .timer {
+    display: inline-block;
+    margin-top: 0.35rem;
+    font-size: 0.75rem;
+    font-weight: 700;
+    color: var(--brand);
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 999px;
+    padding: 0.15rem 0.6rem;
+  }
+  footer {
+    margin-top: 2.5rem;
+    padding-top: 1.25rem;
+    border-top: 1px solid var(--border);
+    color: var(--ink-faint);
+    font-size: 0.8125rem;
+  }
+  footer a { color: var(--brand); }
+</style>
+
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "Recipe",
+  "name": "Steamed Sea Bass",
+  "alternateName": "清蒸鱸魚",
+  "inLanguage": "en",
+  "description": "The plainest Cantonese treatment of a whole fish. Steamed over high heat with ginger, finished with spring onion, hot oil and soy.",
+  "author": {
+    "@type": "Organization",
+    "name": "少甜少底 · Siu Tim Siu Dai",
+    "url": "https://siutimsiudai.app/"
+  },
+  "publisher": {
+    "@type": "Organization",
+    "name": "少甜少底 · Siu Tim Siu Dai",
+    "url": "https://siutimsiudai.app/"
+  },
+  "datePublished": "2026-08-17",
+  "recipeCuisine": "Cantonese",
+  "recipeCategory": "Main course",
+  "keywords": "sea bass, steamed fish, Cantonese, 鱸魚, 清蒸, 蒸魚",
+  "recipeYield": "2 servings",
+  "totalTime": "PT20M",
+  "recipeIngredient": [
+    "1 whole sea bass (鱸魚 1 條)",
+    "5 ginger slices (薑 5 片)",
+    "2 spring onions (葱 2 條)",
+    "2 tbsp steamed-fish soy sauce (蒸魚豉油 2 湯匙)",
+    "1 tbsp hot oil (熱油 1 湯匙)"
+  ],
+  "recipeInstructions": [
+    {
+      "@type": "HowToStep",
+      "position": 1,
+      "text": "Score the fish, lay ginger underneath and on top."
+    },
+    {
+      "@type": "HowToStep",
+      "position": 2,
+      "text": "Steam over high heat until just cooked."
+    },
+    {
+      "@type": "HowToStep",
+      "position": 3,
+      "text": "Top with spring onion, pour over hot oil and soy."
+    }
+  ]
+}
+</script>
+</head>
+<body>
+  <main class="doc" role="main">
+    <a class="back" href="https://siutimsiudai.app/">&larr; 少甜少底 · Siu Tim Siu Dai</a>
+    <h1>Steamed Sea Bass <span class="zh" lang="zh-Hant">清蒸鱸魚</span></h1>
+
+    <ul class="facts">
+      <li>Serves 2 · <span lang="zh-Hant">2 人份</span></li>
+      <li>20 minutes · <span lang="zh-Hant">20 分鐘</span></li>
+      <li>Cantonese · <span lang="zh-Hant">粵菜</span></li>
+    </ul>
+
+    <div class="govern">
+      <p lang="en">One of two sample recipes written for the Siu Tim Siu Dai app, so the recipe import walkthrough has something to import. It is our own writing, not reproduced from any other cookbook or website.</p>
+      <p lang="zh-Hant">呢個係為少甜少底應用程式而寫嘅兩個示範食譜之一,用嚟示範食譜匯入功能。內容由我哋自己撰寫,並非轉載自其他食譜書或網站。</p>
+    </div>
+
+    <h2>Ingredients <span lang="zh-Hant">材料</span></h2>
+    <ul class="ing">
+      <li>sea bass / <span lang="zh-Hant">鱸魚 1 條</span></li>
+      <li>ginger / <span lang="zh-Hant">薑 5 片</span></li>
+      <li>spring onion / <span lang="zh-Hant">葱 2 條</span></li>
+      <li>steamed-fish soy / <span lang="zh-Hant">蒸魚豉油 2 湯匙</span> <span class="metric">(about 30 ml)</span></li>
+      <li>hot oil / <span lang="zh-Hant">熱油 1 湯匙</span> <span class="metric">(about 15 ml)</span></li>
+    </ul>
+
+    <h2>Method <span lang="zh-Hant">做法</span></h2>
+    <ol class="method">
+      <li>
+        Score the fish, lay ginger underneath and on top.
+        <span class="zh-line" lang="zh-Hant">魚身別花，薑墊底鋪面。</span>
+      </li>
+      <li>
+        Steam over high heat until just cooked.
+        <span class="zh-line" lang="zh-Hant">大火蒸至剛熟。</span>
+        <span class="timer">Timer 8 min · <span lang="zh-Hant">計時 8 分鐘</span></span>
+      </li>
+      <li>
+        Top with spring onion, pour over hot oil and soy.
+        <span class="zh-line" lang="zh-Hant">鋪葱，淋熱油同豉油。</span>
+      </li>
+    </ol>
+
+    <footer>
+      Sample recipe · <span lang="zh-Hant">示範食譜</span> ·
+      <a href="https://siutimsiudai.app/sample/braised-beef-brisket">Braised Beef Brisket · 蘿蔔炆牛腩</a>
+      <br />© 2026 少甜少底 · Siu Tim Siu Dai
+    </footer>
+  </main>
+</body>
+</html>

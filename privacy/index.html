@@ -88,7 +88,7 @@
   <main class="doc" role="main">
     <a class="back" href="https://siutimsiudai.app/">&larr; 少甜少底 · Siu Tim Siu Dai</a>
     <h1>Privacy Policy <span class="zh" lang="zh-Hant">私隱政策</span></h1>
-    <p class="meta">Effective Date: August 12, 2026 · <span lang="zh-Hant">生效日期:2026 年 8 月 12 日</span></p>
+    <p class="meta">Effective Date: August 17, 2026 · <span lang="zh-Hant">生效日期:2026 年 8 月 17 日</span></p>
     <p class="govern">
       <span lang="en">The English version governs. The Chinese translation is provided for convenience.</span>
       <span lang="zh-Hant">本頁以英文版本為準,中文翻譯僅供參考。</span>
@@ -116,7 +116,8 @@
         <li><strong>Data Training:</strong> Your personal data and food logs are strictly used to process your immediate request and are not used by Google Cloud to train public AI models.</li>
         <li><strong>Breached Password Check:</strong> When you choose a new password, we check it against the Have I Been Pwned database of passwords exposed in public data breaches. Your password is never sent. It is converted on your device into a SHA-1 hash, and only the <em>first five characters</em> of that hash are transmitted; the service returns every entry sharing those five characters, and the comparison is completed on your device. The service therefore cannot determine your password, nor whether the result was a match. No email address, account identifier or other personal data accompanies the request. This check runs only when a password is being set — never when you sign in — and if the service cannot be reached your password is accepted as normal.</li>
         <li><strong>Subscription Processing (RevenueCat):</strong> Our Pro and Max subscriptions are handled through Apple's in-app purchase system, with subscription status managed for us by RevenueCat, Inc. To tell whether a subscription is active, we share a randomly generated app user identifier and the App Store purchase receipt with RevenueCat. This is not linked to your email address, and no payment card details ever reach us or RevenueCat — those stay with Apple.</li>
-        <li><strong>Recipe Import:</strong> When you import a recipe from a web address you paste in, the app fetches that page to read its recipe details. In the mobile app the request goes straight to the recipe site; in the browser version, or if a direct fetch is refused, it is routed through a public proxy service so it can complete. Only the recipe URL is sent — never your account details — so we suggest importing only from sites you trust.</li>
+        <li><strong>Recipe Import:</strong> When you import a recipe from a web address you paste in, that address is sent to our own server, which fetches the page and passes it back to the app to read the recipe details. The request to the recipe website therefore comes from us rather than from your device, and no third-party proxy service is involved. Only the address is sent — never your account details — so we suggest importing only from sites you trust.</li>
+        <li><strong>Barcode Lookup (Open Food Facts):</strong> When you scan a product barcode, that barcode number is sent from your device to Open Food Facts, a free and open database of food products, which returns the product name and the nutrition figures recorded for it. As with any ordinary web request, your device's network address is visible to that service, but no account identifier, email address or diary data accompanies it. The nutrition figures shown for a scanned product come from that database and are not estimated by us.</li>
       </ul>
 
       <h2>4. Family Sharing</h2>
@@ -158,7 +159,8 @@
         <li><strong>資料訓練:</strong>您的個人資料及飲食記錄僅用於處理您當下的請求;Google Cloud 不會使用這些資料來訓練公開的人工智能模型。</li>
         <li><strong>外洩密碼檢查:</strong>當您設定新密碼時,我們會將其與 Have I Been Pwned(記錄公開資料外洩事件中曝光密碼的資料庫)比對。我們不會傳送您的密碼。密碼會在您的裝置上轉換為 SHA-1 雜湊值,而我們只會傳送該雜湊值的<em>首五個字元</em>;該服務會回傳所有共用這五個字元的紀錄,比對則在您的裝置上完成。因此,該服務無法得知您的密碼,亦無法得知比對結果是否吻合。有關要求不會附帶電郵地址、帳戶識別碼或任何其他個人資料。此檢查僅在設定密碼時執行,登入時絕不會執行;若無法連接該服務,您的密碼會照常獲接納。</li>
         <li><strong>訂閱處理(RevenueCat):</strong>我們的 Pro 及 Max 訂閱透過 Apple 的應用程式內購買系統處理,並由 RevenueCat, Inc. 代為管理訂閱狀態。為判斷訂閱是否生效,我們會將一個隨機產生的應用程式用戶識別碼,以及 App Store 的購買收據交予 RevenueCat。這些資料不會與您的電郵地址關聯。任何信用卡資料都不會傳送至我們或 RevenueCat,一律由 Apple 保管。</li>
-        <li><strong>食譜匯入:</strong>當您貼上網址匯入食譜時,應用程式會擷取該網頁以讀取食譜內容。在流動應用程式中,此要求會直接傳送至食譜網站。在網頁版中,或當直接擷取被拒時,則會經由公開代理服務轉送以完成擷取。只會傳送食譜網址,絕不包含您的帳戶資料,因此我們建議只從您信任的網站匯入。</li>
+        <li><strong>食譜匯入:</strong>當您貼上網址匯入食譜時,該網址會傳送至我們自己的伺服器,由伺服器擷取該網頁,再交回應用程式讀取食譜內容。因此,向食譜網站發出的要求來自我們,而非您的裝置,過程亦不涉及任何第三方代理服務。只會傳送該網址,絕不包含您的帳戶資料,因此我們建議只從您信任的網站匯入。</li>
+        <li><strong>條碼查詢(Open Food Facts):</strong>當您掃描產品條碼時,該條碼號碼會由您的裝置傳送至 Open Food Facts(一個免費開放的食品資料庫),並由其回傳產品名稱及所記錄的營養數據。與任何一般網絡要求一樣,該服務可見您裝置的網絡位址,但不會附帶任何帳戶識別碼、電郵地址或日記資料。已掃描產品所顯示的營養數據來自該資料庫,並非由我們估算。</li>
       </ul>
 
       <h2>4. 家庭共享</h2>
