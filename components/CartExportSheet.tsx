@@ -16,9 +16,9 @@ import {
   searchTermFor,
 } from "@/utils/cartExport";
 import { openStoreUrl } from "@/utils/storeLauncher";
-import { RETAILERS } from "@/constants/retailers";
+import { RETAILER_ORDER, RETAILERS } from "@/constants/retailers";
 import { tapLight } from "@/utils/haptics";
-import { GroceryRetailer, Recipe, StoreAvailability } from "@/types";
+import { GroceryRetailer, Recipe } from "@/types";
 
 interface Props {
   visible: boolean;
@@ -29,9 +29,9 @@ interface Props {
 /**
  * The Max-only "buy what I'm short of" sheet, in two steps.
  *
- * Step 1 compares the three retailers on the recipe's still-missing ingredients (pantry-aware) and
- * lets the shopper pick one. Step 2 is the shopping run itself: the same missing list as a
- * checklist, in that store's language, one tap per ingredient.
+ * Step 1 lists the three retailers with what each can do for a multi-item list, and lets the shopper
+ * pick one. Step 2 is the shopping run itself: the recipe's still-missing ingredients (pantry-aware)
+ * as a checklist, in that store's language, one tap per ingredient.
  *
  * Step 2 exists because of a limit in the stores, not in us. Only HKTVmall's search engine ORs
  * several terms, so only it can be handed the whole list in one URL; Wellcome matches a joined
@@ -56,8 +56,6 @@ export function CartExportSheet({ visible, recipe, onClose }: Props) {
   const clearRun = useCartRunStore((s) => s.clearRun);
 
   const run = runs[recipe.id];
-  const [availability, setAvailability] = useState<StoreAvailability[]>([]);
-  const [loading, setLoading] = useState(false);
   const [exporting, setExporting] = useState<GroceryRetailer | null>(null);
   // Set when a store genuinely would not open, so the sheet can say so instead of looking broken.
   const [failedStore, setFailedStore] = useState<GroceryRetailer | null>(null);
@@ -68,26 +66,9 @@ export function CartExportSheet({ visible, recipe, onClose }: Props) {
   const names = useMemo(() => missing.map((m) => m.name), [missing]);
 
   useEffect(() => {
-    if (!visible || missing.length === 0) {
-      setAvailability([]);
-      return;
-    }
-    let active = true;
-    setLoading(true);
-    setFailedStore(null); // a fresh open should not inherit the last run's error
-    cartExportService.checkAvailability(missing).then((res) => {
-      if (active) {
-        setAvailability(res);
-        setLoading(false);
-      }
-    });
-    return () => {
-      active = false;
-    };
-  }, [visible, missing]);
-
-  useEffect(() => {
     if (!visible) return;
+    // A fresh open should not inherit the last run's "couldn't open" error.
+    setFailedStore(null);
     // Yesterday's ticks must not survive a pantry change. If the fridge gained soy sauce overnight
     // it is no longer on this list, so its tick would inflate "3 of 4" on a list of three.
     reconcile(recipe.id, names);
@@ -95,10 +76,6 @@ export function CartExportSheet({ visible, recipe, onClose }: Props) {
     // back lands you back on your list rather than on the store picker you already answered.
     setOnRun(!!useCartRunStore.getState().runs[recipe.id]);
   }, [visible, recipe.id, names, reconcile]);
-
-  // The widest catalogue in this run drives the "Best match" flag. Guarded so an all-zero run (or
-  // the loading gap) never lights every row up.
-  const bestFound = availability.reduce((max, a) => Math.max(max, a.foundCount), 0);
 
   const openUrls = useCallback(async (urls: { deepLinkUrl: string; webUrl: string }) => {
     const outcome = await openStoreUrl(urls, Linking);
@@ -152,6 +129,10 @@ export function CartExportSheet({ visible, recipe, onClose }: Props) {
   const doneCount = run ? checkedCount(recipe.id, names) : 0;
   const allDone = missing.length > 0 && doneCount === missing.length;
   const showRun = onRun && !!run && !!runRetailer && missing.length > 0;
+  // The first still-missing ingredient not yet ticked into the basket. One button can then walk the
+  // shopper straight to the next gap instead of leaving them to hunt the list for it. Computed in
+  // render, which is exactly when a tick changes, so it always points at the real next item.
+  const nextItem = showRun ? missing.find((m) => !isChecked(recipe.id, m.name)) : undefined;
 
   return (
     <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
@@ -195,10 +176,15 @@ export function CartExportSheet({ visible, recipe, onClose }: Props) {
           {missing.length > 0 && (
             <ScalableText className="mb-3 text-sm text-ink-muted">
               {showRun
-                ? tl(
-                    `${doneCount} of ${missing.length} in the basket. Tap one to search it.`,
-                    `入咗 ${doneCount} / ${missing.length} 樣。撳一樣就幫你搵。`,
-                  )
+                ? runRetailer?.supportsMultiTermSearch
+                  ? tl(
+                      `${doneCount} of ${missing.length} in the basket. The whole list's searched. Add each and tick it off.`,
+                      `入咗 ${doneCount} / ${missing.length} 樣。成張單搵晒喇，加咗入車就剔走佢。`,
+                    )
+                  : tl(
+                      `${doneCount} of ${missing.length} in the basket. Work through them one at a time.`,
+                      `入咗 ${doneCount} / ${missing.length} 樣。逐樣慢慢搞掂佢。`,
+                    )
                 : tl(
                     `${missing.length} still short. Pick a store to send the list.`,
                     `仲爭 ${missing.length} 樣。揀間鋪發送清單。`,
@@ -223,12 +209,6 @@ export function CartExportSheet({ visible, recipe, onClose }: Props) {
                   {missing.map((item) => {
                     const term = searchTermFor(item, runRetailer.searchLanguage);
                     const ticked = isChecked(recipe.id, item.name);
-                    // Availability is computed from this very `missing` array, so the ids line up.
-                    // During the loading gap there is no match yet, and "stocked" is the safe read.
-                    const stocked =
-                      availability
-                        .find((a) => a.retailer === run.retailer)
-                        ?.matches.find((m) => m.itemId === item.id)?.available ?? true;
                     return (
                       <View
                         key={item.id}
@@ -270,11 +250,6 @@ export function CartExportSheet({ visible, recipe, onClose }: Props) {
                             >
                               {term}
                             </ScalableText>
-                            {!stocked && (
-                              <ScalableText className="pt-0.5 text-xs text-ink-faint">
-                                {tl("Might not stock this one", "呢間可能冇貨")}
-                              </ScalableText>
-                            )}
                           </View>
                           <ScalableText
                             className={`text-sm ${ticked ? "text-ink-faint" : "text-ink-muted"}`}
@@ -298,6 +273,28 @@ export function CartExportSheet({ visible, recipe, onClose }: Props) {
                       )}
                     </ScalableText>
                   </View>
+                )}
+
+                {nextItem && (
+                  <Pressable
+                    accessibilityRole="button"
+                    accessibilityLabel={tl(
+                      `Search ${searchTermFor(nextItem, runRetailer.searchLanguage)} on ${runRetailer.name}`,
+                      `喺${runRetailer.nameZh}搵${searchTermFor(nextItem, runRetailer.searchLanguage)}`,
+                    )}
+                    disabled={exporting !== null}
+                    onPress={() => handleSearchItem(nextItem, run.retailer)}
+                    style={{ backgroundColor: colors.brand }}
+                    className="mt-1 flex-row items-center justify-center gap-2 rounded-2xl py-3 active:opacity-80"
+                  >
+                    <Ionicons name="search" size={18} color={colors.white} />
+                    <ScalableText className="text-base font-bold text-white">
+                      {tl(
+                        `Search ${searchTermFor(nextItem, runRetailer.searchLanguage)}`,
+                        `搵${searchTermFor(nextItem, runRetailer.searchLanguage)}`,
+                      )}
+                    </ScalableText>
+                  </Pressable>
                 )}
 
                 <Pressable
@@ -325,27 +322,23 @@ export function CartExportSheet({ visible, recipe, onClose }: Props) {
                   </ScalableText>
                 </View>
               </View>
-            ) : loading ? (
-              <View className="items-center py-8">
-                <ActivityIndicator color={colors.brand} />
-              </View>
             ) : (
               <View className="gap-3">
-                {availability.map((store) => {
-                  const cfg = RETAILERS[store.retailer];
-                  const allFound = store.foundCount === store.totalCount;
-                  const isBest = bestFound > 0 && store.foundCount === bestFound;
-                  const busy = exporting === store.retailer;
+                {RETAILER_ORDER.map((id) => {
+                  const cfg = RETAILERS[id];
+                  const busy = exporting === id;
+                  // An honest, static line about what each store can do for a multi-item list, driven
+                  // by the one thing we actually know (its search engine), not an invented stock count.
+                  const desc = cfg.supportsMultiTermSearch
+                    ? tl("Searches your whole list at once", "一次過幫你搵晒成張單")
+                    : tl("Search one item at a time", "逐樣慢慢搵");
                   return (
                     <Pressable
-                      key={store.retailer}
+                      key={id}
                       accessibilityRole="button"
-                      accessibilityLabel={tl(
-                        `Export to ${cfg.name}, ${store.foundCount} of ${store.totalCount} items found`,
-                        `發送去${cfg.nameZh}，搵到 ${store.foundCount} / ${store.totalCount} 樣`,
-                      )}
+                      accessibilityLabel={`${tl(cfg.name, cfg.nameZh)}. ${desc}`}
                       disabled={exporting !== null}
-                      onPress={() => handlePickStore(store.retailer)}
+                      onPress={() => handlePickStore(id)}
                       className="flex-row items-center gap-3 rounded-2xl border border-[#E4DCCB] p-3 active:opacity-80"
                     >
                       <View
@@ -355,25 +348,11 @@ export function CartExportSheet({ visible, recipe, onClose }: Props) {
                         <Ionicons name="storefront" size={20} color={colors.white} />
                       </View>
                       <View className="flex-1 gap-0.5">
-                        <View className="flex-row items-center gap-2">
-                          <ScalableText className="text-base font-bold text-ink">
-                            {tl(cfg.name, cfg.nameZh)}
-                          </ScalableText>
-                          {isBest && (
-                            <View className="rounded-full bg-jade-100 px-2 py-0.5">
-                              <ScalableText className="text-xs font-bold text-jade">
-                                {tl("Best match", "貨最齊")}
-                              </ScalableText>
-                            </View>
-                          )}
-                        </View>
-                        <ScalableText
-                          className={`text-sm font-medium ${allFound ? "text-jade" : "text-ink-muted"}`}
-                        >
-                          {tl(
-                            `${store.foundCount} / ${store.totalCount} items found`,
-                            `搵到 ${store.foundCount} / ${store.totalCount} 樣`,
-                          )}
+                        <ScalableText className="text-base font-bold text-ink">
+                          {tl(cfg.name, cfg.nameZh)}
+                        </ScalableText>
+                        <ScalableText className="text-sm font-medium text-ink-muted">
+                          {desc}
                         </ScalableText>
                       </View>
                       {busy ? (

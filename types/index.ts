@@ -224,24 +224,6 @@ export interface GroceryList {
 // search in Traditional Chinese, so the local engines match the right SKUs.
 export type GroceryRetailer = "hktvmall" | "wellcome" | "parknshop";
 
-// One missing ingredient checked against a single retailer's catalog. `term` is the exact string
-// we would search that store with, already in the store's language, so the availability check and
-// the eventual export share one source of truth.
-export interface StoreItemMatch {
-  itemId: string; // the GroceryListItem this came from
-  term: string; // language-correct search term for this retailer
-  available: boolean; // whether this retailer's catalog carries it
-}
-
-// A retailer's availability across the whole missing list: the summary counts that drive the
-// "4 / 5 items found" row, plus the per-item detail behind it.
-export interface StoreAvailability {
-  retailer: GroceryRetailer;
-  foundCount: number;
-  totalCount: number;
-  matches: StoreItemMatch[];
-}
-
 // Everything needed to hand the list to one retailer. clipboardText holds the full list (never
 // truncated, always in the store's language); deepLinkUrl tries the native app; webUrl is the
 // https search-results fallback that is always valid.

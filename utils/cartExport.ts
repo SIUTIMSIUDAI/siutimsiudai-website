@@ -1,6 +1,5 @@
-import { GroceryListItem, PantryItem, Recipe, StoreItemMatch } from "@/types";
+import { GroceryListItem, PantryItem, Recipe } from "@/types";
 import { RetailerConfig, SearchLanguage } from "@/constants/retailers";
-import { canonicalizeIngredient } from "@/constants/ingredientDictionary";
 import { mergeIngredients, MergeInput } from "./groceryMerge";
 
 /**
@@ -150,22 +149,4 @@ export function buildStoreEntryUrl(
 ): { webUrl: string; deepLinkUrl: string } {
   if (retailer.supportsMultiTermSearch && items.length > 0) return buildSearchUrl(retailer, items);
   return { webUrl: retailer.homeUrl, deepLinkUrl: retailer.homeUrl };
-}
-
-/**
- * Check one retailer's catalogue against the missing list. Carry-status is decided on the canonical
- * key (language-independent) so it stays consistent, while the `term` we surface is in the store's
- * language. `gaps` is the set of canonical keys the store does not stock.
- */
-export function matchAvailabilityFor(
-  items: Array<Pick<GroceryListItem, "id" | "name" | "nameZh">>,
-  retailer: RetailerConfig,
-  gaps: string[],
-): StoreItemMatch[] {
-  const gapSet = new Set(gaps);
-  return items.map((item) => ({
-    itemId: item.id,
-    term: searchTermFor(item, retailer.searchLanguage),
-    available: !gapSet.has(canonicalizeIngredient(item.name)),
-  }));
 }

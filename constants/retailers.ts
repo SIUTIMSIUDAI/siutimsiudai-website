@@ -10,7 +10,7 @@ export interface RetailerConfig {
   // two local supermarket chains match far better on Traditional Chinese SKU names, so we hand
   // them nameZh. This is the whole of the "language rule" as data.
   searchLanguage: SearchLanguage;
-  brandColor: string; // drives the store row accent in the comparison modal
+  brandColor: string; // drives the store row accent in the store picker
   // The https search-results URL. {q} is replaced with the URL-encoded first missing item, so the
   // shopper lands on real results for the thing they are short of.
   //
@@ -49,7 +49,8 @@ export interface RetailerConfig {
   appSearchTemplate?: string;
 }
 
-// Fixed display order for the comparison modal (widest catalogue first).
+// Fixed display order for the store picker: HKTVmall first, since it is the only one that can search
+// the whole missing list at once.
 export const RETAILER_ORDER: GroceryRetailer[] = ["hktvmall", "wellcome", "parknshop"];
 
 export const RETAILERS: Record<GroceryRetailer, RetailerConfig> = {
@@ -113,15 +114,4 @@ export const RETAILERS: Record<GroceryRetailer, RetailerConfig> = {
     // instead of Safari, which is the one thing their missing search path costs us back.
     homeUrl: "https://www.parknshop.com/zh-hk",
   },
-};
-
-// Canonical ingredient keys each retailer does NOT stock in our mock catalogue. HKTVmall is the
-// online megastore (no gaps); the supermarket chains miss a few specialty items, which is exactly
-// what gives the comparison modal something to compare. Deterministic on purpose so the numbers
-// are stable across renders and unit-testable. Swap this for a live product-search API behind
-// cartExportService and neither the types nor the UI change.
-export const MOCK_RETAILER_GAPS: Record<GroceryRetailer, string[]> = {
-  hktvmall: [],
-  wellcome: ["shaoxing wine"],
-  parknshop: ["dark soy sauce"],
 };

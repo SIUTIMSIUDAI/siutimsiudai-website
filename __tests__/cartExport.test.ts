@@ -4,7 +4,6 @@ import {
   buildStoreEntryUrl,
   formatClipboardList,
   humanizeAmount,
-  matchAvailabilityFor,
   missingItemsFromRecipe,
   searchQueryFor,
   searchTermFor,
@@ -14,11 +13,10 @@ import { RETAILERS } from "@/constants/retailers";
 import { canonicalizeIngredient } from "@/constants/ingredientDictionary";
 import { CanonicalUnit, GroceryListItem, PantryItem, Recipe, RecipeIngredient } from "@/types";
 
-// The 1-Click Cart Export logic (Max perk), proven without rendering. The three guarantees that
+// The 1-Click Cart Export logic (Max perk), proven without rendering. The two guarantees that
 // matter: (1) the language rule — HKTVmall searches in English, Wellcome and ParknShop in Chinese;
-// (2) availability numbers are deterministic per store so the comparison modal is stable and the
-// mock is swap-ready; (3) "missing" reuses the same pantry-aware grocery merge as the rest of the
-// app. No clipboard/Linking here: those are side effects wired at the UI call site.
+// (2) "missing" reuses the same pantry-aware grocery merge as the rest of the app. No
+// clipboard/Linking here: those are side effects wired at the UI call site.
 
 function gli(
   over: Partial<GroceryListItem> & Pick<GroceryListItem, "name" | "nameZh">,
@@ -246,38 +244,6 @@ describe("buildStoreEntryUrl — where tapping the store row itself lands", () =
       const { webUrl, deepLinkUrl } = buildStoreEntryUrl(RETAILERS[r], MISSING);
       expect(deepLinkUrl).toBe(webUrl);
     }
-  });
-});
-
-describe("matchAvailabilityFor — canonical carry-status, language-correct term", () => {
-  it("marks everything available for a store with no catalogue gaps", () => {
-    const matches = matchAvailabilityFor(MISSING, RETAILERS.hktvmall, []);
-    expect(matches.every((m) => m.available)).toBe(true);
-    expect(matches[0].term).toBe("Chicken"); // en term surfaced
-  });
-
-  it("marks a gapped item unavailable while still surfacing its Chinese term", () => {
-    const matches = matchAvailabilityFor(MISSING, RETAILERS.wellcome, ["shaoxing wine"]);
-    const wine = matches.find((m) => m.itemId === MISSING[3].id)!;
-    expect(wine.available).toBe(false);
-    expect(wine.term).toBe("紹興酒");
-    expect(matches.filter((m) => m.available).length).toBe(3);
-  });
-});
-
-describe("cartExportService.checkAvailability — deterministic three-store comparison", () => {
-  it("orders widest-catalogue first with the expected found counts", async () => {
-    const res = await cartExportService.checkAvailability(MISSING);
-    expect(res.map((r) => r.retailer)).toEqual(["hktvmall", "wellcome", "parknshop"]);
-    expect(res[0]).toMatchObject({ retailer: "hktvmall", foundCount: 4, totalCount: 4 });
-    expect(res[1]).toMatchObject({ retailer: "wellcome", foundCount: 3, totalCount: 4 });
-    expect(res[2]).toMatchObject({ retailer: "parknshop", foundCount: 3, totalCount: 4 });
-  });
-
-  it("returns identical results across calls (stable, not random)", async () => {
-    const a = await cartExportService.checkAvailability(MISSING);
-    const b = await cartExportService.checkAvailability(MISSING);
-    expect(a).toEqual(b);
   });
 });
 
