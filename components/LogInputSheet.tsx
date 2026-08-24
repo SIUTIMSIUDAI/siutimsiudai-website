@@ -2,6 +2,7 @@ import { useRef, useState } from "react";
 import {
   Keyboard,
   KeyboardAvoidingView,
+  Linking,
   Modal,
   Platform,
   Pressable,
@@ -122,20 +123,24 @@ async function cacheMealPhoto(uri: string): Promise<string> {
   }
 }
 
-// Resolve a meal image to the cached file URI PLUS its base64, or null if the user backs out. The
-// source is an explicit user choice on the Photo tab:
-//   "camera"  - ask for camera permission and launch the viewfinder. If it is denied we fall back
-//               to the library so a "no" on the prompt still yields a usable image.
-//   "library" - open the photo library straight away, no camera prompt. This is the path for a meal
-//               already eaten: you forgot to snap it live, so you pick the photo you took.
-// Web has no reliable in-preview camera, so it always uses the library whatever the source. Never
-// throws.
+// The outcome of asking for a meal image. A bare null could not tell a cancel (the user backed
+// out, so say nothing) from a refusal (camera permission off, so say how to fix it) from a native
+// fault, so the button just died silently. This union lets runPhoto react to each: the app's rule
+// is to report a failure, never swallow it.
+type PhotoResult =
+  | { status: "ok"; uri: string; base64: string }
+  | { status: "cancel" }
+  | { status: "denied" } // camera permission refused; only the camera path can raise this
+  | { status: "error" }; // the picker threw, e.g. restricted photo access or a native fault
+
+// Resolve a meal image for the chosen source. "camera" asks for permission and opens the
+// viewfinder; a refusal returns "denied" (not a silent fall-through to the library) so the UI can
+// point the user at Settings and the upload button. "library" (and web, which has no in-preview
+// camera) opens the photo library, which needs no permission on iOS. Never throws.
 //
 // quality 0.5 (was 0.7) and base64: the bytes now actually travel to the vision model, so the
 // payload size is real. Gemini needs enough detail to name a dish, not to read fine print.
-async function getMealPhoto(
-  source: "camera" | "library",
-): Promise<{ uri: string; base64: string } | null> {
+async function getMealPhoto(source: "camera" | "library"): Promise<PhotoResult> {
   const options: ImagePicker.ImagePickerOptions = {
     mediaTypes: ["images"],
     quality: 0.5,
@@ -147,16 +152,15 @@ async function getMealPhoto(
       result = await ImagePicker.launchImageLibraryAsync(options);
     } else {
       const perm = await ImagePicker.requestCameraPermissionsAsync();
-      result = perm.granted
-        ? await ImagePicker.launchCameraAsync(options)
-        : await ImagePicker.launchImageLibraryAsync(options);
+      if (!perm.granted) return { status: "denied" };
+      result = await ImagePicker.launchCameraAsync(options);
     }
-    if (result.canceled || !result.assets?.length) return null;
+    if (result.canceled || !result.assets?.length) return { status: "cancel" };
     const asset = result.assets[0];
-    if (!asset.base64) return null; // nothing to send; treated as a cancel, not a failure
-    return { uri: await cacheMealPhoto(asset.uri), base64: asset.base64 };
+    if (!asset.base64) return { status: "cancel" }; // nothing to send; a cancel, not a failure
+    return { status: "ok", uri: await cacheMealPhoto(asset.uri), base64: asset.base64 };
   } catch {
-    return null;
+    return { status: "error" };
   }
 }
 
@@ -219,6 +223,14 @@ export function LogInputSheet({ visible, date, onClose }: Props) {
   // guess. A photo of a cat SHOULD come back empty, and the user needs to be told that plainly.
   const [aiMiss, setAiMiss] = useState(false);
   const [paywallVisible, setPaywallVisible] = useState(false);
+  // Why a tapped Photo action produced no image: "denied" (camera permission off) or "error" (the
+  // picker threw). null means nothing to report. Surfacing this is the fix for the dead "Snap"
+  // button: a refused camera used to resolve to null and say nothing at all.
+  const [photoBlock, setPhotoBlock] = useState<null | "denied" | "error">(null);
+  // A recognition batch is one AI call, so it costs one AI log however many of its order-slip lines
+  // the user keeps. It flips true on the first non-manual line committed, so the rest (or an "add
+  // all") do not charge again. Reset whenever a new batch is produced.
+  const [batchCharged, setBatchCharged] = useState(false);
 
   const [text, setText] = useState("");
   const [code, setCode] = useState("");
@@ -266,6 +278,8 @@ export function LogInputSheet({ visible, date, onClose }: Props) {
     setBarcodeMiss(false);
     setAiError(null);
     setAiMiss(false);
+    setPhotoBlock(null);
+    setBatchCharged(false);
     setText("");
     setCode("");
     setLoading(false);
@@ -281,6 +295,8 @@ export function LogInputSheet({ visible, date, onClose }: Props) {
     setManualMiss(false);
     setAiError(null);
     setAiMiss(false);
+    setPhotoBlock(null);
+    setBatchCharged(false);
     // Leaving the barcode tab with the camera still live would keep it running behind another tab.
     closeScanner();
   }
@@ -297,13 +313,25 @@ export function LogInputSheet({ visible, date, onClose }: Props) {
 
   async function runPhoto(source: "camera" | "library") {
     if (!guardAiLog()) return;
-    // Open the picker first so a cancelled capture never burns a spinner or a quota check.
-    // getMealPhoto returns the image (or null if the user backs out).
+    // Clear any prior capture message, then open the picker before the spinner or the quota spend,
+    // so a cancelled or refused capture costs the user nothing.
+    setPhotoBlock(null);
     const photo = await getMealPhoto(source);
-    if (!photo) return;
+    if (photo.status === "denied") {
+      // Camera switched off for the app: point at Settings and the upload button instead of
+      // leaving a dead button. This silent path was the "nothing happens" report.
+      setPhotoBlock("denied");
+      return;
+    }
+    if (photo.status === "error") {
+      setPhotoBlock("error");
+      return;
+    }
+    if (photo.status !== "ok") return; // a plain cancel: the user backed out, so say nothing
     setLoading(true);
     setAiError(null);
     setAiMiss(false);
+    setBatchCharged(false); // a fresh recognition is a new AI call, chargeable again
     const outcome = await visionFoodService.recognize(photo.base64);
     if (!outcome.ok) {
       // The recogniser is configured but could not answer. Say so rather than showing a guess:
@@ -340,6 +368,7 @@ export function LogInputSheet({ visible, date, onClose }: Props) {
     setLoading(true);
     setAiError(null);
     setAiMiss(false);
+    setBatchCharged(false); // a fresh recognition is a new AI call, chargeable again
     const outcome = await nlpMealService.parse(text);
     if (!outcome.ok) {
       setCandidates([]);
@@ -402,6 +431,7 @@ export function LogInputSheet({ visible, date, onClose }: Props) {
     if (!guardAiLog()) return;
     setLoading(true);
     setBarcodeMiss(false);
+    setBatchCharged(false); // a fresh lookup is a new chargeable action
     const product = await barcodeService.lookup(c);
     if (!product) {
       setCandidates([]);
@@ -424,8 +454,9 @@ export function LogInputSheet({ visible, date, onClose }: Props) {
     setLoading(false);
   }
 
-  function commit(c: Candidate) {
-    tapLight();
+  // Write one order-slip line to the diary and keep the saved-meal quick-add ordered by real use.
+  // Shared by the single-line "Add meal" and the "Add all" batch commit.
+  function saveCandidate(c: Candidate) {
     addEntry(
       {
         name: c.name,
@@ -445,8 +476,40 @@ export function LogInputSheet({ visible, date, onClose }: Props) {
     // Bump an existing saved meal so the quick-add row stays ordered by real use.
     const saved = savedMeals.find((m) => m.name === c.name);
     if (saved) markUsed(saved.id);
-    // A committed photo/voice/barcode/label entry spends one AI log; manual entry is free.
-    if (c.source !== "manual") incrementAiLog();
+  }
+
+  // A recognition batch is one AI call, so it costs one AI log however many lines the user keeps.
+  // Charge on the first non-manual line committed; the flag (reset per new batch) stops the rest,
+  // or an "add all", from charging again. Manual lines meter in addManual, never here.
+  function meterBatchOnce(source: LogSource) {
+    if (source === "manual" || batchCharged) return;
+    incrementAiLog();
+    setBatchCharged(true);
+  }
+
+  // Log a single order-slip line WITHOUT dismissing the sheet, so the other lines from the same
+  // recognition stay addable. When the last line is gone the sheet closes, which keeps single-item
+  // barcode / one-dish photo behaving exactly as before.
+  function commit(c: Candidate) {
+    tapLight();
+    saveCandidate(c);
+    meterBatchOnce(c.source);
+    const remaining = candidates.filter((x) => x !== c);
+    if (remaining.length === 0) {
+      close();
+      return;
+    }
+    setCandidates(remaining);
+  }
+
+  // Log every remaining order-slip line in one tap: the primary action when a voice order or a photo
+  // returns several dishes. The whole batch is one AI call, so it spends exactly one AI log (unless
+  // an earlier single-line add already charged it).
+  function commitAll() {
+    if (candidates.length === 0) return;
+    tapLight();
+    candidates.forEach(saveCandidate);
+    if (!batchCharged && candidates.some((c) => c.source !== "manual")) incrementAiLog();
     close();
   }
 
@@ -611,7 +674,11 @@ export function LogInputSheet({ visible, date, onClose }: Props) {
             </View>
           )}
 
-          <ScrollView keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
+          <ScrollView
+            keyboardShouldPersistTaps="handled"
+            keyboardDismissMode="on-drag"
+            showsVerticalScrollIndicator={false}
+          >
             {tab === "photo" && (
               <View className="gap-3">
                 <ScalableText className="text-sm text-ink-muted">{t("log.snapHint")}</ScalableText>
@@ -628,6 +695,25 @@ export function LogInputSheet({ visible, date, onClose }: Props) {
                   disabled={loading}
                   onPress={() => runPhoto("library")}
                 />
+                {photoBlock && (
+                  <View className="gap-2 rounded-xl bg-surface-sunken p-3">
+                    <ScalableText
+                      accessibilityRole="alert"
+                      accessibilityLiveRegion="polite"
+                      className="text-sm leading-5 text-ink"
+                    >
+                      {t(photoBlock === "denied" ? "log.cameraOff" : "log.captureFailed")}
+                    </ScalableText>
+                    {photoBlock === "denied" && (
+                      <Button
+                        label={t("log.openSettings")}
+                        icon="settings-outline"
+                        variant="secondary"
+                        onPress={() => void Linking.openSettings()}
+                      />
+                    )}
+                  </View>
+                )}
               </View>
             )}
 
@@ -860,6 +946,15 @@ export function LogInputSheet({ visible, date, onClose }: Props) {
 
             {candidates.length > 0 && (
               <View className="mt-4 gap-3">
+                {/* One tap to log a whole voice order or multi-dish photo. Only shown when there is
+                    more than one line: a single slip is added with its own card button. */}
+                {candidates.length > 1 && (
+                  <Button
+                    label={t("log.addAll", { count: candidates.length })}
+                    icon="checkmark-done"
+                    onPress={commitAll}
+                  />
+                )}
                 {candidates.map((c, i) => {
                   const meta = c.portionLabel
                     ? tl(c.portionLabel, c.portionLabelZh ?? c.portionLabel)
