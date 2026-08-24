@@ -122,14 +122,20 @@ async function cacheMealPhoto(uri: string): Promise<string> {
   }
 }
 
-// Open the device's native camera and return the cached file URI of the capture PLUS its base64,
-// or null if the user backs out. On native we ask for camera permission and launch the viewfinder;
-// if that is denied (or we are on web, which has no reliable in-preview camera) we fall back to the
-// photo library so the flow still yields a real image to feed the pipeline. Never throws.
+// Resolve a meal image to the cached file URI PLUS its base64, or null if the user backs out. The
+// source is an explicit user choice on the Photo tab:
+//   "camera"  - ask for camera permission and launch the viewfinder. If it is denied we fall back
+//               to the library so a "no" on the prompt still yields a usable image.
+//   "library" - open the photo library straight away, no camera prompt. This is the path for a meal
+//               already eaten: you forgot to snap it live, so you pick the photo you took.
+// Web has no reliable in-preview camera, so it always uses the library whatever the source. Never
+// throws.
 //
 // quality 0.5 (was 0.7) and base64: the bytes now actually travel to the vision model, so the
 // payload size is real. Gemini needs enough detail to name a dish, not to read fine print.
-async function captureMealPhoto(): Promise<{ uri: string; base64: string } | null> {
+async function getMealPhoto(
+  source: "camera" | "library",
+): Promise<{ uri: string; base64: string } | null> {
   const options: ImagePicker.ImagePickerOptions = {
     mediaTypes: ["images"],
     quality: 0.5,
@@ -137,7 +143,7 @@ async function captureMealPhoto(): Promise<{ uri: string; base64: string } | nul
   };
   try {
     let result: ImagePicker.ImagePickerResult;
-    if (Platform.OS === "web") {
+    if (source === "library" || Platform.OS === "web") {
       result = await ImagePicker.launchImageLibraryAsync(options);
     } else {
       const perm = await ImagePicker.requestCameraPermissionsAsync();
@@ -289,11 +295,11 @@ export function LogInputSheet({ visible, date, onClose }: Props) {
     return false;
   }
 
-  async function runPhoto() {
+  async function runPhoto(source: "camera" | "library") {
     if (!guardAiLog()) return;
-    // Open the native camera first so a cancelled capture never burns a spinner or a quota
-    // check. captureMealPhoto returns the capture (or null if the user backs out).
-    const photo = await captureMealPhoto();
+    // Open the picker first so a cancelled capture never burns a spinner or a quota check.
+    // getMealPhoto returns the image (or null if the user backs out).
+    const photo = await getMealPhoto(source);
     if (!photo) return;
     setLoading(true);
     setAiError(null);
@@ -613,7 +619,14 @@ export function LogInputSheet({ visible, date, onClose }: Props) {
                   label={loading ? t("log.recognising") : t("log.snap")}
                   icon="camera"
                   loading={loading}
-                  onPress={runPhoto}
+                  onPress={() => runPhoto("camera")}
+                />
+                <Button
+                  label={t("log.upload")}
+                  icon="images"
+                  variant="secondary"
+                  disabled={loading}
+                  onPress={() => runPhoto("library")}
                 />
               </View>
             )}
