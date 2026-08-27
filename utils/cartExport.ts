@@ -1,6 +1,6 @@
 import { GroceryListItem, PantryItem, Recipe } from "@/types";
 import { RetailerConfig, SearchLanguage } from "@/constants/retailers";
-import { mergeIngredients, MergeInput } from "./groceryMerge";
+import { mergeIngredients, MergeInput, resolveCanonical } from "./groceryMerge";
 
 /**
  * The missing shopping list for a single recipe: merge the recipe's ingredients (folding bilingual
@@ -20,6 +20,22 @@ export function missingItemsFromRecipe(recipe: Recipe, pantry: PantryItem[]): Gr
     recipeId: recipe.id,
   }));
   return mergeIngredients(inputs, pantry, recipe.id).filter((item) => item.quantity > 0);
+}
+
+/**
+ * The canonical identities of a recipe's missing ingredients. The recipe screen badges each
+ * required-ingredient row by testing its identity against this set, so a badge appears on exactly
+ * the lines the cart sheet would send to a store: one source of truth, no drift between the two.
+ */
+export function missingCanonicalKeys(recipe: Recipe, pantry: PantryItem[]): Set<string> {
+  return new Set(
+    missingItemsFromRecipe(recipe, pantry).map((item) => resolveCanonical(item.name, item.nameZh)),
+  );
+}
+
+/** The canonical identity of a single recipe ingredient, matched against missingCanonicalKeys. */
+export function ingredientCanonicalKey(item: { name: string; nameZh: string }): string {
+  return resolveCanonical(item.name, item.nameZh);
 }
 
 /**

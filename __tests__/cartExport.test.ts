@@ -4,6 +4,8 @@ import {
   buildStoreEntryUrl,
   formatClipboardList,
   humanizeAmount,
+  ingredientCanonicalKey,
+  missingCanonicalKeys,
   missingItemsFromRecipe,
   searchQueryFor,
   searchTermFor,
@@ -325,5 +327,23 @@ describe("missingItemsFromRecipe — pantry-aware, reuses the grocery merge", ()
     expect(keys).toContain("chicken"); // not stocked -> still needed
     expect(keys).not.toContain("egg"); // 10 in the pantry covers the 3 required
     expect(missing.every((m) => m.quantity > 0)).toBe(true);
+  });
+
+  it("badges exactly the ingredient rows the cart list would send", () => {
+    // The recipe screen badges a row when its canonical identity is in this set. Chicken is not
+    // stocked, so it is badged; the pantry's 10 eggs cover the 3 required, so Egg is not.
+    const keys = missingCanonicalKeys(recipe, pantry);
+    expect(keys.has(ingredientCanonicalKey(recipe.ingredients[0]))).toBe(true); // Chicken
+    expect(keys.has(ingredientCanonicalKey(recipe.ingredients[1]))).toBe(false); // Egg
+  });
+
+  it("keeps the recipe badges and the cart list in exact agreement", () => {
+    // One source of truth: every line the cart sheet lists is badged on the recipe, and nothing
+    // else is. If these two ever drift, a shopper sees an ingredient flagged missing that the
+    // store list omits, or the reverse.
+    const keys = missingCanonicalKeys(recipe, pantry);
+    const listKeys = missingItemsFromRecipe(recipe, pantry).map((m) => ingredientCanonicalKey(m));
+    expect(keys.size).toBe(listKeys.length);
+    expect(listKeys.every((k) => keys.has(k))).toBe(true);
   });
 });

@@ -20,8 +20,9 @@ function round2(n: number): number {
 }
 
 // Prefer the canonical key that maps to a dictionary entry so English and
-// Chinese spellings of the same item resolve identically.
-function resolveCanonical(name: string, nameZh: string): string {
+// Chinese spellings of the same item resolve identically. Exported so the recipe
+// screen can flag a "missing" ingredient with the exact same identity the merge uses.
+export function resolveCanonical(name: string, nameZh: string): string {
   const a = canonicalizeIngredient(name);
   if (dictionaryEntry(a)) return a;
   const b = canonicalizeIngredient(nameZh);

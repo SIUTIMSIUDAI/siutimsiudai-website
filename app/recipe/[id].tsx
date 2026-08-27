@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { Pressable, ScrollView, View } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { router, useLocalSearchParams } from "expo-router";
@@ -21,6 +21,8 @@ import { useFeatureAccess } from "@/hooks/useFeatureAccess";
 import { useAppStore } from "@/stores/appStore";
 import { useRecipeStore } from "@/stores/recipeStore";
 import { useMealPlanStore } from "@/stores/mealPlanStore";
+import { usePantryStore } from "@/stores/pantryStore";
+import { ingredientCanonicalKey, missingCanonicalKeys } from "@/utils/cartExport";
 import { MeasurementSystem, RecipeIngredient } from "@/types";
 
 export default function RecipeDetailScreen() {
@@ -43,6 +45,15 @@ export default function RecipeDetailScreen() {
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [cartOpen, setCartOpen] = useState(false);
   const [healthyLoading, setHealthyLoading] = useState(false);
+
+  // The pantry-gap set: which required ingredients are not on hand. Derived from the exact same
+  // merge path the cart-export sheet uses, so a "Missing" badge on a row and that ingredient
+  // appearing in the "Buy missing ingredients" list can never disagree.
+  const pantry = usePantryStore((s) => s.items);
+  const missingKeys = useMemo(
+    () => (recipe ? missingCanonicalKeys(recipe, pantry) : new Set<string>()),
+    [recipe, pantry],
+  );
 
   // Remove the recipe and any meal-plan assignments that point at it, then leave the now
   // missing detail screen.
@@ -187,6 +198,7 @@ export default function RecipeDetailScreen() {
                 key={ing.id}
                 ingredient={ing}
                 system={system}
+                missing={missingKeys.has(ingredientCanonicalKey(ing))}
                 onSwap={() =>
                   recipeMod.hasAccess ? setSwapTarget(ing) : recipeMod.triggerPaywall()
                 }

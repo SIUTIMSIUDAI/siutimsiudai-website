@@ -11,9 +11,12 @@ interface Props {
   ingredient: RecipeIngredient;
   system: MeasurementSystem;
   onSwap: () => void;
+  // True when this ingredient is not on hand in the pantry, so the row carries a "Missing" badge
+  // that matches exactly what the cart-export sheet would send to a store (see missingCanonicalKeys).
+  missing?: boolean;
 }
 
-export function IngredientRow({ ingredient, system, onSwap }: Props) {
+export function IngredientRow({ ingredient, system, onSwap, missing }: Props) {
   const { t, tl, locale } = useLocale();
   const measure = displayInSystem(ingredient.quantity, ingredient.unit, system);
   const unitLabel = locale === "zh-Hant" ? measure.unitZh : measure.unit;
@@ -28,6 +31,17 @@ export function IngredientRow({ ingredient, system, onSwap }: Props) {
           <ScalableText className="text-xs font-medium text-accent-600">
             {tl(`was ${ingredient.substitutedFrom}`, `原為 ${ingredient.substitutedFrom}`)}
           </ScalableText>
+        )}
+        {missing && (
+          <View
+            className="mt-1 flex-row items-center gap-1 self-start rounded-full px-2 py-0.5"
+            style={{ backgroundColor: "#FBEAC4" }}
+          >
+            <Ionicons name="basket-outline" size={11} color={colors.accentDark} />
+            <ScalableText className="text-[11px] font-semibold" style={{ color: colors.accentDark }}>
+              {tl("Missing", "欠缺")}
+            </ScalableText>
+          </View>
         )}
       </View>
       {measure.quantity > 0 && (

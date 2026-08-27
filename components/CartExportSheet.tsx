@@ -324,6 +324,26 @@ export function CartExportSheet({ visible, recipe, onClose }: Props) {
               </View>
             ) : (
               <View className="gap-3">
+                {/* What "still short" actually means, spelled out: the exact missing lines (name +
+                    shoppable amount) the chosen store will be handed, so the shopper sees the list
+                    before committing to a store rather than a bare count. */}
+                <View className="gap-2 rounded-2xl border border-[#E4DCCB] bg-surface-subtle p-3">
+                  {missing.map((item) => (
+                    <View key={item.id} className="flex-row items-center gap-2">
+                      <Ionicons name="basket-outline" size={15} color={colors.accentDark} />
+                      <ScalableText
+                        className="flex-1 text-sm font-medium text-ink"
+                        numberOfLines={1}
+                      >
+                        {tl(item.name, item.nameZh)}
+                      </ScalableText>
+                      <ScalableText className="text-sm text-ink-muted">
+                        {humanizeAmount(item.quantity, item.unit)}
+                      </ScalableText>
+                    </View>
+                  ))}
+                </View>
+
                 {RETAILER_ORDER.map((id) => {
                   const cfg = RETAILERS[id];
                   const busy = exporting === id;
