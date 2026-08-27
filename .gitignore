@@ -58,3 +58,7 @@ yarn-error.*
 
 # Claude Code local config (per-machine paths & permission grants, keep local, not shared)
 .claude/
+
+# Subagent-driven-development scratch (ledger, task briefs, review packages). Internal-only,
+# and this repo is also the public siutimsiudai.app site, so it must never be committed.
+.superpowers/
