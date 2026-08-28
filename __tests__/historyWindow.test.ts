@@ -1,10 +1,7 @@
 // The history gate is a paywall boundary (free users get today only), so its date math gets
 // pinned here. Everything is pure and takes an explicit `today`, so no clock mocking is needed.
-// expo-router is stubbed only so importing the hook module (which references `router`) stays
-// side-effect free.
-jest.mock("expo-router", () => ({ router: { push: jest.fn() } }));
 
-import { daysAgo, isWithinHistoryWindow, HISTORY_WINDOW_DAYS } from "@/hooks/useFeatureAccess";
+import { daysAgo, isWithinHistoryWindow, HISTORY_WINDOW_DAYS } from "@/utils/historyWindow";
 
 const TODAY = "2026-07-05";
 

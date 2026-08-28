@@ -1,6 +1,6 @@
 import { useCallback } from "react";
 import { router } from "expo-router";
-import { todayKey } from "@/utils/formatters";
+import { daysAgo, HISTORY_WINDOW_DAYS, isWithinHistoryWindow } from "@/utils/historyWindow";
 import {
   SubscriptionTier,
   effectiveWeeklyCount,
@@ -104,26 +104,11 @@ export function useFeatureAccess(feature: Feature): FeatureAccess {
 // archive) — the numbers stay sealed behind the paywall. Paid tiers read and edit the whole
 // history. The window is whole calendar days, parsed at local midnight, so it never drifts by a
 // few hours across a day boundary.
+//
+// Definitions live in utils/historyWindow (pure, no React) so non-React sync code can import them
+// without pulling in the hook module. Re-exported here so existing importers keep working.
 
-export const HISTORY_WINDOW_DAYS = 1;
-
-/**
- * Whole calendar days from `dateKey` back to `today` (both yyyy-mm-dd). Today is 0, yesterday
- * is 1, a future date is negative. Pure and timezone-stable.
- */
-export function daysAgo(dateKey: string, today: string = todayKey()): number {
-  const then = new Date(`${dateKey}T00:00:00`).getTime();
-  const now = new Date(`${today}T00:00:00`).getTime();
-  return Math.round((now - then) / 86_400_000);
-}
-
-/**
- * Is `dateKey` inside the free window? With a one-day window that means today only. Future
- * dates count as inside, so a forward-dated entry is never accidentally locked.
- */
-export function isWithinHistoryWindow(dateKey: string, today: string = todayKey()): boolean {
-  return daysAgo(dateKey, today) <= HISTORY_WINDOW_DAYS - 1;
-}
+export { daysAgo, HISTORY_WINDOW_DAYS, isWithinHistoryWindow } from "@/utils/historyWindow";
 
 export interface HistoryAccess {
   // Selected date sits inside the free window — today only (independent of tier).
