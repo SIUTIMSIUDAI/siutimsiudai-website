@@ -166,8 +166,8 @@ export function InviteFamilyScreen() {
               </View>
               <ScalableText className="text-sm leading-5 text-ink-muted">
                 {tl(
-                  "A family manager can view and manage your meal logs. You keep your own account and can leave at any time.",
-                  "家庭管理者可以查看及管理你嘅飲食記錄。你會保留自己嘅帳戶，並可隨時離開。",
+                  "Your food diary is shared with your family manager. They can see everything you log, including your meals, calories, and nutrients, but they cannot change it. To stop sharing, tap Leave family below.",
+                  "你嘅飲食記錄會分享畀家庭管理者。佢可以睇到你記錄嘅所有嘢，包括餐單、卡路里同營養素，但唔可以更改。想停止分享，可以㩒下面嘅「離開家庭」。",
                 )}
               </ScalableText>
               <Button
