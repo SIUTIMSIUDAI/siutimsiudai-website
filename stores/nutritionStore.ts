@@ -12,7 +12,7 @@ import {
   NutritionTargets,
 } from "@/types";
 import { todayKey } from "@/utils/formatters";
-import { effectiveMacros } from "@/utils/customizations";
+import { sumEntryMacros } from "@/utils/customizations";
 import { computeNutritionTargets } from "@/utils/nutritionTargets";
 import { MicroTotals, sumMicroTotals } from "@/utils/micros";
 import { newId } from "@/utils/id";
@@ -44,8 +44,6 @@ export function retainMicrosForTier(
 ): EntryMicronutrients | null {
   return isPaidTier(tier) ? micros ?? null : null;
 }
-
-const EMPTY_TOTALS: MacroNutrients = { calories: 0, protein: 0, carbs: 0, fat: 0 };
 
 interface NutritionState {
   logsByDate: Record<string, DailyLog>;
@@ -180,18 +178,7 @@ export const useNutritionStore = create<NutritionState>()(
 
       entriesForDate: (date) => get().logsByDate[date]?.entries ?? [],
 
-      totalsForDate: (date) => {
-        const entries = get().logsByDate[date]?.entries ?? [];
-        return entries.reduce<MacroNutrients>((acc, e) => {
-          const m = effectiveMacros(e, e.customizations);
-          return {
-            calories: acc.calories + m.calories,
-            protein: acc.protein + m.protein,
-            carbs: acc.carbs + m.carbs,
-            fat: acc.fat + m.fat,
-          };
-        }, { ...EMPTY_TOTALS });
-      },
+      totalsForDate: (date) => sumEntryMacros(get().logsByDate[date]?.entries ?? []),
 
       microTotalsForDate: (date) => sumMicroTotals(get().logsByDate[date]?.entries ?? []),
 

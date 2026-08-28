@@ -48,3 +48,24 @@ export function customizationSavings(
 ): number {
   return base.calories - effectiveMacros(base, active).calories;
 }
+
+// A day's EFFECTIVE macro totals: each entry's 少甜/少底 tweaks applied, then summed. The single
+// source of truth for a day's numbers — the dashboard total, the cloud sync payload, and the
+// manager viewer all call this, so one day can never render two different totals. Structurally
+// typed (anything macro-bearing with optional customizations) so it needs no import of FoodEntry.
+export function sumEntryMacros(
+  entries: ReadonlyArray<MacroNutrients & { customizations?: MealCustomization[] }>,
+): MacroNutrients {
+  return entries.reduce<MacroNutrients>(
+    (acc, e) => {
+      const m = effectiveMacros(e, e.customizations);
+      return {
+        calories: acc.calories + m.calories,
+        protein: acc.protein + m.protein,
+        carbs: acc.carbs + m.carbs,
+        fat: acc.fat + m.fat,
+      };
+    },
+    { calories: 0, protein: 0, carbs: 0, fat: 0 },
+  );
+}

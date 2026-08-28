@@ -3,8 +3,9 @@ import {
   CUSTOMIZATION_DELTAS,
   customizationSavings,
   effectiveMacros,
+  sumEntryMacros,
 } from "@/utils/customizations";
-import { MacroNutrients } from "@/types";
+import { MacroNutrients, MealCustomization } from "@/types";
 
 const BASE: MacroNutrients = { calories: 800, protein: 30, carbs: 100, fat: 25 };
 
@@ -59,5 +60,31 @@ describe("customization tables", () => {
     for (const key of ALL_CUSTOMIZATIONS) {
       expect(CUSTOMIZATION_DELTAS[key]).toBeDefined();
     }
+  });
+});
+
+type Entry = MacroNutrients & { customizations?: MealCustomization[] };
+
+describe("sumEntryMacros", () => {
+  it("sums base macros when there are no customizations", () => {
+    const entries: Entry[] = [
+      { calories: 500, protein: 20, carbs: 60, fat: 15 },
+      { calories: 300, protein: 10, carbs: 40, fat: 8 },
+    ];
+    expect(sumEntryMacros(entries)).toEqual({ calories: 800, protein: 30, carbs: 100, fat: 23 });
+  });
+
+  it("applies 少甜/少底 deltas before summing (never below zero per entry)", () => {
+    // less_sugar removes 45 kcal / 11 carbs; less_rice removes 140 kcal / 3 protein / 30 carbs / 1 fat.
+    const entries: Entry[] = [
+      { calories: 600, protein: 12, carbs: 90, fat: 10, customizations: ["less_rice"] },
+      { calories: 200, protein: 2, carbs: 30, fat: 3, customizations: ["less_sugar"] },
+    ];
+    // entry 1 -> 460/9/60/9 ; entry 2 -> 155/2/19/3
+    expect(sumEntryMacros(entries)).toEqual({ calories: 615, protein: 11, carbs: 79, fat: 12 });
+  });
+
+  it("returns zeros for an empty day", () => {
+    expect(sumEntryMacros([])).toEqual({ calories: 0, protein: 0, carbs: 0, fat: 0 });
   });
 });
