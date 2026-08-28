@@ -120,6 +120,7 @@ export default function RootLayout() {
           <Stack.Screen name="cook/[id]" options={{ presentation: "fullScreenModal", animation: "fade" }} />
           <Stack.Screen name="subscription" options={{ presentation: "modal" }} />
           <Stack.Screen name="family/invite" />
+          <Stack.Screen name="family/[memberId]" />
           <Stack.Screen name="invite/[token]" />
           <Stack.Screen name="pantry-scan" />
           <Stack.Screen name="pantry-review" />

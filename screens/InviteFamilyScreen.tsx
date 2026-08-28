@@ -280,40 +280,54 @@ export function InviteFamilyScreen() {
                     </ScalableText>
                   </View>
                 ) : (
-                  members.map((m) => (
-                    <View
-                      key={m.userId}
-                      className="flex-row items-center gap-3 rounded-2xl border border-[#E4DCCB] bg-surface p-3"
-                    >
-                      <View className="h-10 w-10 items-center justify-center rounded-full bg-surface-sunken">
-                        <Ionicons
-                          name={m.role === "manager" ? "star" : "person"}
-                          size={18}
-                          color={colors.inkMuted}
-                        />
-                      </View>
-                      <View className="flex-1">
-                        <ScalableText className="text-base font-semibold text-ink" numberOfLines={1}>
-                          {memberName(m)}
-                        </ScalableText>
-                        <ScalableText className="text-xs text-ink-muted">
-                          {m.role === "manager" ? t("family.roleManager") : t("family.roleDependent")}
-                        </ScalableText>
-                      </View>
-                      {m.role === "dependent" && m.userId !== uid ? (
-                        <Pressable
-                          onPress={() => setRemoveTarget(m)}
-                          accessibilityRole="button"
-                          accessibilityLabel={t("family.remove")}
-                          className="min-h-[36px] items-center justify-center rounded-lg px-3 active:opacity-70"
-                        >
-                          <ScalableText className="text-sm font-semibold" style={{ color: "#C2554B" }}>
-                            {t("family.remove")}
+                  members.map((m) => {
+                    const openable = m.role === "dependent" && m.userId !== uid;
+                    const Row = openable ? Pressable : View;
+                    return (
+                      <Row
+                        key={m.userId}
+                        {...(openable
+                          ? {
+                              accessibilityRole: "button" as const,
+                              accessibilityLabel: tl("View log", "查看記錄"),
+                              onPress: () =>
+                                router.push(
+                                  `/family/${m.userId}?name=${encodeURIComponent(memberName(m))}`,
+                                ),
+                            }
+                          : {})}
+                        className="flex-row items-center gap-3 rounded-2xl border border-[#E4DCCB] bg-surface p-3 active:opacity-70"
+                      >
+                        <View className="h-10 w-10 items-center justify-center rounded-full bg-surface-sunken">
+                          <Ionicons
+                            name={m.role === "manager" ? "star" : "person"}
+                            size={18}
+                            color={colors.inkMuted}
+                          />
+                        </View>
+                        <View className="flex-1">
+                          <ScalableText className="text-base font-semibold text-ink" numberOfLines={1}>
+                            {memberName(m)}
                           </ScalableText>
-                        </Pressable>
-                      ) : null}
-                    </View>
-                  ))
+                          <ScalableText className="text-xs text-ink-muted">
+                            {m.role === "manager" ? t("family.roleManager") : t("family.roleDependent")}
+                          </ScalableText>
+                        </View>
+                        {m.role === "dependent" && m.userId !== uid ? (
+                          <Pressable
+                            onPress={() => setRemoveTarget(m)}
+                            accessibilityRole="button"
+                            accessibilityLabel={t("family.remove")}
+                            className="min-h-[36px] items-center justify-center rounded-lg px-3 active:opacity-70"
+                          >
+                            <ScalableText className="text-sm font-semibold" style={{ color: "#C2554B" }}>
+                              {t("family.remove")}
+                            </ScalableText>
+                          </Pressable>
+                        ) : null}
+                      </Row>
+                    );
+                  })
                 )}
               </View>
 
