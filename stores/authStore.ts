@@ -11,6 +11,7 @@ import { credentialMatchesUser } from "@/utils/biometricLogin";
 import { useAppStore } from "./appStore";
 import { useSubscriptionStore } from "./useSubscriptionStore";
 import { useFamilyStore } from "./familyStore";
+import { syncAllWindowedDays } from "@/services/nutritionSyncService";
 
 // The persisted stores that hold the user's own content. Cleared from the device on account
 // deletion so nothing personal is left at rest. Device preferences that are not personal data
@@ -177,6 +178,11 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       // and letting a friend sign in would leave a Face ID button that opens YOUR food diary.
       if (event === "TOKEN_REFRESHED" || event === "SIGNED_IN") {
         void syncBiometricCredential(session);
+      }
+      if (event === "SIGNED_IN") {
+        // Publish any already-kept diary so a manager who links sees history without waiting for
+        // the next edit. Best-effort and windowed on the dependent's device.
+        void syncAllWindowedDays();
       }
       // Supabase raises this when it recognises a recovery session itself. It does not fire on
       // every path we support (the manual verifyOtp the deep-link handler runs may not trigger

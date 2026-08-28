@@ -2,6 +2,7 @@ import "../global.css";
 import "@/i18n";
 
 import { useEffect, useState } from "react";
+import { AppState } from "react-native";
 import { Stack, useRootNavigationState, useRouter, useSegments } from "expo-router";
 import { StatusBar } from "expo-status-bar";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
@@ -16,6 +17,7 @@ import { SplashOverlay } from "@/components/SplashOverlay";
 import { configureRevenueCat } from "@/services/revenueCatService";
 import { useInviteDeepLink } from "@/hooks/useInviteDeepLink";
 import { isAtTarget, isPreAppRoute, resolveGate } from "@/utils/authGate";
+import { flushDirtyDates, syncAllWindowedDays } from "@/services/nutritionSyncService";
 
 // The launch flow gate. Reads live store state, asks the pure resolver where the user belongs, and
 // redirects there — but only once the navigator is mounted and the stores have settled, so it
@@ -82,6 +84,18 @@ export default function RootLayout() {
   // configure re-reads it once the SDK is ready and associates the receipt, closing the boot race.
   useEffect(() => {
     configureRevenueCat(() => useAuthStore.getState().session?.user?.id).catch(() => {});
+  }, []);
+
+  // On every return to foreground, retry any failed days and re-publish the windowed diary. Cheap
+  // and best-effort; no-ops for guests and when Supabase is unconfigured.
+  useEffect(() => {
+    const sub = AppState.addEventListener("change", (s) => {
+      if (s === "active") {
+        void flushDirtyDates();
+        void syncAllWindowedDays();
+      }
+    });
+    return () => sub.remove();
   }, []);
 
   useRouteGate();

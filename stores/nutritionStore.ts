@@ -18,6 +18,7 @@ import { MicroTotals, sumMicroTotals } from "@/utils/micros";
 import { newId } from "@/utils/id";
 import { persistStorage } from "./persistStorage";
 import { isPaidTier, SubscriptionTier, useSubscriptionStore } from "./useSubscriptionStore";
+import { scheduleSync } from "@/services/nutritionSyncService";
 
 const GUEST_USER = "guest";
 
@@ -86,7 +87,7 @@ export const useNutritionStore = create<NutritionState>()(
       dailyCalorieTarget: 2000,
       healthProfile: null,
 
-      addEntry: (input, date = todayKey()) =>
+      addEntry: (input, date = todayKey()) => {
         set((state) => {
           const log = ensureLog(state.logsByDate, date);
           // Free users' history holds macros + calories only; paid tiers also retain micros.
@@ -115,9 +116,11 @@ export const useNutritionStore = create<NutritionState>()(
               [date]: { ...log, entries: [...log.entries, entry] },
             },
           };
-        }),
+        });
+        scheduleSync(date);
+      },
 
-      editEntry: (date, entryId, patch) =>
+      editEntry: (date, entryId, patch) => {
         set((state) => {
           const log = state.logsByDate[date];
           if (!log) return state;
@@ -130,9 +133,11 @@ export const useNutritionStore = create<NutritionState>()(
               },
             },
           };
-        }),
+        });
+        scheduleSync(date);
+      },
 
-      removeEntry: (date, entryId) =>
+      removeEntry: (date, entryId) => {
         set((state) => {
           const log = state.logsByDate[date];
           if (!log) return state;
@@ -142,9 +147,11 @@ export const useNutritionStore = create<NutritionState>()(
               [date]: { ...log, entries: log.entries.filter((e) => e.id !== entryId) },
             },
           };
-        }),
+        });
+        scheduleSync(date);
+      },
 
-      toggleCustomization: (date, entryId, customization) =>
+      toggleCustomization: (date, entryId, customization) => {
         set((state) => {
           const log = state.logsByDate[date];
           if (!log) return state;
@@ -164,7 +171,9 @@ export const useNutritionStore = create<NutritionState>()(
               },
             },
           };
-        }),
+        });
+        scheduleSync(date);
+      },
 
       repeatMeal: (meal, date = todayKey()) =>
         get().addEntry({ ...meal, source: "manual" }, date),
