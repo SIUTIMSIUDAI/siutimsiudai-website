@@ -405,6 +405,7 @@
     "errExpired": "呢個邀請已過期，請向你嘅家人索取新連結。",
     "errAlreadyUsed": "呢個邀請已被使用。",
     "errAlreadyLinked": "你嘅帳戶已連結到一個家庭。",
+    "errManagesFamily": "你已經管理緊一個家庭。想加入另一個家庭，請先移除你嘅成員。",
     "errSelf": "你唔可以接受自己嘅邀請。",
     "errAcceptGeneric": "無法接受呢個邀請，請再試一次。",
     "done": "完成"

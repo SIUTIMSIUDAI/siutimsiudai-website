@@ -76,6 +76,10 @@ export const ACCEPT_REASON_KEYS: Record<string, string> = {
   expired: "family.errExpired",
   already_used: "family.errAlreadyUsed",
   already_linked: "family.errAlreadyLinked",
+  // A manager who already runs a household with real dependents cannot also join another family as a
+  // member (accept_family_invite, migration 0007). A solo manager of an EMPTY group is NOT blocked:
+  // the RPC disbands the empty group and lets them join, so this copy tells them how to get there.
+  manages_family: "family.errManagesFamily",
   self: "family.errSelf",
   group_full: "family.errGroupFull",
   revoked: "family.errInvalid",

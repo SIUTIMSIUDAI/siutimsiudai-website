@@ -405,6 +405,7 @@
     "errExpired": "This invitation has expired. Ask your family member for a new link.",
     "errAlreadyUsed": "This invitation has already been used.",
     "errAlreadyLinked": "Your account is already linked to a family.",
+    "errManagesFamily": "You already manage a family. Remove your members first if you want to join another.",
     "errSelf": "You can't accept your own invitation.",
     "errAcceptGeneric": "Could not accept this invitation. Please try again.",
     "done": "Done"
