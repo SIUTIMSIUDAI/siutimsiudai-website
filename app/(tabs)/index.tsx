@@ -9,6 +9,7 @@ import { SourcesLink } from "@/components/SourcesLink";
 import { QuickAddRow } from "@/components/QuickAddRow";
 import { FoodEntryRow } from "@/components/FoodEntryRow";
 import { LogInputSheet } from "@/components/LogInputSheet";
+import { EditEntrySheet } from "@/components/EditEntrySheet";
 import { colors } from "@/constants/theme";
 import { useLocale } from "@/hooks/useLocale";
 import { todayKey } from "@/utils/formatters";
@@ -16,7 +17,7 @@ import { computeNutritionTargets } from "@/utils/nutritionTargets";
 import { effectiveMacros } from "@/utils/customizations";
 import { useNutritionStore } from "@/stores/nutritionStore";
 import { useAppStore } from "@/stores/appStore";
-import { MacroNutrients } from "@/types";
+import { FoodEntry, MacroNutrients } from "@/types";
 
 const EMPTY: MacroNutrients = { calories: 0, protein: 0, carbs: 0, fat: 0, fiber: 0 };
 
@@ -26,10 +27,13 @@ export default function DashboardScreen() {
   const entries = useNutritionStore((s) => s.logsByDate[date]?.entries);
   const target = useNutritionStore((s) => s.dailyCalorieTarget);
   const removeEntry = useNutritionStore((s) => s.removeEntry);
+  const editEntry = useNutritionStore((s) => s.editEntry);
   const toggleCustomization = useNutritionStore((s) => s.toggleCustomization);
   const healthProfile = useNutritionStore((s) => s.healthProfile);
   const isGuest = useAppStore((s) => s.sessionUserId === null);
   const [sheetOpen, setSheetOpen] = useState(false);
+  // The logged item currently open in the editor, or null when the editor is closed.
+  const [editing, setEditing] = useState<FoodEntry | null>(null);
 
   const macroTargets = useMemo(
     () => (healthProfile ? computeNutritionTargets(healthProfile) : null),
@@ -112,6 +116,7 @@ export default function DashboardScreen() {
               <FoodEntryRow
                 key={entry.id}
                 entry={entry}
+                onEdit={() => setEditing(entry)}
                 onRemove={() => removeEntry(date, entry.id)}
                 onToggleCustomization={(c) => toggleCustomization(date, entry.id, c)}
               />
@@ -137,6 +142,16 @@ export default function DashboardScreen() {
       </Pressable>
 
       <LogInputSheet visible={sheetOpen} date={date} onClose={() => setSheetOpen(false)} />
+
+      <EditEntrySheet
+        visible={editing !== null}
+        entry={editing}
+        onClose={() => setEditing(null)}
+        onSave={(patch) => {
+          if (editing) editEntry(date, editing.id, patch);
+          setEditing(null);
+        }}
+      />
     </Screen>
   );
 }
