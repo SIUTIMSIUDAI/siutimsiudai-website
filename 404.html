@@ -186,8 +186,10 @@
   <script>
     // ---- Store links -------------------------------------------------------
     // Fill these in when the app is live. While both are empty, we show an honest
-    // "coming soon" line instead of buttons that lead nowhere.
-    var APP_STORE_URL = "";
+    // "coming soon" line instead of buttons that lead nowhere. iOS is live on the
+    // App Store (id6800734004); there is no Google Play listing yet, so that one
+    // stays empty and renderStore() shows the single App Store button.
+    var APP_STORE_URL = "https://apps.apple.com/app/id6800734004";
     var PLAY_STORE_URL = "";
 
     // Custom scheme registered by the app (app.json "scheme"). Universal links
