@@ -11,6 +11,7 @@ import { IngredientRow } from "@/components/IngredientRow";
 import { SubstitutionSheet } from "@/components/SubstitutionSheet";
 import { CartExportButton } from "@/components/CartExportButton";
 import { CartExportSheet } from "@/components/CartExportSheet";
+import { MissingIngredientsCallout } from "@/components/MissingIngredientsCallout";
 import { PlanPickerSheet } from "@/components/PlanPickerSheet";
 import { ConfirmDialog } from "@/components/ConfirmDialog";
 import { SourcesLink } from "@/components/SourcesLink";
@@ -22,7 +23,7 @@ import { useAppStore } from "@/stores/appStore";
 import { useRecipeStore } from "@/stores/recipeStore";
 import { useMealPlanStore } from "@/stores/mealPlanStore";
 import { usePantryStore } from "@/stores/pantryStore";
-import { ingredientCanonicalKey, missingCanonicalKeys } from "@/utils/cartExport";
+import { ingredientCanonicalKey, missingItemsFromRecipe } from "@/utils/cartExport";
 import { MeasurementSystem, RecipeIngredient } from "@/types";
 
 export default function RecipeDetailScreen() {
@@ -46,13 +47,18 @@ export default function RecipeDetailScreen() {
   const [cartOpen, setCartOpen] = useState(false);
   const [healthyLoading, setHealthyLoading] = useState(false);
 
-  // The pantry-gap set: which required ingredients are not on hand. Derived from the exact same
-  // merge path the cart-export sheet uses, so a "Missing" badge on a row and that ingredient
-  // appearing in the "Buy missing ingredients" list can never disagree.
+  // The pantry gap, computed once from the exact merge path the cart-export sheet uses, then reused
+  // two ways: the callout below "Make it Healthy" lists what's short (and by how much), and the
+  // key set marks the matching rows in the full ingredient list. One source of truth, so a row's
+  // "Missing" badge, the callout, and the "Buy missing ingredients" list can never disagree.
   const pantry = usePantryStore((s) => s.items);
-  const missingKeys = useMemo(
-    () => (recipe ? missingCanonicalKeys(recipe, pantry) : new Set<string>()),
+  const missingItems = useMemo(
+    () => (recipe ? missingItemsFromRecipe(recipe, pantry) : []),
     [recipe, pantry],
+  );
+  const missingKeys = useMemo(
+    () => new Set(missingItems.map(ingredientCanonicalKey)),
+    [missingItems],
   );
 
   // Remove the recipe and any meal-plan assignments that point at it, then leave the now
@@ -191,6 +197,11 @@ export default function RecipeDetailScreen() {
               healthyApplied: applying swaps is a Pro perk, and a free user reading the button's
               promise deserves the same link as a paying one. */}
           <SourcesLink />
+
+          {/* What the pantry is short of for this dish, marked with an X and the amount still to
+              buy. Sits right above the full list so the gap is the first thing read; the list below
+              keeps its own per-row "Missing" badges. Renders nothing when nothing is short. */}
+          <MissingIngredientsCallout items={missingItems} />
 
           <View className="rounded-2xl border border-[#E4DCCB] bg-surface px-4 py-1">
             {recipe.ingredients.map((ing) => (
