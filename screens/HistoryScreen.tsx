@@ -20,7 +20,7 @@ import { useNutritionStore } from "@/stores/nutritionStore";
 import { useSubscriptionStore } from "@/stores/useSubscriptionStore";
 import { DailyLog, MacroNutrients } from "@/types";
 
-const EMPTY: MacroNutrients = { calories: 0, protein: 0, carbs: 0, fat: 0 };
+const EMPTY: MacroNutrients = { calories: 0, protein: 0, carbs: 0, fat: 0, fiber: 0 };
 // Five weeks of pills: enough to scroll a free user comfortably into locked territory.
 const STRIP_DAYS = 35;
 
@@ -36,6 +36,7 @@ function totalsFor(logsByDate: Record<string, DailyLog>, date: string): MacroNut
         protein: acc.protein + m.protein,
         carbs: acc.carbs + m.carbs,
         fat: acc.fat + m.fat,
+        fiber: acc.fiber + m.fiber,
       };
     },
     { ...EMPTY },
@@ -164,6 +165,15 @@ export function HistoryScreen() {
                 target={targets?.fat}
                 total={macroTotal}
                 color={macroColors.fat}
+              />
+              {/* Fibre sits below the big three. It stays OUT of macroTotal (subset of carbs), so its
+                  no-target share reads against protein+carbs+fat like the dashboard panel. */}
+              <MacroProgressBar
+                label={t("dashboard.fibre")}
+                grams={dayTotals.fiber}
+                target={targets?.fiber}
+                total={macroTotal}
+                color={macroColors.fiber}
               />
             </View>
 

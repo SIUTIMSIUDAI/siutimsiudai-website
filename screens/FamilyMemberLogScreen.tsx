@@ -157,6 +157,7 @@ export function FamilyMemberLogScreen({ memberId, name }: Props) {
                     ["protein", tl("Protein", "蛋白質"), macroColors.protein],
                     ["carbs", tl("Carbs", "碳水"), macroColors.carbs],
                     ["fat", tl("Fat", "脂肪"), macroColors.fat],
+                    ["fiber", tl("Fibre", "纖維"), macroColors.fiber],
                   ] as const
                 ).map(([key, label, color]) => (
                   <View

@@ -18,7 +18,7 @@ import { useNutritionStore } from "@/stores/nutritionStore";
 import { useAppStore } from "@/stores/appStore";
 import { MacroNutrients } from "@/types";
 
-const EMPTY: MacroNutrients = { calories: 0, protein: 0, carbs: 0, fat: 0 };
+const EMPTY: MacroNutrients = { calories: 0, protein: 0, carbs: 0, fat: 0, fiber: 0 };
 
 export default function DashboardScreen() {
   const { t, locale } = useLocale();
@@ -45,6 +45,7 @@ export default function DashboardScreen() {
       protein: acc.protein + m.protein,
       carbs: acc.carbs + m.carbs,
       fat: acc.fat + m.fat,
+      fiber: acc.fiber + m.fiber,
     };
   }, { ...EMPTY });
 

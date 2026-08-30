@@ -96,6 +96,9 @@ function toProduct(code: string, p: OffProduct): BarcodeProduct | null {
   const protein = nutriment(nutriments, "proteins", perServing) ?? 0;
   const carbs = nutriment(nutriments, "carbohydrates", perServing) ?? 0;
   const fat = nutriment(nutriments, "fat", perServing) ?? 0;
+  // OFF states dietary fibre under the `fiber` nutriment (fiber_100g / fiber_serving). Absent on
+  // many drinks, so a missing value reads as the conventional 0 g, same as the other macros.
+  const fiber = nutriment(nutriments, "fiber", perServing) ?? 0;
 
   return {
     barcode: code,
@@ -112,6 +115,7 @@ function toProduct(code: string, p: OffProduct): BarcodeProduct | null {
     protein: round1(protein),
     carbs: round1(carbs),
     fat: round1(fat),
+    fiber: round1(fiber),
   };
 }
 

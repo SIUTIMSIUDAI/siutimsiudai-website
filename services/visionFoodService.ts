@@ -67,6 +67,7 @@ function toRecognitionRow(raw: unknown): FoodRecognitionResult | null {
     protein: toNonNegative(r.protein),
     carbs: toNonNegative(r.carbs),
     fat: toNonNegative(r.fat),
+    fiber: toNonNegative(r.fiber),
     // Deliberately middling default: an unlabelled guess should not wear a high-confidence badge.
     confidence: Number.isFinite(c) ? Math.min(1, Math.max(0, c)) : 0.6,
     portionLabel: unit,
@@ -95,7 +96,8 @@ async function recognizeViaProxy(imageBase64: string): Promise<VisionFoodOutcome
 
 function toResult(dish: HkDish, confidence: number): FoodRecognitionResult {
   const { keywords, ...macros } = dish;
-  return { ...macros, confidence };
+  // Curated HK dishes carry no measured fibre; honest 0 in the offline demo rather than a guess.
+  return { ...macros, fiber: 0, confidence };
 }
 
 // Rotate through a few photogenic dishes so repeated captures during an offline demo vary.

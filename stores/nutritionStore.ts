@@ -102,6 +102,7 @@ export const useNutritionStore = create<NutritionState>()(
             protein: input.protein,
             carbs: input.carbs,
             fat: input.fat,
+            fiber: input.fiber,
             quantity: input.quantity ?? 1,
             unit: input.unit ?? "serving",
             source: input.source ?? "manual",

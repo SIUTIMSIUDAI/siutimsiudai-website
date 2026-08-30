@@ -17,6 +17,7 @@ function entry(over: Partial<FoodEntry>): FoodEntry {
     protein: 4,
     carbs: 24,
     fat: 10,
+    fiber: 2,
     quantity: 1,
     unit: "piece",
     source: "manual",
@@ -47,6 +48,7 @@ describe("buildDailyLogPayload", () => {
       meal_type: "snack",
       calories: 200,
       carbs: 24,
+      fiber: 2, // base fibre, untouched by less_sugar
       source: "manual",
       image_url: null,
       barcode: null,
@@ -68,6 +70,15 @@ describe("buildDailyLogPayload", () => {
     const p = buildDailyLogPayload(log);
     expect(p.p_total_calories).toBe(0);
     expect(p.p_entries).toEqual([]);
+  });
+
+  it("publishes 0 fibre for a pre-fibre entry (no fiber field)", () => {
+    const legacy = entry({});
+    delete (legacy as Partial<Pick<FoodEntry, "fiber">>).fiber; // rehydrated before fibre existed
+    const log: DailyLog = { id: "l", userId: "u", logDate: "2026-08-28", entries: [legacy] };
+    const p = buildDailyLogPayload(log);
+    expect(p.p_entries[0].fiber).toBe(0);
+    expect(Number.isNaN(p.p_entries[0].fiber)).toBe(false);
   });
 });
 

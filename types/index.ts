@@ -24,6 +24,7 @@ export interface MacroNutrients {
   protein: number; // grams
   carbs: number; // grams
   fat: number; // grams
+  fiber: number; // grams
 }
 
 // --- Health profile & daily nutrient needs ---
@@ -72,7 +73,6 @@ export interface MicronutrientTarget {
 
 // The full daily target set computed from a HealthProfile.
 export interface NutritionTargets extends MacroNutrients {
-  fiber: number; // grams
   bmr: number; // basal metabolic rate, kcal
   tdee: number; // maintenance energy, kcal
   micros: MicronutrientTarget[];

@@ -58,6 +58,7 @@ interface Candidate {
   protein: number;
   carbs: number;
   fat: number;
+  fiber: number;
   source: LogSource;
   confidence?: number;
   portionLabel?: string;
@@ -76,6 +77,7 @@ interface ManualNutrition {
   protein: number;
   carbs: number;
   fat: number;
+  fiber: number;
   micros: EntryMicronutrients | null;
 }
 
@@ -175,6 +177,7 @@ function matchKnownDish(text: string): ManualNutrition | null {
     protein: first.protein,
     carbs: first.carbs,
     fat: first.fat,
+    fiber: first.fiber,
     micros: first.micros ?? null,
   };
 }
@@ -352,6 +355,7 @@ export function LogInputSheet({ visible, date, onClose }: Props) {
         protein: r.protein,
         carbs: r.carbs,
         fat: r.fat,
+        fiber: r.fiber,
         source: "photo",
         confidence: r.confidence,
         portionLabel: r.portionLabel,
@@ -385,6 +389,7 @@ export function LogInputSheet({ visible, date, onClose }: Props) {
         protein: p.protein,
         carbs: p.carbs,
         fat: p.fat,
+        fiber: p.fiber,
         source: "voice",
         unit: p.unit,
         micros: p.micros,
@@ -445,6 +450,7 @@ export function LogInputSheet({ visible, date, onClose }: Props) {
           protein: product.protein,
           carbs: product.carbs,
           fat: product.fat,
+          fiber: product.fiber,
           source: "barcode",
           barcode: product.barcode,
           unit: product.servingSize,
@@ -465,6 +471,7 @@ export function LogInputSheet({ visible, date, onClose }: Props) {
         protein: c.protein,
         carbs: c.carbs,
         fat: c.fat,
+        fiber: c.fiber,
         mealType,
         source: c.source,
         unit: c.unit,
@@ -522,6 +529,7 @@ export function LogInputSheet({ visible, date, onClose }: Props) {
       protein: n.protein * qty,
       carbs: n.carbs * qty,
       fat: n.fat * qty,
+      fiber: n.fiber * qty,
       micros: scaleMicros(n.micros, qty),
       source: "manual",
     });
@@ -578,6 +586,7 @@ export function LogInputSheet({ visible, date, onClose }: Props) {
         protein: best.protein,
         carbs: best.carbs,
         fat: best.fat,
+        fiber: best.fiber,
         micros: best.micros ?? null,
       },
       qty,
@@ -595,6 +604,7 @@ export function LogInputSheet({ visible, date, onClose }: Props) {
       protein: c.protein,
       carbs: c.carbs,
       fat: c.fat,
+      fiber: c.fiber,
       micros: c.micros ?? null,
     });
     switchTab("manual");
@@ -836,6 +846,7 @@ export function LogInputSheet({ visible, date, onClose }: Props) {
                           protein: d.protein,
                           carbs: d.carbs,
                           fat: d.fat,
+                          fiber: 0, // curated HK dishes carry no measured fibre
                           micros: d.micros,
                         });
                         setManualMiss(false);

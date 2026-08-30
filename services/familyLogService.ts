@@ -11,7 +11,7 @@ import { DailyLogRow, FoodEntryRow, mapDayFromRows } from "@/utils/familyLogMap"
 // to "nothing to show", consistent with the mock posture elsewhere in services/.
 
 const ENTRY_COLUMNS =
-  "id, daily_log_id, name, name_zh, meal_type, calories, protein, carbs, fat, quantity, unit, source, image_url, barcode, logged_at, customizations, micros";
+  "id, daily_log_id, name, name_zh, meal_type, calories, protein, carbs, fat, fiber, quantity, unit, source, image_url, barcode, logged_at, customizations, micros";
 
 export async function getDependentDates(dependentUserId: string): Promise<string[]> {
   if (!isSupabaseConfigured || !supabase) return [];

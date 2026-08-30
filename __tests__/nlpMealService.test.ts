@@ -36,10 +36,14 @@ describe("parseMealResponse", () => {
 
   it("clamps negative / non-numeric macros to 0 and rounds the rest", () => {
     const meals = parseMealResponse(
-      { meals: [{ name: "Mystery", nameZh: "神秘", calories: "-50", protein: "abc", carbs: 22.6, fat: 7.2 }] },
+      {
+        meals: [
+          { name: "Mystery", nameZh: "神秘", calories: "-50", protein: "abc", carbs: 22.6, fat: 7.2, fiber: 3.6 },
+        ],
+      },
       "dinner",
     );
-    expect(meals?.[0]).toMatchObject({ calories: 0, protein: 0, carbs: 23, fat: 7 });
+    expect(meals?.[0]).toMatchObject({ calories: 0, protein: 0, carbs: 23, fat: 7, fiber: 4 });
   });
 
   it("falls back to the detected meal type when the model's is missing or invalid", () => {

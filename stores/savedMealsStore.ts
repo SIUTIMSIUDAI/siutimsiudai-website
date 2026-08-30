@@ -9,7 +9,7 @@ const GUEST_USER = "guest";
 
 export type NewSavedMealInput = Pick<
   SavedMeal,
-  "name" | "nameZh" | "calories" | "protein" | "carbs" | "fat"
+  "name" | "nameZh" | "calories" | "protein" | "carbs" | "fat" | "fiber"
 > & { defaultMealType?: MealType };
 
 // A few common cha-chaan-teng picks so the one-tap quick-add row is useful immediately.
@@ -44,6 +44,7 @@ function seedMeal(name: string, mealType: MealType): SavedMeal | null {
     protein: dish.protein,
     carbs: dish.carbs,
     fat: dish.fat,
+    fiber: 0, // curated HK dishes carry no measured fibre; honest 0 rather than an invented figure
     defaultMealType: mealType,
     useCount: 0,
     lastUsedAt: null,
@@ -78,6 +79,7 @@ export const useSavedMealsStore = create<SavedMealsState>()(
             protein: input.protein,
             carbs: input.carbs,
             fat: input.fat,
+            fiber: input.fiber,
             defaultMealType: input.defaultMealType ?? "snack",
             useCount: 0,
             lastUsedAt: null,

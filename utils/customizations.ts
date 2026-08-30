@@ -6,8 +6,8 @@ import { MacroNutrients, MealCustomization } from "@/types";
 // - less_rice (少底): halves a rice base under a 碟頭飯 style dish.
 // Deltas are negative and applied on read, so toggling on and off is perfectly reversible.
 export const CUSTOMIZATION_DELTAS: Record<MealCustomization, MacroNutrients> = {
-  less_sugar: { calories: -45, protein: 0, carbs: -11, fat: 0 },
-  less_rice: { calories: -140, protein: -3, carbs: -30, fat: -1 },
+  less_sugar: { calories: -45, protein: 0, carbs: -11, fat: 0, fiber: 0 },
+  less_rice: { calories: -140, protein: -3, carbs: -30, fat: -1, fiber: 0 },
 };
 
 // Order the toggles render in.
@@ -24,6 +24,10 @@ export function effectiveMacros(
     protein: base.protein,
     carbs: base.carbs,
     fat: base.fat,
+    // Entries logged before fibre tracking existed rehydrate from storage with no `fiber` field.
+    // Treat a missing value as 0 g (honest: it was never measured) so a day that mixes old and new
+    // entries totals a real number instead of NaN.
+    fiber: base.fiber ?? 0,
   };
   for (const key of active ?? []) {
     const d = CUSTOMIZATION_DELTAS[key];
@@ -31,12 +35,14 @@ export function effectiveMacros(
     result.protein += d.protein;
     result.carbs += d.carbs;
     result.fat += d.fat;
+    result.fiber += d.fiber;
   }
   return {
     calories: Math.max(0, Math.round(result.calories)),
     protein: Math.max(0, Math.round(result.protein)),
     carbs: Math.max(0, Math.round(result.carbs)),
     fat: Math.max(0, Math.round(result.fat)),
+    fiber: Math.max(0, Math.round(result.fiber)),
   };
 }
 
@@ -64,8 +70,9 @@ export function sumEntryMacros(
         protein: acc.protein + m.protein,
         carbs: acc.carbs + m.carbs,
         fat: acc.fat + m.fat,
+        fiber: acc.fiber + m.fiber,
       };
     },
-    { calories: 0, protein: 0, carbs: 0, fat: 0 },
+    { calories: 0, protein: 0, carbs: 0, fat: 0, fiber: 0 },
   );
 }

@@ -48,6 +48,7 @@ export function QuickAddRow({ date }: Props) {
                   protein: m.protein,
                   carbs: m.carbs,
                   fat: m.fat,
+                  fiber: m.fiber,
                   mealType: m.defaultMealType,
                   source: "manual",
                 },

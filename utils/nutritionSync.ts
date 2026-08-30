@@ -17,6 +17,7 @@ export interface SyncEntryPayload {
   protein: number;
   carbs: number;
   fat: number;
+  fiber: number;
   quantity: number;
   unit: string;
   source: string;
@@ -53,6 +54,9 @@ export function buildDailyLogPayload(log: DailyLog): SyncDailyLogArgs {
       protein: e.protein,
       carbs: e.carbs,
       fat: e.fat,
+      // Pre-fibre entries rehydrate without `fiber`; publish 0 so the server stores a real number.
+      // The RPC coalesces too, so this is belt-and-braces.
+      fiber: e.fiber ?? 0,
       quantity: e.quantity,
       unit: e.unit,
       source: e.source,

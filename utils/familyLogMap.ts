@@ -21,6 +21,7 @@ export interface FoodEntryRow {
   protein: number;
   carbs: number;
   fat: number;
+  fiber: number;
   quantity: number;
   unit: string;
   source: LogSource;
@@ -51,6 +52,7 @@ function mapEntryRow(r: FoodEntryRow): FoodEntry {
     protein: Number(r.protein),
     carbs: Number(r.carbs),
     fat: Number(r.fat),
+    fiber: Number(r.fiber),
     quantity: Number(r.quantity),
     unit: r.unit,
     source: r.source,

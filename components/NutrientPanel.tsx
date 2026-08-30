@@ -13,7 +13,7 @@ import { NutritionTargets } from "@/types";
 interface Props {
   date: string;
   // Effective macros for the day (after 少甜 / 少底 tweaks). Calories aren't charted here.
-  macros: { protein: number; carbs: number; fat: number };
+  macros: { protein: number; carbs: number; fat: number; fiber: number };
   // Full computed target set, or null when the user hasn't set a health profile yet.
   targets: NutritionTargets | null;
 }
@@ -175,6 +175,17 @@ export function NutrientPanel({ date, macros, targets }: Props) {
           total={macroTotal}
           unit="g"
           color={macroColors.fat}
+        />
+        {/* Fibre is a subset of carbs, so it stays OUT of macroTotal (adding it would double-count
+            the carb share). With a profile it fills toward targets.fiber; without one it reads as a
+            share of protein+carbs+fat, matching the other bars. */}
+        <NutrientBar
+          label={t("dashboard.fibre")}
+          value={macros.fiber}
+          target={targets?.fiber}
+          total={macroTotal}
+          unit="g"
+          color={macroColors.fiber}
         />
       </Section>
 

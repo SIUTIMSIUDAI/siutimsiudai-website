@@ -73,6 +73,7 @@ function toMeal(raw: unknown, fallbackMealType: MealType): ParsedMeal | null {
     protein: toNonNegative(r.protein),
     carbs: toNonNegative(r.carbs),
     fat: toNonNegative(r.fat),
+    fiber: toNonNegative(r.fiber),
     quantity: Number.isFinite(q) && q > 0 ? q : 1,
     unit: typeof r.unit === "string" && r.unit.trim() ? r.unit.trim() : "1 serving",
     mealType: MEAL_TYPES.includes(r.mealType as MealType) ? (r.mealType as MealType) : fallbackMealType,

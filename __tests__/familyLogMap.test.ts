@@ -13,6 +13,7 @@ function row(over: Partial<FoodEntryRow>): FoodEntryRow {
     protein: 6,
     carbs: 50,
     fat: 2,
+    fiber: 3,
     quantity: 1,
     unit: "bowl",
     source: "manual",
@@ -52,10 +53,15 @@ describe("mapDayFromRows", () => {
 
   it("coerces numeric strings (PostgREST numeric) to numbers", () => {
     const day = mapDayFromRows(logRow, [
-      row({ calories: "250" as unknown as number, protein: "6" as unknown as number }),
+      row({
+        calories: "250" as unknown as number,
+        protein: "6" as unknown as number,
+        fiber: "3" as unknown as number,
+      }),
     ]);
     expect(day.entries[0].calories).toBe(250);
     expect(day.entries[0].protein).toBe(6);
+    expect(day.entries[0].fiber).toBe(3);
   });
 
   it("maps an empty day", () => {
