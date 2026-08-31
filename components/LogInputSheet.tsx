@@ -24,6 +24,7 @@ import { colors } from "@/constants/theme";
 import { useLocale } from "@/hooks/useLocale";
 import { formatCalories } from "@/utils/formatters";
 import { parseMealText } from "@/utils/parseMeal";
+import { parseAmount } from "@/utils/manualAmount";
 import { useNutritionStore } from "@/stores/nutritionStore";
 import { useSavedMealsStore } from "@/stores/savedMealsStore";
 import { useSubscriptionStore } from "@/stores/useSubscriptionStore";
@@ -65,6 +66,9 @@ interface Candidate {
   portionLabelZh?: string;
   barcode?: string | null;
   unit?: string;
+  // How many of `unit` this line represents. Manual entries set it so the diary row can show "x2";
+  // the photo / voice / barcode paths leave it undefined and addEntry defaults it to 1.
+  quantity?: number;
   // Premium per-serving vitamins & minerals from the photo / voice AI. Carried to addEntry, where
   // the save path keeps it for paid tiers and drops it for free (retainMicrosForTier).
   micros?: EntryMicronutrients | null;
@@ -182,14 +186,6 @@ function matchKnownDish(text: string): ManualNutrition | null {
   };
 }
 
-// Parse the optional manual quantity into a positive serving multiplier. Blank or junk means one
-// serving; capped so a stray big number can't blow up the day's totals.
-function parseQty(raw: string): number {
-  const n = parseFloat(raw.trim());
-  if (!Number.isFinite(n) || n <= 0) return 1;
-  return Math.min(n, 99);
-}
-
 // Scale a micronutrient set by the serving multiplier, keeping only the keys that were present.
 function scaleMicros(m: EntryMicronutrients | null, factor: number): EntryMicronutrients | null {
   if (!m || factor === 1) return m;
@@ -253,9 +249,10 @@ export function LogInputSheet({ visible, date, onClose }: Props) {
 
   const [mName, setMName] = useState("");
   const [mNameZh, setMNameZh] = useState("");
-  // Optional serving multiplier for the manual entry. Blank means one serving; when set it scales
-  // the resolved macros + micros (a known dish or an AI estimate) before they hit the ledger.
-  const [mQty, setMQty] = useState("");
+  // Optional free-text amount for the manual entry, e.g. "1 bowl", "200 g", "2 pieces". A known dish
+  // scales its fixed macros by the leading count; a novel dish hands the amount to the estimator AI,
+  // which portions the nutrition itself (see addManual). Blank means one ordinary serving.
+  const [mAmount, setMAmount] = useState("");
   // Known-dish nutrition for the current manual entry: set by a quick-tag pick or by loading a
   // candidate to correct. Cleared when the user types a name (they're going off-menu, which routes
   // the entry to the logging AI on add). null means "estimate from the text".
@@ -266,7 +263,7 @@ export function LogInputSheet({ visible, date, onClose }: Props) {
   function resetManual() {
     setMName("");
     setMNameZh("");
-    setMQty("");
+    setMAmount("");
     setManualPreset(null);
     setManualMiss(false);
   }
@@ -475,6 +472,7 @@ export function LogInputSheet({ visible, date, onClose }: Props) {
         mealType,
         source: c.source,
         unit: c.unit,
+        quantity: c.quantity,
         barcode: c.barcode ?? null,
         micros: c.micros ?? null,
       },
@@ -520,25 +518,36 @@ export function LogInputSheet({ visible, date, onClose }: Props) {
     close();
   }
 
-  // Commit a resolved manual nutrition, scaled by the optional serving quantity, as a manual entry.
-  function commitManual(name: string, nameZh: string, n: ManualNutrition, qty: number) {
+  // Commit a resolved manual nutrition as a manual entry. `factor` scales a known dish's fixed
+  // per-serving macros by the leading count; it is 1 for an AI estimate, which the estimator has
+  // already portioned. `unit` + `quantity` are stored so the diary row can show the amount the user
+  // logged ("2 bowls", "200 g", or a bare "x2").
+  function commitManual(
+    name: string,
+    nameZh: string,
+    n: ManualNutrition,
+    opts: { factor: number; unit: string; quantity: number },
+  ) {
     commit({
       name,
       nameZh,
-      calories: n.calories * qty,
-      protein: n.protein * qty,
-      carbs: n.carbs * qty,
-      fat: n.fat * qty,
-      fiber: n.fiber * qty,
-      micros: scaleMicros(n.micros, qty),
+      calories: n.calories * opts.factor,
+      protein: n.protein * opts.factor,
+      carbs: n.carbs * opts.factor,
+      fat: n.fat * opts.factor,
+      fiber: n.fiber * opts.factor,
+      micros: scaleMicros(n.micros, opts.factor),
       source: "manual",
+      unit: opts.unit,
+      quantity: opts.quantity,
     });
   }
 
-  // Smart manual log: the user only says WHAT they ate (and optionally how many servings). Known
-  // dishes (a quick-tag, a corrected candidate, or a local keyword match) fill instantly and free.
-  // A novel description is handed to the logging AI to estimate all macros + micros — that path is
-  // metered like the other AI tabs. Either way the result is scaled by the quantity before saving.
+  // Smart manual log: the user says WHAT they ate and, optionally, HOW MUCH ("1 bowl", "200 g",
+  // "2 pieces"). Known dishes (a quick-tag, a corrected candidate, or a local keyword match) fill
+  // instantly and free, scaled by the leading count in the amount. A novel description is handed to
+  // the logging AI, which reads the amount to portion the nutrition itself — that path is metered
+  // like the other AI tabs.
   async function addManual() {
     const en = mName.trim();
     const zh = mNameZh.trim();
@@ -547,12 +556,19 @@ export function LogInputSheet({ visible, date, onClose }: Props) {
 
     const name = en || zh;
     const nameZh = zh || en;
-    const qty = parseQty(mQty);
+    const amount = mAmount.trim();
+    const parsed = parseAmount(amount);
 
-    // 1) Known dish: fills instantly, never spends an AI log.
+    // 1) Known dish: fills instantly, never spends an AI log. Its macros are fixed per serving, so
+    //    scale by the leading count; a measurement ("200 g") can't rescale a fixed serving, so it
+    //    rides along as a label at one serving (parseAmount already resolves which is which).
     const known = manualPreset ?? matchKnownDish(`${en} ${zh}`);
     if (known) {
-      commitManual(name, nameZh, known, qty);
+      commitManual(name, nameZh, known, {
+        factor: parsed.multiplier,
+        quantity: parsed.multiplier,
+        unit: parsed.label ?? "serving",
+      });
       return;
     }
 
@@ -561,7 +577,11 @@ export function LogInputSheet({ visible, date, onClose }: Props) {
     if (!guardAiLog()) return;
     setLoading(true);
     setAiError(null);
-    const outcome = await nlpMealService.parse(`${en} ${zh}`.trim());
+    // Prepend the amount so the estimator portions the dish itself ("200 g 菜芯"). Because the AI
+    // owns the portioning, we do NOT re-apply the local multiplier below (factor 1) — that would
+    // double-count the amount.
+    const description = `${amount} ${en} ${zh}`.trim().replace(/\s+/g, " ");
+    const outcome = await nlpMealService.parse(description);
     setLoading(false);
     if (!outcome.ok) {
       // Backend down: distinct from "the AI looked and had no idea", and it must not silently
@@ -589,7 +609,7 @@ export function LogInputSheet({ visible, date, onClose }: Props) {
         fiber: best.fiber,
         micros: best.micros ?? null,
       },
-      qty,
+      { factor: 1, quantity: best.quantity, unit: best.unit },
     );
   }
 
@@ -879,24 +899,23 @@ export function LogInputSheet({ visible, date, onClose }: Props) {
                   placeholder={tl("Name (中文)", "名稱（中文）")}
                   placeholderTextColor={colors.inkFaint}
                 />
-                {/* Optional serving count. Leave it blank for one serving; anything else scales the
-                    estimated nutrition. It never changes WHAT the dish is, so it doesn't re-trigger
-                    the AI or clear a preset. */}
+                {/* Optional free-text amount. Leave it blank for one serving, or say how much you
+                    ate ("1 bowl", "200 g", "2 pieces"). It never changes WHAT the dish is, so it
+                    doesn't re-trigger the AI or clear a preset. */}
                 <View className="flex-row items-center gap-2">
                   <TextInput
-                    className={`${INPUT} w-24`}
-                    value={mQty}
-                    onChangeText={setMQty}
-                    keyboardType="decimal-pad"
-                    placeholder={tl("Qty", "份量")}
+                    className={`${INPUT} w-32`}
+                    value={mAmount}
+                    onChangeText={setMAmount}
+                    placeholder={tl("e.g. 1 bowl", "例如 1 碗")}
                     placeholderTextColor={colors.inkFaint}
                   />
                   <ScalableText className="flex-1 text-xs text-ink-faint">
-                    {tl("Servings (optional, default 1)", "份數（可選，預設 1）")}
+                    {tl("Amount (optional). Try 1 bowl, 200 g, 2 pieces", "份量（可選）。可寫 1 碗、200 克、2 件")}
                   </ScalableText>
                 </View>
-                {/* Numbers are the AI's job now: the user only says what they ate. Recognised
-                    dishes fill instantly and free; a novel description spends one AI log. */}
+                {/* The user says what they ate and, optionally, how much. Recognised dishes fill
+                    instantly and free; a novel description spends one AI log. */}
                 <View className="flex-row items-start gap-1.5 px-1">
                   <Ionicons name="sparkles-outline" size={13} color={colors.inkFaint} />
                   <ScalableText className="flex-1 text-xs text-ink-faint">

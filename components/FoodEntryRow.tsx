@@ -4,6 +4,7 @@ import { ScalableText } from "./ScalableText";
 import { colors } from "@/constants/theme";
 import { useLocale } from "@/hooks/useLocale";
 import { formatCalories, shortTime } from "@/utils/formatters";
+import { formatAmountLabel } from "@/utils/manualAmount";
 import { ALL_CUSTOMIZATIONS, effectiveMacros } from "@/utils/customizations";
 import { tick } from "@/utils/haptics";
 import { FoodEntry, LogSource, MealCustomization } from "@/types";
@@ -34,6 +35,8 @@ export function FoodEntryRow({ entry, onEdit, onRemove, onToggleCustomization }:
   const active = entry.customizations ?? [];
   const eff = effectiveMacros(entry, active);
   const saved = entry.calories - eff.calories;
+  // The amount the user logged ("1 bowl", "200 g", "x2"), or null for a plain single serving.
+  const amount = formatAmountLabel(entry.quantity, entry.unit);
 
   return (
     <View className="gap-2 border-b border-[#E8E1D2] py-3">
@@ -56,6 +59,7 @@ export function FoodEntryRow({ entry, onEdit, onRemove, onToggleCustomization }:
             </ScalableText>
             <ScalableText className="text-xs text-ink-muted">
               {t(`mealType.${entry.mealType}`)} · {shortTime(entry.loggedAt, locale)}
+              {amount ? ` · ${amount}` : ""}
             </ScalableText>
           </View>
           <View className="items-end">
