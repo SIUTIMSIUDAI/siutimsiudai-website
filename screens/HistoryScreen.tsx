@@ -6,12 +6,12 @@ import { HistoryDateStrip } from "@/components/HistoryDateStrip";
 import { MacroProgressBar } from "@/components/MacroProgressBar";
 import { WeeklyMacroChart, WeeklyMacroDatum } from "@/components/WeeklyMacroChart";
 import { MicroHistoryChart, MicroHistoryDatum } from "@/components/MicroHistoryChart";
-import { LockedLedgerOverlay } from "@/components/LockedLedgerOverlay";
+import { LockedMacroCard } from "@/components/LockedMacroCard";
 import { LockedTrendCard } from "@/components/LockedTrendCard";
 import { LockedMicroTrendCard } from "@/components/LockedMicroTrendCard";
 import { macroColors } from "@/constants/theme";
 import { useLocale } from "@/hooks/useLocale";
-import { useHistoryAccess } from "@/hooks/useFeatureAccess";
+import { useFeatureAccess } from "@/hooks/useFeatureAccess";
 import { todayKey, weekdayShort } from "@/utils/formatters";
 import { effectiveMacros } from "@/utils/customizations";
 import { sumMicroTotals } from "@/utils/micros";
@@ -68,7 +68,9 @@ export function HistoryScreen() {
   const dailyCalorieTarget = useNutritionStore((s) => s.dailyCalorieTarget);
   const activeTier = useSubscriptionStore((s) => s.activeTier);
 
-  const { isLocked, triggerPaywall } = useHistoryAccess(selected);
+  // Calories are free for every tier and every past day; only the macro split is Pro. So the day
+  // gate is the macro-drawer feature flag, not a date window — past days stay browsable for free.
+  const { hasAccess: canViewMacros, triggerPaywall } = useFeatureAccess("macro_drawer");
   const isPaid = activeTier !== "free";
 
   const targets = useMemo(
@@ -123,27 +125,27 @@ export function HistoryScreen() {
           <ScalableText className="text-sm text-ink-muted">{t("history.subtitle")}</ScalableText>
         </View>
 
-        <HistoryDateStrip days={days} selected={selected} onSelect={setSelected} isPaid={isPaid} />
+        <HistoryDateStrip days={days} selected={selected} onSelect={setSelected} />
 
-        {isLocked ? (
-          <LockedLedgerOverlay onUnlock={triggerPaywall} />
-        ) : (
-          <View className="gap-4">
-            {/* Hero: total calories booked for the selected day. */}
-            <View className="items-center rounded-3xl border border-[#E4DCCB] bg-surface py-6">
-              <ScalableText className="text-xs font-semibold uppercase tracking-wide text-ink-faint">
-                {prettyDate}
-              </ScalableText>
-              <ScalableText className="mt-1 text-5xl font-extrabold text-ink">
-                {Math.round(dayTotals.calories).toLocaleString("en-US")}
-              </ScalableText>
-              <ScalableText className="text-sm text-ink-muted">{t("history.booked")}</ScalableText>
-              <ScalableText className="mt-0.5 text-xs text-ink-faint">
-                {t("history.targetLine", { count: dailyCalorieTarget })}
-              </ScalableText>
-            </View>
+        <View className="gap-4">
+          {/* Hero: total calories booked for the selected day. Calories are free on every tier and
+              for every past day, so this always renders. */}
+          <View className="items-center rounded-3xl border border-[#E4DCCB] bg-surface py-6">
+            <ScalableText className="text-xs font-semibold uppercase tracking-wide text-ink-faint">
+              {prettyDate}
+            </ScalableText>
+            <ScalableText className="mt-1 text-5xl font-extrabold text-ink">
+              {Math.round(dayTotals.calories).toLocaleString("en-US")}
+            </ScalableText>
+            <ScalableText className="text-sm text-ink-muted">{t("history.booked")}</ScalableText>
+            <ScalableText className="mt-0.5 text-xs text-ink-faint">
+              {t("history.targetLine", { count: dailyCalorieTarget })}
+            </ScalableText>
+          </View>
 
-            {/* Three horizontal macro bars, filling toward each day's target. */}
+          {/* The macro split (carbs / protein / fat / fibre) is a Pro perk. Paid tiers see the real
+              bars; free users get a locked decoy in its place while the calorie hero stays visible. */}
+          {canViewMacros ? (
             <View className="rounded-2xl border border-[#E4DCCB] bg-surface p-4">
               <MacroProgressBar
                 label={t("dashboard.carbs")}
@@ -176,9 +178,10 @@ export function HistoryScreen() {
                 color={macroColors.fiber}
               />
             </View>
-
-          </View>
-        )}
+          ) : (
+            <LockedMacroCard onUnlock={triggerPaywall} />
+          )}
+        </View>
 
         {/* Weekly trend is a Pro perk: paid tiers get the real chart, free sees a locked decoy. */}
         {isPaid ? (

@@ -1,23 +1,19 @@
 import { useRef } from "react";
 import { Pressable, ScrollView, View } from "react-native";
-import { Ionicons } from "@expo/vector-icons";
 import { ScalableText } from "./ScalableText";
-import { colors } from "@/constants/theme";
 import { useLocale } from "@/hooks/useLocale";
-import { isWithinHistoryWindow } from "@/hooks/useFeatureAccess";
 import { dayOfMonth, todayKey, weekdayShort } from "@/utils/formatters";
 
 interface Props {
   days: string[]; // oldest -> newest, ending today
   selected: string;
   onSelect: (dateKey: string) => void;
-  // Free tier: every day before today wears a small lock so the archive reads as gated.
-  isPaid: boolean;
 }
 
 // Horizontal calendar scroll strip. Auto-scrolls to today on mount so the freshest day sits
-// under the thumb; tapping any pill selects that day for the breakdown below.
-export function HistoryDateStrip({ days, selected, onSelect, isPaid }: Props) {
+// under the thumb; tapping any pill selects that day for the breakdown below. Every day is
+// selectable on every tier — calorie history is free; the macro split below is what's gated.
+export function HistoryDateStrip({ days, selected, onSelect }: Props) {
   const { locale } = useLocale();
   const today = todayKey();
   const scrollRef = useRef<ScrollView>(null);
@@ -38,7 +34,6 @@ export function HistoryDateStrip({ days, selected, onSelect, isPaid }: Props) {
       {days.map((dateKey) => {
         const isSelected = dateKey === selected;
         const isToday = dateKey === today;
-        const locked = !isPaid && !isWithinHistoryWindow(dateKey, today);
         return (
           <Pressable
             key={dateKey}
@@ -60,16 +55,8 @@ export function HistoryDateStrip({ days, selected, onSelect, isPaid }: Props) {
             <ScalableText className={`text-lg font-bold ${isSelected ? "text-white" : "text-ink"}`}>
               {dayOfMonth(dateKey)}
             </ScalableText>
-            {locked ? (
-              <Ionicons
-                name="lock-closed"
-                size={11}
-                color={isSelected ? colors.white : colors.inkFaint}
-              />
-            ) : (
-              // Spacer keeps every pill the same height whether or not the lock shows.
-              <View className="h-[11px]" />
-            )}
+            {/* Spacer preserves the pill height the per-day lock icon used to occupy. */}
+            <View className="h-[11px]" />
           </Pressable>
         );
       })}

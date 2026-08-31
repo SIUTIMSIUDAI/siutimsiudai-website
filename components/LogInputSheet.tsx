@@ -25,6 +25,7 @@ import { useLocale } from "@/hooks/useLocale";
 import { formatCalories } from "@/utils/formatters";
 import { parseMealText } from "@/utils/parseMeal";
 import { parseAmount } from "@/utils/manualAmount";
+import { isMeteredLogSource } from "@/utils/logMetering";
 import { useNutritionStore } from "@/stores/nutritionStore";
 import { useSavedMealsStore } from "@/stores/savedMealsStore";
 import { useSubscriptionStore } from "@/stores/useSubscriptionStore";
@@ -301,10 +302,10 @@ export function LogInputSheet({ visible, date, onClose }: Props) {
     closeScanner();
   }
 
-  // Free tier gets a metered number of AI-assisted logs a week (photo/voice/barcode/label).
-  // Once the weekly allotment is spent, pop the contextual paywall over the sheet instead of
-  // firing another recognition. The sheet stays put so manual entry is still one tap away.
-  // Returns false when blocked so callers bail early. Manual never gates.
+  // Free tier gets a metered number of photo recognitions a week (the one path with a real
+  // per-call vision cost). Once the weekly allotment is spent, pop the contextual paywall over the
+  // sheet instead of firing another recognition. The sheet stays put so the free paths (typing,
+  // voice, barcode) are still one tap away. Returns false when blocked so runPhoto bails early.
   function guardAiLog(): boolean {
     if (aiAccess.hasAccess) return true;
     setPaywallVisible(true);
@@ -365,7 +366,6 @@ export function LogInputSheet({ visible, date, onClose }: Props) {
 
   async function runVoice() {
     if (!text.trim()) return;
-    if (!guardAiLog()) return;
     setLoading(true);
     setAiError(null);
     setAiMiss(false);
@@ -395,11 +395,9 @@ export function LogInputSheet({ visible, date, onClose }: Props) {
     setLoading(false);
   }
 
-  // Ask for the camera and open the live scanner. The quota is checked here rather than after the
-  // scan so a user out of AI logs meets the paywall instead of a camera that turns out to be a dead
-  // end, and so the paywall never has to stack on top of a live preview.
+  // Ask for the camera and open the live scanner. Barcode lookups are a free Open Food Facts call,
+  // so there is no quota gate here — every tier can scan freely.
   async function openScanner() {
-    if (!guardAiLog()) return;
     // The typed field sits right below the button, so the keyboard is often up when this is
     // tapped. It would otherwise sit over the camera preview.
     Keyboard.dismiss();
@@ -430,7 +428,6 @@ export function LogInputSheet({ visible, date, onClose }: Props) {
   async function runBarcode(value: string) {
     const c = value.trim();
     if (!c) return;
-    if (!guardAiLog()) return;
     setLoading(true);
     setBarcodeMiss(false);
     setBatchCharged(false); // a fresh lookup is a new chargeable action
@@ -483,11 +480,12 @@ export function LogInputSheet({ visible, date, onClose }: Props) {
     if (saved) markUsed(saved.id);
   }
 
-  // A recognition batch is one AI call, so it costs one AI log however many lines the user keeps.
-  // Charge on the first non-manual line committed; the flag (reset per new batch) stops the rest,
-  // or an "add all", from charging again. Manual lines meter in addManual, never here.
+  // A photo recognition batch is one AI call, so it costs one AI log however many lines the user
+  // keeps. Charge on the first metered (photo) line committed; the flag (reset per new batch) stops
+  // the rest, or an "add all", from charging again. Free sources (voice, barcode, manual) never
+  // meter, here or anywhere.
   function meterBatchOnce(source: LogSource) {
-    if (source === "manual" || batchCharged) return;
+    if (!isMeteredLogSource(source) || batchCharged) return;
     incrementAiLog();
     setBatchCharged(true);
   }
@@ -508,13 +506,13 @@ export function LogInputSheet({ visible, date, onClose }: Props) {
   }
 
   // Log every remaining order-slip line in one tap: the primary action when a voice order or a photo
-  // returns several dishes. The whole batch is one AI call, so it spends exactly one AI log (unless
-  // an earlier single-line add already charged it).
+  // returns several dishes. A photo batch is one AI call, so it spends exactly one AI log (unless an
+  // earlier single-line add already charged it); a voice batch is free and spends nothing.
   function commitAll() {
     if (candidates.length === 0) return;
     tapLight();
     candidates.forEach(saveCandidate);
-    if (!batchCharged && candidates.some((c) => c.source !== "manual")) incrementAiLog();
+    if (!batchCharged && candidates.some((c) => isMeteredLogSource(c.source))) incrementAiLog();
     close();
   }
 
@@ -545,9 +543,9 @@ export function LogInputSheet({ visible, date, onClose }: Props) {
 
   // Smart manual log: the user says WHAT they ate and, optionally, HOW MUCH ("1 bowl", "200 g",
   // "2 pieces"). Known dishes (a quick-tag, a corrected candidate, or a local keyword match) fill
-  // instantly and free, scaled by the leading count in the amount. A novel description is handed to
-  // the logging AI, which reads the amount to portion the nutrition itself — that path is metered
-  // like the other AI tabs.
+  // instantly, scaled by the leading count in the amount. A novel description is handed to the
+  // logging AI, which reads the amount to portion the nutrition itself. Typing is always free — no
+  // path here spends an AI log; the server's per-user daily cap is the only backstop.
   async function addManual() {
     const en = mName.trim();
     const zh = mNameZh.trim();
@@ -572,9 +570,8 @@ export function LogInputSheet({ visible, date, onClose }: Props) {
       return;
     }
 
-    // 2) Novel description: estimate via the logging AI. Metered, so gate on the weekly quota
-    //    first (this pops the paywall when a free user's logs are spent).
-    if (!guardAiLog()) return;
+    // 2) Novel description: estimate via the logging AI. Free for every tier, so no quota gate —
+    //    the server's per-user daily cap is the abuse backstop.
     setLoading(true);
     setAiError(null);
     // Prepend the amount so the estimator portions the dish itself ("200 g 菜芯"). Because the AI
@@ -595,9 +592,8 @@ export function LogInputSheet({ visible, date, onClose }: Props) {
       setManualMiss(true);
       return;
     }
-    // A successful estimate spends one AI log. Metered here (not via commit) so the entry still
-    // records as a manual log — commit only auto-meters non-manual sources.
-    incrementAiLog();
+    // A manual estimate is free, so nothing is metered here. commitManual records it as a manual
+    // log, and manual is not a metered source, so commit's auto-meter also leaves it alone.
     commitManual(
       name,
       nameZh,
@@ -687,18 +683,18 @@ export function LogInputSheet({ visible, date, onClose }: Props) {
             })}
           </ScrollView>
 
-          {tab !== "manual" && Number.isFinite(aiAccess.remainingLogs) && (
+          {tab === "photo" && Number.isFinite(aiAccess.remainingLogs) && (
             <View className="mb-1 flex-row items-center gap-1.5 px-1">
               <Ionicons name="sparkles-outline" size={13} color={colors.inkFaint} />
               <ScalableText className="text-xs text-ink-faint">
                 {aiAccess.remainingLogs > 0
                   ? tl(
-                      `${aiAccess.remainingLogs} free AI logs left this week`,
-                      `今個星期仲有 ${aiAccess.remainingLogs} 次 AI 入數`,
+                      `${aiAccess.remainingLogs} free photo scans left this week`,
+                      `今個星期仲有 ${aiAccess.remainingLogs} 次免費影相辨識`,
                     )
                   : tl(
-                      "This week's AI logs are spent. Manual entry is still on us.",
-                      "今個星期 AI 入數用晒，手動入數照樣免費。",
+                      "Photo scans are used up this week. Typing, voice and barcode are still free.",
+                      "今個星期影相辨識用晒，打字、語音同掃碼照樣免費。",
                     )}
               </ScalableText>
             </View>
@@ -915,13 +911,13 @@ export function LogInputSheet({ visible, date, onClose }: Props) {
                   </ScalableText>
                 </View>
                 {/* The user says what they ate and, optionally, how much. Recognised dishes fill
-                    instantly and free; a novel description spends one AI log. */}
+                    instantly; a novel description is estimated by the AI. Typing is always free. */}
                 <View className="flex-row items-start gap-1.5 px-1">
                   <Ionicons name="sparkles-outline" size={13} color={colors.inkFaint} />
                   <ScalableText className="flex-1 text-xs text-ink-faint">
                     {tl(
-                      "Type a dish or tap a tag and we'll fill in the nutrition. New dishes spend one AI log.",
-                      "打菜名或者揀標籤，我哋幫你填營養。新菜式會用一次 AI 入數。",
+                      "Type a dish or tap a tag and we'll fill in the nutrition. Typing is always free.",
+                      "打菜名或者揀標籤，我哋幫你填營養。打字入數永遠免費。",
                     )}
                   </ScalableText>
                 </View>

@@ -6,7 +6,7 @@ import { colors, macroColors } from "@/constants/theme";
 import { useLocale } from "@/hooks/useLocale";
 
 interface Props {
-  // Route to the paywall. Wired to useHistoryAccess().triggerPaywall by the screen.
+  // Route to the paywall. Wired to the screen's triggerPaywall (useFeatureAccess).
   onUnlock: () => void;
 }
 
@@ -32,7 +32,7 @@ function DecoyColumn({ frac }: { frac: number }) {
 
 // The locked weekly-trend state for free users. A decoy stacked-column chart is blurred and
 // dimmed under a charcoal scrim, with a compact upsell card floated on top. Mirrors the
-// LockedLedgerOverlay treatment so the two archive locks feel like one system.
+// LockedMacroCard treatment so the History locks feel like one system.
 export function LockedTrendCard({ onUnlock }: Props) {
   const { tl } = useLocale();
 

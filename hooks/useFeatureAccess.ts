@@ -1,6 +1,5 @@
 import { useCallback } from "react";
 import { router } from "expo-router";
-import { daysAgo, HISTORY_WINDOW_DAYS, isWithinHistoryWindow } from "@/utils/historyWindow";
 import {
   SubscriptionTier,
   effectiveWeeklyCount,
@@ -95,47 +94,4 @@ export function useFeatureAccess(feature: Feature): FeatureAccess {
   }, []);
 
   return { hasAccess, remainingLogs, triggerPaywall };
-}
-
-// --- Time-based history gating -------------------------------------------------------------
-//
-// The logbook is free for the current day only: a free user records and reviews today's intake,
-// but every past day is a Pro perk. Free users still SEE that earlier days exist (the ledger
-// archive) — the numbers stay sealed behind the paywall. Paid tiers read and edit the whole
-// history. The window is whole calendar days, parsed at local midnight, so it never drifts by a
-// few hours across a day boundary.
-//
-// Definitions live in utils/historyWindow (pure, no React) so non-React sync code can import them
-// without pulling in the hook module. Re-exported here so existing importers keep working.
-
-export { daysAgo, HISTORY_WINDOW_DAYS, isWithinHistoryWindow } from "@/utils/historyWindow";
-
-export interface HistoryAccess {
-  // Selected date sits inside the free window — today only (independent of tier).
-  withinWindow: boolean;
-  // May the current tier read this day's numbers and graphs?
-  canView: boolean;
-  // May the current tier add / remove / tweak this day's entries? Same rule as canView.
-  canEdit: boolean;
-  // Free user peering past the window: render the locked-ledger teaser instead of data.
-  isLocked: boolean;
-  triggerPaywall: () => void;
-}
-
-/**
- * Gate a specific logbook date. Today is free for every tier (full read/write). For any past
- * day, Pro and Max keep full access while Free is sealed out and should be shown the
- * locked-ledger teaser rather than any real figures.
- */
-export function useHistoryAccess(dateKey: string): HistoryAccess {
-  const activeTier = useSubscriptionStore((s) => s.activeTier);
-  const isPaid = TIER_RANK[activeTier] >= TIER_RANK.pro;
-  const withinWindow = isWithinHistoryWindow(dateKey);
-  const canView = withinWindow || isPaid;
-
-  const triggerPaywall = useCallback(() => {
-    router.push("/subscription");
-  }, []);
-
-  return { withinWindow, canView, canEdit: canView, isLocked: !canView, triggerPaywall };
 }

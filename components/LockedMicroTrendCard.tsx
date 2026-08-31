@@ -6,7 +6,7 @@ import { colors, microColors } from "@/constants/theme";
 import { useLocale } from "@/hooks/useLocale";
 
 interface Props {
-  // Route to the paywall. Wired to useHistoryAccess().triggerPaywall by the screen.
+  // Route to the paywall. Wired to the screen's triggerPaywall (useFeatureAccess).
   onUnlock: () => void;
 }
 
