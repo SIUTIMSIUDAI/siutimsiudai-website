@@ -131,14 +131,14 @@
     "prev": "上一步",
     "next": "下一步",
     "voice": "語音",
-    "gesture": "揮手",
+    "voiceListening": "聆聽緊",
     "timer": "計時",
     "start": "開始",
     "finish": "完成",
     "exit": "離開",
-    "hint": "手污？撳語音或揮手免提操作。",
-    "voiceSim": "語音控制（模擬）",
-    "gestureSim": "懸停手勢（模擬）"
+    "hint": "手污？撳一下語音，講「下一步」或者「上一步」。",
+    "voicePermission": "麥克風權限已關閉。請喺「設定」開啟，就可以使用語音控制。",
+    "voiceUnavailable": "此裝置未支援語音控制。"
   },
   "pantry": {
     "title": "存貨",

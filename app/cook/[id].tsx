@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Pressable, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
@@ -6,6 +6,7 @@ import { router, useLocalSearchParams } from "expo-router";
 import { ScalableText } from "@/components/ScalableText";
 import { colors } from "@/constants/theme";
 import { useLocale } from "@/hooks/useLocale";
+import { useVoiceNav } from "@/hooks/useVoiceNav";
 import { useRecipeStore } from "@/stores/recipeStore";
 
 // In-step countdown. Re-mounts per step (key={step.id}) so each step gets a fresh timer.
@@ -75,9 +76,29 @@ function CookTimer({ seconds }: { seconds: number }) {
 
 export default function CookScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
-  const { t, tl } = useLocale();
+  const { t, tl, locale } = useLocale();
   const recipe = useRecipeStore((s) => s.recipes.find((r) => r.id === id));
   const [index, setIndex] = useState(0);
+
+  // These hooks (including useVoiceNav) must run before the early return below, so total and the
+  // nav callbacks are computed defensively with recipe possibly undefined. indexRef lets the voice
+  // callbacks read the live step without re-registering the recogniser on every navigation.
+  const total = recipe?.steps.length ?? 0;
+  const indexRef = useRef(index);
+  useEffect(() => {
+    indexRef.current = index;
+  }, [index]);
+
+  const goPrev = useCallback(() => setIndex((i) => Math.max(0, i - 1)), []);
+  const goNext = useCallback(() => {
+    if (indexRef.current >= total - 1) router.back();
+    else setIndex((i) => Math.min(total - 1, i + 1));
+  }, [total]);
+
+  const voice = useVoiceNav({
+    locale,
+    onCommand: (command) => (command === "next" ? goNext() : goPrev()),
+  });
 
   if (!recipe || recipe.steps.length === 0) {
     return (
@@ -97,16 +118,9 @@ export default function CookScreen() {
     );
   }
 
-  const total = recipe.steps.length;
   const step = recipe.steps[index];
   const isFirst = index === 0;
   const isLast = index === total - 1;
-
-  const goPrev = () => setIndex((i) => Math.max(0, i - 1));
-  const goNext = () => {
-    if (isLast) router.back();
-    else setIndex((i) => Math.min(total - 1, i + 1));
-  };
 
   return (
     <SafeAreaView className="flex-1 bg-ink">
@@ -158,38 +172,37 @@ export default function CookScreen() {
         {step.durationSeconds != null && <CookTimer key={step.id} seconds={step.durationSeconds} />}
       </View>
 
-      <View className="gap-2 px-6 pb-2">
-        <ScalableText className="text-center text-xs text-white/50" maxFontSizeMultiplier={1.3}>
-          {t("cook.hint")}
-        </ScalableText>
-        <View className="flex-row justify-center gap-3">
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel={t("cook.gestureSim")}
-            disabled={isFirst}
-            onPress={goPrev}
-            className={`h-12 flex-row items-center gap-2 rounded-full border border-white/20 px-4 ${
-              isFirst ? "opacity-30" : "active:opacity-70"
-            }`}
-          >
-            <Ionicons name="hand-left-outline" size={18} color={colors.white} />
-            <ScalableText className="text-xs font-semibold text-white" maxFontSizeMultiplier={1.3}>
-              {t("cook.gesture")}
-            </ScalableText>
-          </Pressable>
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel={t("cook.voiceSim")}
-            onPress={goNext}
-            className="h-12 flex-row items-center gap-2 rounded-full border border-white/20 px-4 active:opacity-70"
-          >
-            <Ionicons name="mic-outline" size={18} color={colors.white} />
-            <ScalableText className="text-xs font-semibold text-white" maxFontSizeMultiplier={1.3}>
-              {t("cook.voice")}
-            </ScalableText>
-          </Pressable>
+      {voice.supported && (
+        <View className="gap-2 px-6 pb-2">
+          <ScalableText className="text-center text-xs text-white/50" maxFontSizeMultiplier={1.3}>
+            {voice.error === "permission"
+              ? t("cook.voicePermission")
+              : voice.error === "unavailable"
+                ? t("cook.voiceUnavailable")
+                : t("cook.hint")}
+          </ScalableText>
+          <View className="flex-row justify-center">
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel={voice.listening ? t("cook.voiceListening") : t("cook.voice")}
+              accessibilityState={{ selected: voice.listening }}
+              onPress={voice.toggle}
+              className={`h-12 flex-row items-center gap-2 rounded-full border px-5 active:opacity-70 ${
+                voice.listening ? "border-brand bg-brand" : "border-white/20"
+              }`}
+            >
+              <Ionicons
+                name={voice.listening ? "mic" : "mic-outline"}
+                size={18}
+                color={colors.white}
+              />
+              <ScalableText className="text-xs font-semibold text-white" maxFontSizeMultiplier={1.3}>
+                {voice.listening ? t("cook.voiceListening") : t("cook.voice")}
+              </ScalableText>
+            </Pressable>
+          </View>
         </View>
-      </View>
+      )}
 
       <View className="flex-row gap-3 px-6 pb-6 pt-2">
         <Pressable

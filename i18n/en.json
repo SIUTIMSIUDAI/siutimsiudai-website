@@ -131,14 +131,14 @@
     "prev": "Back",
     "next": "Next",
     "voice": "Voice",
-    "gesture": "Wave",
+    "voiceListening": "Listening",
     "timer": "Timer",
     "start": "Start",
     "finish": "Finish",
     "exit": "Exit",
-    "hint": "Hands messy? Tap Voice or Wave to move hands-free.",
-    "voiceSim": "Voice control (simulated)",
-    "gestureSim": "Hover gesture (simulated)"
+    "hint": "Hands messy? Tap Voice, then say “next” or “back”.",
+    "voicePermission": "Microphone access is off. Turn it on in Settings to use voice control.",
+    "voiceUnavailable": "Voice control isn’t available on this device."
   },
   "pantry": {
     "title": "Pantry",

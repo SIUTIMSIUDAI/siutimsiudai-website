@@ -2,7 +2,7 @@
   "expo": {
     "name": "少甜少底",
     "slug": "siutimsiudai",
-    "version": "1.0.0",
+    "version": "1.0.1",
     "orientation": "portrait",
     "scheme": "siutimsiudai",
     "userInterfaceStyle": "automatic",
@@ -15,7 +15,7 @@
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "app.siutimsiudai.mobile",
-      "buildNumber": "3",
+      "buildNumber": "4",
       "usesAppleSignIn": true,
       "associatedDomains": ["applinks:siutimsiudai.app"],
       "infoPlist": {
@@ -26,7 +26,7 @@
     },
     "android": {
       "package": "app.siutimsiudai.mobile",
-      "versionCode": 1,
+      "versionCode": 2,
       "allowBackup": false,
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
@@ -79,7 +79,15 @@
       ],
       "expo-asset",
       "expo-web-browser",
-      "expo-apple-authentication"
+      "expo-apple-authentication",
+      [
+        "expo-speech-recognition",
+        {
+          "microphonePermission": "Siu Tim Siu Dai uses the microphone so you can say “next” or “back” to move between recipe steps while your hands are busy cooking. Your voice is used only to recognise these commands and no recording is saved or sent to us.",
+          "speechRecognitionPermission": "Siu Tim Siu Dai uses speech recognition to understand simple cooking commands like “next” and “back” so you can move through recipe steps hands-free. Your speech is interpreted to detect these commands only and is not stored by us.",
+          "androidSpeechServicePackages": ["com.google.android.googlequicksearchbox"]
+        }
+      ]
     ],
     "experiments": {
       "typedRoutes": true
