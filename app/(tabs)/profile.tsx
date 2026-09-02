@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { ActivityIndicator, Pressable, ScrollView, Switch, TextInput, View } from "react-native";
 import { router } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
@@ -13,6 +13,8 @@ import { SourcesLink } from "@/components/SourcesLink";
 import { colors } from "@/constants/theme";
 import { useLocale } from "@/hooks/useLocale";
 import { useBiometricLogin } from "@/hooks/useBiometricLogin";
+import { getMyDisplayName, setMyDisplayName } from "@/services/profileService";
+import { normaliseDisplayName } from "@/utils/displayName";
 import * as biometricAuth from "@/services/biometricAuth";
 import { biometricNameKey } from "@/utils/biometricLogin";
 import { useAppStore } from "@/stores/appStore";
@@ -44,6 +46,11 @@ export default function ProfileScreen() {
   const setHealthProfile = useNutritionStore((s) => s.setHealthProfile);
   const clearHealthProfile = useNutritionStore((s) => s.clearHealthProfile);
   const [targetText, setTargetText] = useState(String(target));
+  // "How should we call you?" — the name family members see. Prefilled from the saved profile below;
+  // nameSaved briefly flips the Save button to "Saved" as a light confirmation, like the copy button
+  // on the family screen.
+  const [nameText, setNameText] = useState("");
+  const [nameSaved, setNameSaved] = useState(false);
   const [healthSheetOpen, setHealthSheetOpen] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [deleting, setDeleting] = useState(false);
@@ -92,10 +99,34 @@ export default function ProfileScreen() {
   const canChangePassword = hasPasswordIdentity(user?.identities);
   const socialNames = socialProviderNames(user?.identities);
 
+  // Load the saved name once so the field shows the user's current name rather than a blank box. A
+  // signed-out or unconfigured session resolves to null and the field simply stays empty.
+  useEffect(() => {
+    let active = true;
+    void getMyDisplayName().then((saved) => {
+      if (active && saved) setNameText(saved);
+    });
+    return () => {
+      active = false;
+    };
+  }, []);
+
   function commitTarget() {
     const next = Math.max(0, Math.round(Number(targetText) || 0)) || 2000;
     setCalorieTarget(next);
     setTargetText(String(next));
+  }
+
+  async function commitName() {
+    const clean = normaliseDisplayName(nameText);
+    // Reflect the cleaned value back so the box shows exactly what was stored (trimmed, capped), or
+    // clears if they saved an empty name.
+    setNameText(clean ?? "");
+    const res = await setMyDisplayName(clean);
+    if (res.ok) {
+      setNameSaved(true);
+      setTimeout(() => setNameSaved(false), 2000);
+    }
   }
 
   function handleHealthSaved(profile: HealthProfile) {
@@ -365,6 +396,31 @@ export default function ProfileScreen() {
           {/* Settings is where someone goes looking for the "why" behind a number they disagree
               with, so the citations live in the same card as the targets themselves. */}
           <SourcesLink variant="row" />
+        </View>
+
+        <View className="gap-2">
+          <ScalableText className="px-1 text-sm font-semibold text-ink-muted">
+            {t("profile.nameLabel")}
+          </ScalableText>
+          <View className="flex-row items-center gap-2">
+            <TextInput
+              className={`${INPUT} flex-1`}
+              value={nameText}
+              onChangeText={(v) => {
+                setNameText(v);
+                if (nameSaved) setNameSaved(false);
+              }}
+              onSubmitEditing={commitName}
+              placeholder={t("profile.namePlaceholder")}
+              placeholderTextColor={colors.inkFaint}
+              maxLength={40}
+              returnKeyType="done"
+            />
+            <Button
+              label={nameSaved ? t("profile.nameSaved") : t("common.save")}
+              onPress={commitName}
+            />
+          </View>
         </View>
 
         <View className="gap-2">
