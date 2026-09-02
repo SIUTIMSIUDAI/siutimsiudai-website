@@ -260,6 +260,14 @@ export function LogInputSheet({ visible, date, onClose }: Props) {
   const [manualPreset, setManualPreset] = useState<ManualNutrition | null>(null);
   // True after the AI returned no estimate for a novel description, so we can nudge inline.
   const [manualMiss, setManualMiss] = useState(false);
+  // The order-slip line currently loaded into the manual form for correction, or null for an
+  // ordinary manual add. While set, the sheet shows a focused edit screen (no tabs, no slip list)
+  // and confirming swaps the corrected line back into the queue instead of logging it, so the rest
+  // of the order survives a correction. Fixes losing the other dishes the moment "Fix it" is tapped.
+  const [editingCandidate, setEditingCandidate] = useState<Candidate | null>(null);
+  // Where to land when an edit ends, so correcting a slip returns the user to the view the slips
+  // came from (photo / voice) rather than stranding them on the manual form.
+  const [returnTab, setReturnTab] = useState<Tab>("photo");
 
   function resetManual() {
     setMName("");
@@ -276,6 +284,7 @@ export function LogInputSheet({ visible, date, onClose }: Props) {
 
   function close() {
     setCandidates([]);
+    setEditingCandidate(null);
     setBarcodeMiss(false);
     setAiError(null);
     setAiMiss(false);
@@ -289,9 +298,20 @@ export function LogInputSheet({ visible, date, onClose }: Props) {
     onClose();
   }
 
+  // End a correction and return to the queue: clear the loaded line, wipe the edit form, and go back
+  // to the tab the slips came from. Used both when a correction is confirmed (the queue already holds
+  // the corrected line by then) and when the user cancels (the original line is left untouched).
+  function exitEdit() {
+    setEditingCandidate(null);
+    resetManual();
+    setAiError(null);
+    setTab(returnTab);
+  }
+
   function switchTab(next: Tab) {
     setTab(next);
     setCandidates([]);
+    setEditingCandidate(null);
     setBarcodeMiss(false);
     setManualMiss(false);
     setAiError(null);
@@ -541,6 +561,39 @@ export function LogInputSheet({ visible, date, onClose }: Props) {
     });
   }
 
+  // Apply a resolved manual nutrition. Normally that logs it (commitManual). But when we are
+  // correcting an order-slip line, the fix drops back into the queue IN PLACE instead of being
+  // logged, so the user can still add the rest of the order (or "Add all") in one go.
+  function resolveManual(
+    name: string,
+    nameZh: string,
+    n: ManualNutrition,
+    opts: { factor: number; unit: string; quantity: number },
+  ) {
+    if (editingCandidate) {
+      const corrected: Candidate = {
+        name,
+        nameZh,
+        calories: n.calories * opts.factor,
+        protein: n.protein * opts.factor,
+        carbs: n.carbs * opts.factor,
+        fat: n.fat * opts.factor,
+        fiber: n.fiber * opts.factor,
+        micros: scaleMicros(n.micros, opts.factor),
+        // Keep the slip's origin so one photo call still costs exactly one weekly log even when every
+        // line is hand-corrected. A corrected line is no longer an AI guess, so it carries neither a
+        // confidence badge nor an AI portion label.
+        source: editingCandidate.source,
+        unit: opts.unit,
+        quantity: opts.quantity,
+      };
+      setCandidates((prev) => prev.map((x) => (x === editingCandidate ? corrected : x)));
+      exitEdit();
+      return;
+    }
+    commitManual(name, nameZh, n, opts);
+  }
+
   // Smart manual log: the user says WHAT they ate and, optionally, HOW MUCH ("1 bowl", "200 g",
   // "2 pieces"). Known dishes (a quick-tag, a corrected candidate, or a local keyword match) fill
   // instantly, scaled by the leading count in the amount. A novel description is handed to the
@@ -562,7 +615,7 @@ export function LogInputSheet({ visible, date, onClose }: Props) {
     //    rides along as a label at one serving (parseAmount already resolves which is which).
     const known = manualPreset ?? matchKnownDish(`${en} ${zh}`);
     if (known) {
-      commitManual(name, nameZh, known, {
+      resolveManual(name, nameZh, known, {
         factor: parsed.multiplier,
         quantity: parsed.multiplier,
         unit: parsed.label ?? "serving",
@@ -592,9 +645,10 @@ export function LogInputSheet({ visible, date, onClose }: Props) {
       setManualMiss(true);
       return;
     }
-    // A manual estimate is free, so nothing is metered here. commitManual records it as a manual
-    // log, and manual is not a metered source, so commit's auto-meter also leaves it alone.
-    commitManual(
+    // A manual estimate is free, so nothing is metered here. resolveManual either logs it as a manual
+    // entry (manual is not a metered source, so commit's auto-meter also leaves it alone) or, mid
+    // correction, drops the fixed line back into the queue.
+    resolveManual(
       name,
       nameZh,
       {
@@ -609,12 +663,18 @@ export function LogInputSheet({ visible, date, onClose }: Props) {
     );
   }
 
-  // The accuracy guardrail: load any guess into the manual form to correct its name. Its estimate
-  // rides along as the preset, so confirming as-is keeps the numbers; retyping the name re-routes
-  // the entry to the logging AI for a fresh estimate.
+  // The accuracy guardrail: load a slip into the manual form to correct it. Its estimate rides along
+  // as the preset, so confirming as-is keeps the numbers; retyping the name re-routes the entry to
+  // the logging AI for a fresh estimate. We move to the manual tab directly rather than via switchTab
+  // (which would wipe the rest of the order slip) and remember the current tab so exitEdit can bring
+  // the queue back. The other lines are preserved (hidden while editing) and the corrected line drops
+  // back into the queue on confirm, so a correction no longer discards the rest of the order.
   function editCandidate(c: Candidate) {
+    setReturnTab(tab);
+    setEditingCandidate(c);
     setMName(c.name);
     setMNameZh(c.nameZh);
+    setMAmount("");
     setManualPreset({
       calories: c.calories,
       protein: c.protein,
@@ -623,7 +683,10 @@ export function LogInputSheet({ visible, date, onClose }: Props) {
       fiber: c.fiber,
       micros: c.micros ?? null,
     });
-    switchTab("manual");
+    setTab("manual");
+    setManualMiss(false);
+    setAiError(null);
+    closeScanner();
   }
 
   return (
@@ -655,33 +718,57 @@ export function LogInputSheet({ visible, date, onClose }: Props) {
 
           <MealTypePicker value={mealType} onChange={setMealType} />
 
-          <ScrollView
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            contentContainerStyle={{ gap: 8, paddingVertical: 12 }}
-          >
-            {TABS.map(({ key, icon, labelKey }) => {
-              const active = key === tab;
-              return (
-                <Pressable
-                  key={key}
-                  accessibilityRole="button"
-                  accessibilityState={{ selected: active }}
-                  onPress={() => switchTab(key)}
-                  className={`min-h-[44px] flex-row items-center gap-1.5 rounded-full px-4 py-2 ${
-                    active ? "bg-ink" : "bg-surface-sunken"
-                  }`}
-                >
-                  <Ionicons name={icon} size={16} color={active ? colors.white : colors.inkMuted} />
-                  <ScalableText
-                    className={`text-sm font-semibold ${active ? "text-white" : "text-ink-muted"}`}
+          {editingCandidate ? (
+            // A correction is a focused sub-screen: the tab row is swapped for a title and a way out,
+            // so the user can't wander to another tab (which would clear the order) mid-fix. Cancel
+            // leaves the original line untouched in the queue.
+            <View className="flex-row items-center justify-between py-3">
+              <View className="flex-row items-center gap-1.5">
+                <Ionicons name="create-outline" size={16} color={colors.inkMuted} />
+                <ScalableText className="text-sm font-semibold text-ink">
+                  {tl("Correcting this dish", "改緊呢味")}
+                </ScalableText>
+              </View>
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel={t("common.cancel")}
+                onPress={exitEdit}
+                className="min-h-[44px] flex-row items-center justify-center px-2"
+              >
+                <ScalableText className="text-sm font-semibold text-brand">
+                  {t("common.cancel")}
+                </ScalableText>
+              </Pressable>
+            </View>
+          ) : (
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={{ gap: 8, paddingVertical: 12 }}
+            >
+              {TABS.map(({ key, icon, labelKey }) => {
+                const active = key === tab;
+                return (
+                  <Pressable
+                    key={key}
+                    accessibilityRole="button"
+                    accessibilityState={{ selected: active }}
+                    onPress={() => switchTab(key)}
+                    className={`min-h-[44px] flex-row items-center gap-1.5 rounded-full px-4 py-2 ${
+                      active ? "bg-ink" : "bg-surface-sunken"
+                    }`}
                   >
-                    {t(labelKey)}
-                  </ScalableText>
-                </Pressable>
-              );
-            })}
-          </ScrollView>
+                    <Ionicons name={icon} size={16} color={active ? colors.white : colors.inkMuted} />
+                    <ScalableText
+                      className={`text-sm font-semibold ${active ? "text-white" : "text-ink-muted"}`}
+                    >
+                      {t(labelKey)}
+                    </ScalableText>
+                  </Pressable>
+                );
+              })}
+            </ScrollView>
+          )}
 
           {tab === "photo" && Number.isFinite(aiAccess.remainingLogs) && (
             <View className="mb-1 flex-row items-center gap-1.5 px-1">
@@ -932,8 +1019,14 @@ export function LogInputSheet({ visible, date, onClose }: Props) {
                   </View>
                 )}
                 <Button
-                  label={loading ? tl("Estimating your meal...", "幫你計緊營養...") : t("log.confirm")}
-                  icon="add"
+                  label={
+                    loading
+                      ? tl("Estimating your meal...", "幫你計緊營養...")
+                      : editingCandidate
+                        ? tl("Update dish", "改好")
+                        : t("log.confirm")
+                  }
+                  icon={editingCandidate ? "checkmark" : "add"}
                   loading={loading}
                   onPress={addManual}
                 />
@@ -970,7 +1063,7 @@ export function LogInputSheet({ visible, date, onClose }: Props) {
               </View>
             )}
 
-            {candidates.length > 0 && (
+            {candidates.length > 0 && !editingCandidate && (
               <View className="mt-4 gap-3">
                 {/* One tap to log a whole voice order or multi-dish photo. Only shown when there is
                     more than one line: a single slip is added with its own card button. */}
