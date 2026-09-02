@@ -15,7 +15,7 @@
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "app.siutimsiudai.mobile",
-      "buildNumber": "4",
+      "buildNumber": "5",
       "usesAppleSignIn": true,
       "associatedDomains": ["applinks:siutimsiudai.app"],
       "infoPlist": {
