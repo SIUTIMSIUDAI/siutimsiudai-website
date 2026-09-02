@@ -15,7 +15,7 @@
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "app.siutimsiudai.mobile",
-      "buildNumber": "5",
+      "buildNumber": "6",
       "usesAppleSignIn": true,
       "associatedDomains": ["applinks:siutimsiudai.app"],
       "infoPlist": {
@@ -60,15 +60,13 @@
         "expo-camera",
         {
           "cameraPermission": "Siu Tim Siu Dai uses the camera so you can photograph a meal to estimate its calories and nutrients, photograph your kitchen to list the ingredients you have in stock, or scan a product barcode to look up its nutrition. A meal photo is saved with that entry in your food diary; a pantry photo is not saved; a barcode is read on your device and no image of it is stored or sent anywhere.",
-          "microphonePermission": false,
           "recordAudioAndroid": false
         }
       ],
       [
         "expo-image-picker",
         {
-          "photosPermission": "Siu Tim Siu Dai accesses your photo library so you can pick an existing meal photo instead of taking a new one. The photo you choose is analysed to estimate calories and nutrients, and is saved with that entry in your food diary.",
-          "microphonePermission": false
+          "photosPermission": "Siu Tim Siu Dai accesses your photo library so you can pick an existing meal photo instead of taking a new one. The photo you choose is analysed to estimate calories and nutrients, and is saved with that entry in your food diary."
         }
       ],
       [
