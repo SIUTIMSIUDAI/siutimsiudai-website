@@ -4,7 +4,7 @@ import {
   useSpeechRecognitionEvent,
 } from "expo-speech-recognition";
 import { Locale } from "@/types";
-import { matchVoiceCommand, VoiceCommand } from "@/utils/voiceCommands";
+import { matchVoiceCommand, VOICE_HINT_WORDS, VoiceCommand } from "@/utils/voiceCommands";
 
 // Coarse on purpose: the cook screen only needs to tell the user "grant it in Settings" (permission)
 // apart from "this device can't do it" (unavailable). Every transient recogniser hiccup (no-speech,
@@ -55,14 +55,29 @@ export function useVoiceNav({ locale, onCommand }: UseVoiceNavArgs): VoiceNav {
     onCommandRef.current = onCommand;
   }, [onCommand]);
   const restartTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // True once the current utterance has already fired a command, so later interim/final results for the
+  // same phrase don't fire it twice. Cleared at the start of every fresh listen in begin().
+  const firedRef = useRef(false);
 
   const begin = useCallback(() => {
+    const cantonese = localeRef.current === "zh-Hant";
+    // Every fresh listen starts able to fire again (see firedRef).
+    firedRef.current = false;
     try {
       ExpoSpeechRecognitionModule.start({
-        lang: localeRef.current === "zh-Hant" ? "zh-HK" : "en-US",
-        interimResults: false,
+        lang: cantonese ? "zh-HK" : "en-US",
+        // Interim results let the result handler act the moment a command word is heard, rather than
+        // waiting for the recogniser to declare the whole phrase final on a trailing silence. That wait
+        // was the multi-second lag before the step turned.
+        interimResults: true,
         continuous: false,
-        requiresOnDeviceRecognition: false,
+        // On-device recognition drops the network round-trip to Apple's servers, so English commands
+        // resolve near-instantly and keep working offline. Cantonese (zh-HK) has no guaranteed on-device
+        // model, so it stays on the network path rather than risking a "language-not-supported" failure.
+        requiresOnDeviceRecognition: !cantonese,
+        // Prime the recogniser with the navigation vocabulary so a quiet or clipped command still
+        // registers instead of competing with the whole dictionary.
+        contextualStrings: VOICE_HINT_WORDS,
       });
     } catch {
       listeningRef.current = false;
@@ -114,10 +129,22 @@ export function useVoiceNav({ locale, onCommand }: UseVoiceNavArgs): VoiceNav {
   }, [start, stop]);
 
   useSpeechRecognitionEvent("result", (event) => {
-    if (!event.isFinal) return;
+    // Act on the first result (interim or final) that carries a command word, so navigation happens the
+    // instant the word is recognised. firedRef stops the same utterance firing twice as further interim
+    // or final results arrive; begin() clears it before the next listen.
+    if (firedRef.current) return;
     const transcript = event.results?.[0]?.transcript ?? "";
     const command = matchVoiceCommand(transcript);
-    if (command) onCommandRef.current(command);
+    if (!command) return;
+    firedRef.current = true;
+    onCommandRef.current(command);
+    // Cut the current recognition short so the next command starts from a clean utterance instead of
+    // trailing audio; the `end` handler then restarts the listen loop.
+    try {
+      ExpoSpeechRecognitionModule.abort();
+    } catch {
+      // Nothing running; the end/restart loop recovers.
+    }
   });
 
   useSpeechRecognitionEvent("end", () => {

@@ -12,6 +12,17 @@ const BACK_WORDS_EN = ["back", "previous", "prev"];
 const NEXT_WORDS_ZH = ["下一步", "下一", "繼續"];
 const BACK_WORDS_ZH = ["上一步", "返上一步", "上一"];
 
+// The full navigation vocabulary, exported to prime the iOS speech recogniser (contextualStrings).
+// Biasing the recogniser toward these exact words lets a quiet or clipped command still register
+// instead of competing with the whole dictionary. Kept here so it can never drift from the grammar
+// that matchVoiceCommand actually accepts.
+export const VOICE_HINT_WORDS: string[] = [
+  ...NEXT_WORDS_EN,
+  ...BACK_WORDS_EN,
+  ...NEXT_WORDS_ZH,
+  ...BACK_WORDS_ZH,
+];
+
 // Earliest character index at which any keyword in the group appears, or -1 if none do. English
 // keywords use a word-boundary regex; Chinese keywords use a plain substring search.
 function earliestIndex(haystack: string, enWords: string[], zhWords: string[]): number {
