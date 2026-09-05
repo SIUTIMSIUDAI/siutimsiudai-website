@@ -12,7 +12,7 @@ export type LogSource = "photo" | "voice" | "barcode" | "label" | "manual";
 // fixed macro delta (see utils/customizations.ts) and is fully reversible.
 export type MealCustomization = "less_sugar" | "less_rice";
 
-export type RecipeSourceType = "url" | "ocr" | "manual";
+export type RecipeSourceType = "url" | "ocr" | "manual" | "photo";
 
 /** Units we persist in. Everything is normalised to one of these. */
 export type CanonicalUnit = "g" | "ml" | "piece";

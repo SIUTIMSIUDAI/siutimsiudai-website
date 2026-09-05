@@ -23,6 +23,7 @@ export type Feature =
   | "url_scraper"
   | "wet_market_units"
   | "pantry_suggest"
+  | "photo_recipe"
   // Max — the Household Executive suite
   | "family_sync"
   | "household_calendar"
@@ -43,6 +44,7 @@ const FEATURE_MIN_TIER: Record<Feature, SubscriptionTier> = {
   url_scraper: "pro",
   wet_market_units: "pro",
   pantry_suggest: "pro",
+  photo_recipe: "pro",
   family_sync: "max",
   household_calendar: "max",
   grocery_export: "max",
