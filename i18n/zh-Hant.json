@@ -98,6 +98,7 @@
     "title": "食譜簿",
     "add": "加食譜",
     "fromUrl": "貼連結",
+    "fromPhoto": "影相整",
     "manual": "自己寫",
     "urlHint": "貼上任何食譜連結，或試下面嘅示範。",
     "servings": "份數",

@@ -98,6 +98,7 @@
     "title": "Recipe Box",
     "add": "Add recipe",
     "fromUrl": "Paste a link",
+    "fromPhoto": "From a photo",
     "manual": "Write it",
     "urlHint": "Paste any recipe link, or try a demo below.",
     "servings": "Servings",
