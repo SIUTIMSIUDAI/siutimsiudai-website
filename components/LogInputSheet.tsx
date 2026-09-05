@@ -11,7 +11,6 @@ import {
   View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import * as ImagePicker from "expo-image-picker";
 import * as FileSystem from "expo-file-system/legacy";
 import { CameraView, useCameraPermissions } from "expo-camera";
 import { Ionicons } from "@expo/vector-icons";
@@ -35,6 +34,7 @@ import type { InvokeFailure } from "@/services/functionError";
 import { HK_DISHES } from "@/constants/hkDishes";
 import { tapLight } from "@/utils/haptics";
 import { createScanLatch } from "@/utils/scanLatch";
+import { pickImageBase64 } from "@/utils/pickImageBase64";
 import { EntryMicronutrients, LogSource, MealType } from "@/types";
 
 interface Props {
@@ -140,35 +140,14 @@ type PhotoResult =
   | { status: "denied" } // camera permission refused; only the camera path can raise this
   | { status: "error" }; // the picker threw, e.g. restricted photo access or a native fault
 
-// Resolve a meal image for the chosen source. "camera" asks for permission and opens the
-// viewfinder; a refusal returns "denied" (not a silent fall-through to the library) so the UI can
-// point the user at Settings and the upload button. "library" (and web, which has no in-preview
-// camera) opens the photo library, which needs no permission on iOS. Never throws.
-//
-// quality 0.5 (was 0.7) and base64: the bytes now actually travel to the vision model, so the
-// payload size is real. Gemini needs enough detail to name a dish, not to read fine print.
+// Resolve a meal image for the chosen source, then give it a stable home in the app cache. The
+// capture itself (camera permission, library vs viewfinder, quality, base64) is the shared
+// pickImageBase64 helper; getMealPhoto only adds the meal-photo caching on the ok path. cancel /
+// denied / error pass straight through so runPhoto can report each. Never throws.
 async function getMealPhoto(source: "camera" | "library"): Promise<PhotoResult> {
-  const options: ImagePicker.ImagePickerOptions = {
-    mediaTypes: ["images"],
-    quality: 0.5,
-    base64: true,
-  };
-  try {
-    let result: ImagePicker.ImagePickerResult;
-    if (source === "library" || Platform.OS === "web") {
-      result = await ImagePicker.launchImageLibraryAsync(options);
-    } else {
-      const perm = await ImagePicker.requestCameraPermissionsAsync();
-      if (!perm.granted) return { status: "denied" };
-      result = await ImagePicker.launchCameraAsync(options);
-    }
-    if (result.canceled || !result.assets?.length) return { status: "cancel" };
-    const asset = result.assets[0];
-    if (!asset.base64) return { status: "cancel" }; // nothing to send; a cancel, not a failure
-    return { status: "ok", uri: await cacheMealPhoto(asset.uri), base64: asset.base64 };
-  } catch {
-    return { status: "error" };
-  }
+  const shot = await pickImageBase64(source);
+  if (shot.status !== "ok") return shot; // cancel | denied | error pass straight through
+  return { status: "ok", uri: await cacheMealPhoto(shot.uri), base64: shot.base64 };
 }
 
 // Resolve a free-text description to a known dish's nutrition via the local keyword matcher (the
