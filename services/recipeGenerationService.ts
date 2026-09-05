@@ -36,6 +36,12 @@ export interface RecipeSeedIngredient {
   unit?: CanonicalUnit;
 }
 
+// The faithful-recreation seed: a dish the user named (from photo recognition or typed by hand).
+export interface RecipeDishSeed {
+  name: string;
+  nameZh: string;
+}
+
 export interface RecipeGenerationSuccess {
   ok: true;
   recipe: StructuredRecipe;
@@ -51,6 +57,7 @@ export type RecipeGenerationOutcome = RecipeGenerationSuccess | RecipeGeneration
 
 export interface RecipeGenerationService {
   generate(ingredients: RecipeSeedIngredient[]): Promise<RecipeGenerationOutcome>;
+  generateFromDish(dish: RecipeDishSeed): Promise<RecipeGenerationOutcome>;
 }
 
 const GENERATE_FN = "generate-recipe";
@@ -140,6 +147,17 @@ async function generateViaProxy(
 
   // A model can return almost anything. parseRecipeResponse returns null unless the payload really
   // is a recipe, and a null here is a failed generation, not an invitation to invent one.
+  const recipe = parseRecipeResponse(data);
+  return recipe ? { ok: true, recipe } : { ok: false, error: "unavailable" };
+}
+
+async function generateDishViaProxy(dish: RecipeDishSeed): Promise<RecipeGenerationOutcome> {
+  if (!supabase) return { ok: false, error: "unavailable" };
+  const { data, error } = await supabase.functions.invoke<{ recipe?: unknown }>(GENERATE_FN, {
+    // Send ONLY the dish name. No profile, no targets: faithful recreation, not tailoring.
+    body: { dish: { name: dish.name, nameZh: dish.nameZh } },
+  });
+  if (error) return { ok: false, error: await classifyInvokeError(error) };
   const recipe = parseRecipeResponse(data);
   return recipe ? { ok: true, recipe } : { ok: false, error: "unavailable" };
 }
@@ -280,6 +298,55 @@ export function buildGenericRecipe(ingredients: RecipeSeedIngredient[]): Structu
   };
 }
 
+// Demo stand-in for the dish path, reachable ONLY when Supabase is unconfigured (Expo Go, web,
+// tests). Like buildGenericRecipe, it is NOT a failure fallback: it exists so the photo flow is
+// demoable with no backend. It names the recipe after the dish and gives honest generic steps.
+export function buildDishRecipe(dish: RecipeDishSeed): StructuredRecipe {
+  const en = (dish.name || dish.nameZh || "This dish").trim();
+  const zh = (dish.nameZh || dish.name || "呢味餸").trim();
+  return {
+    title: en,
+    titleZh: zh,
+    servings: 2,
+    totalMinutes: 25,
+    sourceUrl: null,
+    ingredients: [
+      {
+        name: `Ingredients for ${en}`,
+        nameZh: `${zh}所需材料`,
+        quantity: 1,
+        unit: "piece",
+        displayUnit: "as needed",
+        rawText: `Ingredients for ${en}, as needed`,
+        substitutedFrom: null,
+      },
+    ],
+    steps: [
+      {
+        stepNumber: 1,
+        instruction: `Gather what you need to make ${en} and prep it.`,
+        instructionZh: `準備整${zh}嘅材料，處理好。`,
+        imageUri: null,
+        durationSeconds: null,
+      },
+      {
+        stepNumber: 2,
+        instruction: `Cook ${en} the way it is traditionally made.`,
+        instructionZh: `按傳統做法煮${zh}。`,
+        imageUri: null,
+        durationSeconds: null,
+      },
+      {
+        stepNumber: 3,
+        instruction: "Plate and serve hot.",
+        instructionZh: "上碟趁熱食。",
+        imageUri: null,
+        durationSeconds: null,
+      },
+    ],
+  };
+}
+
 export const recipeGenerationService: RecipeGenerationService = {
   async generate(ingredients) {
     // The one place the template is allowed to answer: with no backend configured there is no call
@@ -291,6 +358,18 @@ export const recipeGenerationService: RecipeGenerationService = {
 
     try {
       return await generateViaProxy(ingredients);
+    } catch {
+      return { ok: false, error: "unavailable" };
+    }
+  },
+
+  async generateFromDish(dish) {
+    if (!isSupabaseConfigured) {
+      await delay(1200); // exercise the "generating" spinner in mock mode
+      return { ok: true, recipe: buildDishRecipe(dish) };
+    }
+    try {
+      return await generateDishViaProxy(dish);
     } catch {
       return { ok: false, error: "unavailable" };
     }
