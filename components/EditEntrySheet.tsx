@@ -16,7 +16,9 @@ import { SourcesLink } from "./SourcesLink";
 import { colors } from "@/constants/theme";
 import { useLocale } from "@/hooks/useLocale";
 import { applyTimeOfDay, formatTimeOfDay, parseTimeOfDay } from "@/utils/entryTime";
-import { FoodEntry, MealType } from "@/types";
+import { nlpMealService } from "@/services";
+import type { InvokeFailure } from "@/services/functionError";
+import { EntryMicronutrients, FoodEntry, MealType } from "@/types";
 
 interface Props {
   visible: boolean;
@@ -24,8 +26,10 @@ interface Props {
   // so the parent owns "which entry"; this sheet only owns the draft fields.
   entry: FoodEntry | null;
   onClose: () => void;
-  // The caller applies the patch (store.editEntry) and closes the sheet. Only changed-by-design
-  // fields are sent; customizations and micros are omitted so a merge preserves them.
+  // The caller applies the patch (store.editEntry) and closes the sheet. Changed-by-design fields
+  // are always sent; customizations are omitted so a merge preserves them. Micros ride along ONLY
+  // after a re-estimate, so a plain edit preserves the entry's micros and a re-estimate refreshes
+  // them (editEntry then applies the free/paid gate).
   onSave: (patch: Partial<FoodEntry>) => void;
 }
 
@@ -87,6 +91,14 @@ export function EditEntrySheet({ visible, entry, onClose, onSave }: Props) {
   const [fat, setFat] = useState("");
   const [fiber, setFiber] = useState("");
 
+  // Re-estimate ("recalculate from the corrected name") state. reMicros stays `undefined` until a
+  // re-estimate actually returns; that is what tells handleSave to send a micros patch, so a plain
+  // macro edit never disturbs the entry's existing micros.
+  const [estimating, setEstimating] = useState(false);
+  const [aiError, setAiError] = useState<InvokeFailure | null>(null);
+  const [aiMiss, setAiMiss] = useState(false);
+  const [reMicros, setReMicros] = useState<EntryMicronutrients | null | undefined>(undefined);
+
   // Prefill from the entry whenever the sheet opens on a new item. Keyed on id + visible (not the
   // whole entry object) so re-renders don't clobber what the user is typing.
   useEffect(() => {
@@ -100,6 +112,11 @@ export function EditEntrySheet({ visible, entry, onClose, onSave }: Props) {
     setCarbs(String(Math.round(entry.carbs)));
     setFat(String(Math.round(entry.fat)));
     setFiber(String(Math.round(entry.fiber)));
+    // A fresh item clears any prior re-estimate result and its banners.
+    setEstimating(false);
+    setAiError(null);
+    setAiMiss(false);
+    setReMicros(undefined);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [entry?.id, visible]);
 
@@ -124,7 +141,49 @@ export function EditEntrySheet({ visible, entry, onClose, onSave }: Props) {
       // canSave already proved the time parses; the ?? keeps the original instant belt-and-braces.
       loggedAt: applyTimeOfDay(entry.loggedAt, time) ?? entry.loggedAt,
     };
+    // Send micros ONLY when a re-estimate ran (reMicros !== undefined). editEntry keys off
+    // "micros" in patch: omitting it preserves the entry's existing micros, while sending it (the
+    // AI's micros or null) lets the store apply the same free/paid gate as the log path.
+    if (reMicros !== undefined) {
+      patch.micros = reMicros;
+    }
     onSave(patch);
+  }
+
+  // Recalculate macros + micros from the corrected name via the logging AI (text path). That path
+  // is FREE on every tier, so there is no paywall or quota gate here; the server's per-user daily
+  // cap is the only backstop and surfaces as the rate-limited banner. On success we overwrite the
+  // macro fields and stash the micros for handleSave; a miss or an outage says so and leaves what
+  // the user typed untouched.
+  async function reestimate() {
+    const en = name.trim();
+    const zh = nameZh.trim();
+    const query = `${en} ${zh}`.trim().replace(/\s+/g, " ");
+    if (!query || estimating) return;
+    setEstimating(true);
+    setAiError(null);
+    setAiMiss(false);
+    const outcome = await nlpMealService.parse(query);
+    setEstimating(false);
+    if (!outcome.ok) {
+      // Backend could not answer (an outage or the daily cap): never silently invent numbers.
+      setAiError(outcome.error);
+      return;
+    }
+    const best = outcome.meals[0];
+    if (!best) {
+      // The AI looked and had nothing. A miss spends nothing, so nudge a rename and change nothing.
+      setAiMiss(true);
+      return;
+    }
+    setCalories(String(Math.round(best.calories)));
+    setProtein(String(Math.round(best.protein)));
+    setCarbs(String(Math.round(best.carbs)));
+    setFat(String(Math.round(best.fat)));
+    setFiber(String(Math.round(best.fiber)));
+    // A successful re-estimate always sets reMicros to a defined value (the AI's micros, or null
+    // when it returned none): that defined value is what makes handleSave send the micros patch.
+    setReMicros(best.micros ?? null);
   }
 
   return (
@@ -188,6 +247,50 @@ export function EditEntrySheet({ visible, entry, onClose, onSave }: Props) {
                 placeholderTextColor={colors.inkFaint}
               />
             </View>
+
+            {/* Recalculate the nutrients from the corrected name. This is the free text logging AI,
+                so there's no lock; disabled until there is a name to send, and while it runs. */}
+            <Button
+              label={
+                estimating
+                  ? tl("Recalculating...", "重新計算緊...")
+                  : tl("Re-estimate from name", "按名稱重新估算")
+              }
+              icon="sparkles-outline"
+              variant="secondary"
+              loading={estimating}
+              disabled={!hasName}
+              onPress={reestimate}
+            />
+
+            {/* "Could not ask" (outage or the daily cap), distinct from a miss below. The
+                alternative is showing invented macros, and these land in someone's calorie ring. */}
+            {aiError && (
+              <View
+                accessibilityRole="alert"
+                accessibilityLiveRegion="polite"
+                className="flex-row items-start gap-2 rounded-xl bg-surface-sunken p-3"
+              >
+                <Ionicons name="alert-circle-outline" size={18} color={colors.inkMuted} />
+                <ScalableText className="flex-1 text-sm leading-5 text-ink">
+                  {t(aiError === "rate_limited" ? "log.aiRateLimited" : "log.aiUnavailable")}
+                </ScalableText>
+              </View>
+            )}
+
+            {/* "We asked, the answer was nothing": a miss spends nothing and changes no fields. */}
+            {aiMiss && (
+              <View
+                accessibilityRole="alert"
+                accessibilityLiveRegion="polite"
+                className="flex-row items-start gap-2 rounded-xl bg-surface-sunken p-3"
+              >
+                <Ionicons name="help-circle-outline" size={18} color={colors.inkMuted} />
+                <ScalableText className="flex-1 text-sm leading-5 text-ink">
+                  {t("log.aiNoResult")}
+                </ScalableText>
+              </View>
+            )}
 
             <View className="gap-1">
               <ScalableText className="text-xs font-semibold text-ink-muted">

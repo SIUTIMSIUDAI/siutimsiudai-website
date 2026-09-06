@@ -116,6 +116,70 @@ describe("microTotalsForDate is premium-only by construction", () => {
   });
 });
 
+// Re-estimating a logged meal from a corrected name flows fresh micros through editEntry. That
+// patch must obey the SAME free/paid gate as the log path, or a free user could edit premium
+// micros into their history the save path would have stripped. And a macro-only edit (no
+// re-estimate) must never touch a paid user's existing micros.
+describe("editEntry applies the micros tier-gate to a re-estimate patch", () => {
+  const DATE = "2026-07-13";
+  const CAPTURE: EntryMicronutrients = {
+    iron: 2,
+    calcium: 50,
+    potassium: 100,
+    vitaminC: 5,
+    vitaminD: 1,
+  };
+
+  beforeEach(() => {
+    useNutritionStore.setState({ logsByDate: {} });
+  });
+
+  function seed(micros?: EntryMicronutrients): string {
+    useNutritionStore.getState().addEntry(
+      {
+        name: "Congee",
+        nameZh: "粥",
+        calories: 270,
+        protein: 16,
+        carbs: 40,
+        fat: 5,
+        fiber: 3,
+        mealType: "lunch",
+        micros,
+      },
+      DATE,
+    );
+    return useNutritionStore.getState().entriesForDate(DATE)[0].id;
+  }
+
+  it("keeps re-estimated micros for a paid user's edited entry", () => {
+    useSubscriptionStore.setState({ activeTier: "pro" });
+    const id = seed();
+    useNutritionStore.getState().editEntry(DATE, id, { calories: 300, micros: CAPTURE });
+    const entry = useNutritionStore.getState().entriesForDate(DATE)[0];
+    expect(entry.calories).toBe(300);
+    expect(entry.micros).toEqual(CAPTURE);
+  });
+
+  it("drops re-estimated micros to null for a free user's edited entry", () => {
+    useSubscriptionStore.setState({ activeTier: "free" });
+    const id = seed();
+    useNutritionStore.getState().editEntry(DATE, id, { calories: 300, micros: CAPTURE });
+    const entry = useNutritionStore.getState().entriesForDate(DATE)[0];
+    expect(entry.calories).toBe(300);
+    expect(entry.micros).toBeNull();
+  });
+
+  it("leaves an existing paid entry's micros untouched on a macro-only edit (no re-estimate)", () => {
+    useSubscriptionStore.setState({ activeTier: "pro" });
+    const id = seed(CAPTURE);
+    useNutritionStore.getState().editEntry(DATE, id, { calories: 300 });
+    const entry = useNutritionStore.getState().entriesForDate(DATE)[0];
+    expect(entry.calories).toBe(300);
+    expect(entry.micros).toEqual(CAPTURE);
+  });
+});
+
 describe("parseRecipeResponse micros", () => {
   const base = {
     title: "Egg Bowl",

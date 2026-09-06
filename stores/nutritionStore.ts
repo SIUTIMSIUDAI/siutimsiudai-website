@@ -125,12 +125,26 @@ export const useNutritionStore = create<NutritionState>()(
         set((state) => {
           const log = state.logsByDate[date];
           if (!log) return state;
+          // A re-estimate (correcting the name) can carry fresh micros; run them through the SAME
+          // free/paid gate as the log path so a free user can never edit premium micros into
+          // history that addEntry would have stripped. Only when the patch actually carries micros
+          // ("micros" in patch): a macro-only edit leaves an existing paid entry's micros intact.
+          const gated: Partial<FoodEntry> =
+            "micros" in patch
+              ? {
+                  ...patch,
+                  micros: retainMicrosForTier(
+                    useSubscriptionStore.getState().activeTier,
+                    patch.micros,
+                  ),
+                }
+              : patch;
           return {
             logsByDate: {
               ...state.logsByDate,
               [date]: {
                 ...log,
-                entries: log.entries.map((e) => (e.id === entryId ? { ...e, ...patch } : e)),
+                entries: log.entries.map((e) => (e.id === entryId ? { ...e, ...gated } : e)),
               },
             },
           };
