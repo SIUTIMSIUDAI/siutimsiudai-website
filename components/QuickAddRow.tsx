@@ -1,4 +1,4 @@
-import { Pressable, ScrollView, View } from "react-native";
+import { Alert, Pressable, ScrollView, View } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { ScalableText } from "./ScalableText";
 import { colors } from "@/constants/theme";
@@ -17,6 +17,7 @@ export function QuickAddRow({ date }: Props) {
   const meals = useSavedMealsStore((s) => s.meals);
   const topMeals = useSavedMealsStore((s) => s.topMeals);
   const markUsed = useSavedMealsStore((s) => s.markUsed);
+  const removeMeal = useSavedMealsStore((s) => s.removeMeal);
   const addEntry = useNutritionStore((s) => s.addEntry);
 
   // Subscribing to `meals` above keeps this reactive; topMeals re-sorts on every change.
@@ -39,6 +40,26 @@ export function QuickAddRow({ date }: Props) {
             key={m.id}
             accessibilityRole="button"
             accessibilityLabel={`${t("common.add")} ${tl(m.name, m.nameZh)}`}
+            accessibilityHint={tl("Hold to remove from The usual", "長按可移除")}
+            // Long-press to prune a usual you no longer eat (including a seeded one). Confirmed first
+            // so a stray hold never silently drops a chip.
+            onLongPress={() =>
+              Alert.alert(
+                tl("Remove from The usual?", "移除呢個老規矩？"),
+                tl(
+                  `"${m.name}" won't show up here anymore.`,
+                  `「${m.nameZh || m.name}」以後唔會再喺呢度出現。`,
+                ),
+                [
+                  { text: t("common.cancel"), style: "cancel" },
+                  {
+                    text: tl("Remove", "移除"),
+                    style: "destructive",
+                    onPress: () => removeMeal(m.id),
+                  },
+                ],
+              )
+            }
             onPress={() => {
               addEntry(
                 {

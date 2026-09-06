@@ -12,6 +12,16 @@ export type NewSavedMealInput = Pick<
   "name" | "nameZh" | "calories" | "protein" | "carbs" | "fat" | "fiber"
 > & { defaultMealType?: MealType };
 
+// Whether a saveMeal call created a new usual or found one already there, so the UI can say
+// "Saved to The usual" versus "Already in The usual" instead of silently making a duplicate chip.
+export type SaveMealResult = "added" | "duplicate";
+
+// Match a usual by its English name, trimmed and case-folded: this is the key users perceive on the
+// row, so "  congee " must not create a second "Congee" chip beside the first.
+function normaliseName(name: string): string {
+  return name.trim().toLowerCase();
+}
+
 // A few common cha-chaan-teng picks so the one-tap quick-add row is useful immediately.
 const SEED_NAMES: { name: string; mealType: MealType }[] = [
   { name: "HK Milk Tea", mealType: "snack" },
@@ -24,9 +34,13 @@ interface SavedMealsState {
   seeded: boolean;
 
   seedIfEmpty: () => void;
-  saveMeal: (input: NewSavedMealInput) => void;
+  saveMeal: (input: NewSavedMealInput) => SaveMealResult;
   markUsed: (id: string) => void;
   removeMeal: (id: string) => void;
+
+  // Whether a meal with this English name is already a usual. Lets the Edit sheet show the pin as
+  // done rather than offering to add a duplicate.
+  isSaved: (name: string) => boolean;
 
   // Most-used first, then most-recent. Powers the one-tap quick-repeat row.
   topMeals: (limit?: number) => SavedMeal[];
@@ -68,24 +82,33 @@ export const useSavedMealsStore = create<SavedMealsState>()(
         });
       },
 
-      saveMeal: (input) =>
-        set((state) => {
-          const meal: SavedMeal = {
-            id: newId("sm"),
-            userId: GUEST_USER,
-            name: input.name,
-            nameZh: input.nameZh,
-            calories: input.calories,
-            protein: input.protein,
-            carbs: input.carbs,
-            fat: input.fat,
-            fiber: input.fiber,
-            defaultMealType: input.defaultMealType ?? "snack",
-            useCount: 0,
-            lastUsedAt: null,
-          };
-          return { meals: [meal, ...state.meals] };
-        }),
+      saveMeal: (input) => {
+        // Never pin the same dish twice: a second save of an existing name is a no-op the UI
+        // reports as "already there", so the row stays a clean set of distinct habits.
+        const key = normaliseName(input.name);
+        if (get().meals.some((m) => normaliseName(m.name) === key)) return "duplicate";
+        const meal: SavedMeal = {
+          id: newId("sm"),
+          userId: GUEST_USER,
+          name: input.name,
+          nameZh: input.nameZh,
+          calories: input.calories,
+          protein: input.protein,
+          carbs: input.carbs,
+          fat: input.fat,
+          fiber: input.fiber,
+          defaultMealType: input.defaultMealType ?? "snack",
+          useCount: 0,
+          lastUsedAt: null,
+        };
+        set((state) => ({ meals: [meal, ...state.meals] }));
+        return "added";
+      },
+
+      isSaved: (name) => {
+        const key = normaliseName(name);
+        return get().meals.some((m) => normaliseName(m.name) === key);
+      },
 
       markUsed: (id) =>
         set((state) => ({

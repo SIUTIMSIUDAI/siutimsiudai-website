@@ -18,6 +18,7 @@ import { useLocale } from "@/hooks/useLocale";
 import { applyTimeOfDay, formatTimeOfDay, parseTimeOfDay } from "@/utils/entryTime";
 import { nlpMealService } from "@/services";
 import type { InvokeFailure } from "@/services/functionError";
+import { useSavedMealsStore } from "@/stores/savedMealsStore";
 import { EntryMicronutrients, FoodEntry, MealType } from "@/types";
 
 interface Props {
@@ -81,6 +82,13 @@ function NumField({
 export function EditEntrySheet({ visible, entry, onClose, onSave }: Props) {
   const { t, tl } = useLocale();
 
+  // "The usual" one-tap row is backed by this store; pinning the meal being edited puts it there.
+  // Subscribing to `meals` keeps `alreadyUsual` below reactive, so the button flips to its done
+  // state the moment a save lands.
+  const savedMeals = useSavedMealsStore((s) => s.meals);
+  const saveMeal = useSavedMealsStore((s) => s.saveMeal);
+  const isSaved = useSavedMealsStore((s) => s.isSaved);
+
   const [name, setName] = useState("");
   const [nameZh, setNameZh] = useState("");
   const [mealType, setMealType] = useState<MealType>("lunch");
@@ -124,6 +132,12 @@ export function EditEntrySheet({ visible, entry, onClose, onSave }: Props) {
   const hasName = name.trim().length > 0 || nameZh.trim().length > 0;
   const canSave = hasName && parseTimeOfDay(time) !== null;
 
+  // The name we would pin (mirrors handleSave's en||zh rule). `void savedMeals` documents that the
+  // subscription above is what makes this recompute when the row changes.
+  void savedMeals;
+  const effectiveName = name.trim() || nameZh.trim();
+  const alreadyUsual = effectiveName.length > 0 && isSaved(effectiveName);
+
   function handleSave() {
     if (!entry || !canSave) return;
     const en = name.trim();
@@ -148,6 +162,26 @@ export function EditEntrySheet({ visible, entry, onClose, onSave }: Props) {
       patch.micros = reMicros;
     }
     onSave(patch);
+  }
+
+  // Pin the meal being edited into "The usual" quick-add row: saves the current (possibly corrected)
+  // name and macros as a reusable one-tap template. Micros are not part of a usual, matching the row
+  // itself, which logs macros only. The button's disabled state already blocks a second pin, so this
+  // is a no-op when the meal is there; saveMeal dedupes as a further backstop.
+  function saveToUsual() {
+    if (!hasName || alreadyUsual) return;
+    const en = name.trim();
+    const zh = nameZh.trim();
+    saveMeal({
+      name: en || zh,
+      nameZh: zh || en,
+      calories: toNum(calories),
+      protein: toNum(protein),
+      carbs: toNum(carbs),
+      fat: toNum(fat),
+      fiber: toNum(fiber),
+      defaultMealType: mealType,
+    });
   }
 
   // Recalculate macros + micros from the corrected name via the logging AI (text path). That path
@@ -332,6 +366,21 @@ export function EditEntrySheet({ visible, entry, onClose, onSave }: Props) {
               icon="checkmark"
               disabled={!canSave}
               onPress={handleSave}
+            />
+
+            {/* Pin this meal into "The usual" one-tap row so it can be re-logged without retyping.
+                Flips to a done state (driven by the store) once it is in, so a duplicate can't be
+                added. Kept below Save so the primary action stays first. */}
+            <Button
+              label={
+                alreadyUsual
+                  ? tl("In The usual", "已加入老規矩")
+                  : tl("Save to The usual", "加入老規矩")
+              }
+              icon={alreadyUsual ? "checkmark-circle" : "star-outline"}
+              variant="secondary"
+              disabled={!hasName || alreadyUsual}
+              onPress={saveToUsual}
             />
 
             {/* The macros above are health figures on screen, so the sources link travels with
