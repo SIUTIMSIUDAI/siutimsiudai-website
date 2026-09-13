@@ -15,7 +15,7 @@
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "app.siutimsiudai.mobile",
-      "buildNumber": "6",
+      "buildNumber": "7",
       "usesAppleSignIn": true,
       "associatedDomains": [
         "applinks:siutimsiudai.app"
@@ -28,7 +28,7 @@
     },
     "android": {
       "package": "app.siutimsiudai.mobile",
-      "versionCode": 2,
+      "versionCode": 3,
       "allowBackup": false,
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
