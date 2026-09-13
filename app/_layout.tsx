@@ -1,6 +1,9 @@
 import "../global.css";
 import "@/i18n";
 
+import * as Sentry from "@sentry/react-native";
+import { initSentry } from "@/services/sentry";
+
 import { useEffect, useState } from "react";
 import { AppState } from "react-native";
 import { Stack, useRootNavigationState, useRouter, useSegments } from "expo-router";
@@ -18,6 +21,9 @@ import { configureRevenueCat } from "@/services/revenueCatService";
 import { useInviteDeepLink } from "@/hooks/useInviteDeepLink";
 import { isAtTarget, isPreAppRoute, resolveGate } from "@/utils/authGate";
 import { flushDirtyDates, syncAllWindowedDays } from "@/services/nutritionSyncService";
+
+// Bring up crash/error reporting as early as possible. No-op without a DSN or in dev (services/sentry.ts).
+initSentry();
 
 // The launch flow gate. Reads live store state, asks the pure resolver where the user belongs, and
 // redirects there — but only once the navigator is mounted and the stores have settled, so it
@@ -60,7 +66,7 @@ function useRouteGate() {
   }, [navState?.key, target, segments, router]);
 }
 
-export default function RootLayout() {
+function RootLayout() {
   const hasHydrated = useAppStore((s) => s.hasHydrated);
   const authReady = useAuthStore((s) => s.initialized);
   const [splashDone, setSplashDone] = useState(false);
@@ -136,3 +142,6 @@ export default function RootLayout() {
     </GestureHandlerRootView>
   );
 }
+
+// Wrap the root so Sentry installs the app's error boundary. With tracing off this adds no perf cost.
+export default Sentry.wrap(RootLayout);
