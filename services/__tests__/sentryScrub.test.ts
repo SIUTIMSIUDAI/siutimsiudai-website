@@ -40,6 +40,16 @@ describe("scrubEvent", () => {
     expect((out.breadcrumbs![0].data as Record<string, unknown>).url).toBe("https://x.co/estimate");
     expect((out.breadcrumbs![0].data as Record<string, unknown>).body).toBeUndefined();
   });
+
+  it("strips response body from contexts but keeps status_code", () => {
+    const ev = {
+      contexts: { response: { data: { body: "egg salad sandwich" }, status_code: 200 } },
+    } as unknown as ErrorEvent;
+    const out = scrubEvent(ev)!;
+    const resp = out.contexts?.response as Record<string, unknown> | undefined;
+    expect(resp?.data).toBeUndefined();
+    expect(resp?.status_code).toBe(200);
+  });
 });
 
 describe("scrubBreadcrumb", () => {
