@@ -13,6 +13,7 @@
 //
 // Runs in the Supabase Deno runtime (Deno.env, crypto.subtle, fetch, btoa/atob), excluded from the
 // app tsconfig. `Deno` is a runtime global here.
+import { reportServerError } from "./sentry.ts";
 
 const TOKEN_ENDPOINT = "https://oauth2.googleapis.com/token";
 const SCOPE = "https://www.googleapis.com/auth/cloud-platform";
@@ -35,13 +36,30 @@ export function json(body: unknown, status: number): Response {
 // and so the client's mock-fallback logic keeps working unchanged.
 export function proxyError(err: unknown): Response {
   const msg = err instanceof Error ? err.message : "";
-  // Log the full reason server-side (visible only in the Supabase function logs, never to the
-  // client) so an operator can diagnose a 5xx without any of it reaching the device.
+  // Log the full reason server-side (visible only in the Supabase function logs, never to the client).
   console.error("[vertex] proxyError:", msg);
-  if (msg.startsWith("not_configured")) return json({ error: "not_configured" }, 500);
-  if (msg.startsWith("auth_failed") || msg.startsWith("upstream_failed") || msg.startsWith("bad_model_json"))
-    return json({ error: "upstream_failed" }, 502);
-  return json({ error: "internal_error" }, 500);
+
+  let code: string;
+  let status: number;
+  if (msg.startsWith("not_configured")) {
+    code = "not_configured";
+    status = 500;
+  } else if (
+    msg.startsWith("auth_failed") ||
+    msg.startsWith("upstream_failed") ||
+    msg.startsWith("bad_model_json")
+  ) {
+    code = "upstream_failed";
+    status = 502;
+  } else {
+    code = "internal_error";
+    status = 500;
+  }
+
+  // Coarse context only — the full error object is scrubbed by beforeSend before it leaves. Never
+  // throws (see _shared/sentry.ts), so classification/return below is unaffected if Sentry is down.
+  reportServerError(err, { code, status });
+  return json({ error: code }, status);
 }
 
 // Gemini is asked to answer with pure JSON (generationConfig.responseMimeType), but never trust it:
