@@ -16,6 +16,7 @@
     "@hookform/resolvers": "^5.4.0",
     "@opentelemetry/api": "^1.9.1",
     "@react-native-async-storage/async-storage": "2.2.0",
+    "@sentry/react-native": "~7.2.0",
     "@supabase/supabase-js": "^2.45.4",
     "expo": "~54.0.36",
     "expo-apple-authentication": "~8.0.8",
