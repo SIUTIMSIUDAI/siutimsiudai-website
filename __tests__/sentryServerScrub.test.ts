@@ -22,4 +22,38 @@ describe("scrubServerEvent", () => {
     const ev = { exception: { values: [{ type: "Error", value: "boom" }] } };
     expect(scrubServerEvent(ev)).toBe(ev);
   });
+
+  it("reduces a Vertex exception value to its safe code token", () => {
+    const ev = {
+      exception: { values: [{ type: "Error", value: 'bad_model_json unparseable len=500 tail={"a":1' }] },
+    };
+    const out = scrubServerEvent(ev)!;
+    expect((out.exception as { values: Array<{ value: string }> }).values[0].value).toBe("bad_model_json");
+  });
+
+  it("reduces an upstream_failed value carrying model payload to the bare code", () => {
+    const ev = {
+      exception: { values: [{ value: 'upstream_failed http=500 model=gemini {"candidates":[{"content":"一碗麵"}]}' }] },
+    };
+    const out = scrubServerEvent(ev)!;
+    const value = (out.exception as { values: Array<{ value: string }> }).values[0].value;
+    expect(value).toBe("upstream_failed");
+    expect(value).not.toContain("一碗麵");
+  });
+
+  it("collapses an unknown DB error (which may quote an email) to 'unclassified'", () => {
+    const ev = {
+      exception: { values: [{ value: "duplicate key value violates unique constraint: a@b.com" }] },
+    };
+    const out = scrubServerEvent(ev)!;
+    const value = (out.exception as { values: Array<{ value: string }> }).values[0].value;
+    expect(value).toBe("unclassified");
+    expect(value).not.toContain("a@b.com");
+  });
+
+  it("reduces event.message to a safe token too", () => {
+    const ev = { message: "auth_failed http=401 secret-detail" };
+    const out = scrubServerEvent(ev)!;
+    expect(out.message).toBe("auth_failed");
+  });
 });

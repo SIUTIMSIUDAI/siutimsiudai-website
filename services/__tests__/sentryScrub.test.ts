@@ -50,6 +50,43 @@ describe("scrubEvent", () => {
     expect(resp?.data).toBeUndefined();
     expect(resp?.status_code).toBe(200);
   });
+
+  it("redacts emails in exception values but keeps the error readable", () => {
+    const ev = {
+      exception: { values: [{ type: "Error", value: "login failed for a@b.com during sync" }] },
+    } as unknown as ErrorEvent;
+    const out = scrubEvent(ev)!;
+    const value = (out.exception as { values: Array<{ value: string }> }).values[0].value;
+    expect(value).toBe("login failed for [email] during sync");
+  });
+
+  it("drops the query string from a URL in an exception value", () => {
+    const ev = {
+      exception: { values: [{ value: "request to https://api.co/estimate?text=一碗麵 failed" }] },
+    } as unknown as ErrorEvent;
+    const out = scrubEvent(ev)!;
+    const value = (out.exception as { values: Array<{ value: string }> }).values[0].value;
+    expect(value).toContain("https://api.co/estimate");
+    expect(value).not.toContain("一碗麵");
+  });
+
+  it("removes event.extra entirely", () => {
+    const ev = {
+      extra: { diary: "一碗麵" },
+      exception: { values: [{ value: "boom" }] },
+    } as unknown as ErrorEvent;
+    const out = scrubEvent(ev)!;
+    expect((out as { extra?: unknown }).extra).toBeUndefined();
+  });
+
+  it("keeps device and os contexts (the disclosed non-PII fields)", () => {
+    const ev = {
+      contexts: { device: { model: "iPhone" }, os: { name: "iOS", version: "18" } },
+    } as unknown as ErrorEvent;
+    const out = scrubEvent(ev)!;
+    expect(out.contexts?.device).toBeDefined();
+    expect(out.contexts?.os).toBeDefined();
+  });
 });
 
 describe("scrubBreadcrumb", () => {
@@ -71,6 +108,16 @@ describe("scrubBreadcrumb", () => {
 
   it("redacts free-text messages on other breadcrumbs", () => {
     const out = scrubBreadcrumb({ category: "ui.input", message: "user typed something" } as Breadcrumb)!;
+    expect(out.message).toBe("[scrubbed]");
+  });
+
+  it("drops data on non-http breadcrumbs", () => {
+    const out = scrubBreadcrumb({
+      category: "ui.click",
+      data: { label: "一碗麵" },
+      message: "tap",
+    } as unknown as Breadcrumb)!;
+    expect(out.data).toBeUndefined();
     expect(out.message).toBe("[scrubbed]");
   });
 });
