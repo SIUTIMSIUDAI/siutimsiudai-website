@@ -25,6 +25,7 @@
 // Runs in the Supabase Deno runtime, excluded from the app tsconfig. `Deno` is a runtime global.
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { reportServerError } from "../_shared/sentry.ts";
 
 const CORS: Record<string, string> = {
   "Access-Control-Allow-Origin": "*",
@@ -193,6 +194,7 @@ Deno.serve(async (req: Request) => {
   });
   if (invErr) {
     console.error("[create-family-invite] invitation insert failed:", invErr.message);
+    reportServerError(invErr, { fn: "create-family-invite", code: "insert_failed", status: 500 });
     return json({ error: "insert_failed" }, 500);
   }
 

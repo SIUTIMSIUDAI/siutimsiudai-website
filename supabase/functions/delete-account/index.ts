@@ -15,6 +15,7 @@
 // Runs in the Supabase Deno runtime, excluded from the app tsconfig. `Deno` is a runtime global.
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { reportServerError } from "../_shared/sentry.ts";
 
 const CORS: Record<string, string> = {
   "Access-Control-Allow-Origin": "*",
@@ -56,6 +57,7 @@ Deno.serve(async (req: Request) => {
   if (delErr) {
     // Full reason stays in the server logs only, never in the client response.
     console.error("[delete-account] deleteUser failed:", delErr.message);
+    reportServerError(delErr, { fn: "delete-account", code: "delete_failed", status: 500 });
     return json({ error: "delete_failed" }, 500);
   }
 
