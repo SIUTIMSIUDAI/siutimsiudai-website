@@ -2,7 +2,7 @@
   "expo": {
     "name": "少甜少底",
     "slug": "siutimsiudai",
-    "version": "1.0.1",
+    "version": "1.0.2",
     "orientation": "portrait",
     "scheme": "siutimsiudai",
     "userInterfaceStyle": "automatic",
@@ -15,7 +15,7 @@
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "app.siutimsiudai.mobile",
-      "buildNumber": "7",
+      "buildNumber": "8",
       "usesAppleSignIn": true,
       "associatedDomains": [
         "applinks:siutimsiudai.app"
