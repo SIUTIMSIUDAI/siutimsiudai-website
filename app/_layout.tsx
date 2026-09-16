@@ -130,6 +130,9 @@ function RootLayout() {
           <Stack.Screen name="invite/[token]" />
           <Stack.Screen name="pantry-scan" />
           <Stack.Screen name="pantry-review" />
+          {/* Manage The usual: edit / remove the saved quick-add templates. Reached from the
+              QuickAddRow header on the dashboard. */}
+          <Stack.Screen name="usuals" />
           {/* Citations for every health number the app shows (Guideline 1.4.1). Reachable from
               profile setup too, which sits BEFORE the tabs in the launch flow, so it must be a
               root-stack route rather than something nested under (tabs). */}

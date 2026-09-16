@@ -12,9 +12,22 @@ export type NewSavedMealInput = Pick<
   "name" | "nameZh" | "calories" | "protein" | "carbs" | "fat" | "fiber"
 > & { defaultMealType?: MealType };
 
+// The editable fields of a usual. Everything a user can change on the Manage usuals sheet; the
+// bookkeeping fields (id, userId, useCount, lastUsedAt) are never patched from the UI.
+export type UpdateSavedMealInput = Partial<
+  Pick<
+    SavedMeal,
+    "name" | "nameZh" | "calories" | "protein" | "carbs" | "fat" | "fiber" | "defaultMealType"
+  >
+>;
+
 // Whether a saveMeal call created a new usual or found one already there, so the UI can say
 // "Saved to The usual" versus "Already in The usual" instead of silently making a duplicate chip.
 export type SaveMealResult = "added" | "duplicate";
+
+// Whether an updateMeal call applied the edit or was blocked because the new name collides with a
+// DIFFERENT usual. Lets the Manage sheet keep the sheet open and warn rather than silently no-op.
+export type UpdateMealResult = "updated" | "duplicate";
 
 // Match a usual by its English name, trimmed and case-folded: this is the key users perceive on the
 // row, so "  congee " must not create a second "Congee" chip beside the first.
@@ -35,6 +48,7 @@ interface SavedMealsState {
 
   seedIfEmpty: () => void;
   saveMeal: (input: NewSavedMealInput) => SaveMealResult;
+  updateMeal: (id: string, patch: UpdateSavedMealInput) => UpdateMealResult;
   markUsed: (id: string) => void;
   removeMeal: (id: string) => void;
 
@@ -103,6 +117,26 @@ export const useSavedMealsStore = create<SavedMealsState>()(
         };
         set((state) => ({ meals: [meal, ...state.meals] }));
         return "added";
+      },
+
+      updateMeal: (id, patch) => {
+        const { meals } = get();
+        const target = meals.find((m) => m.id === id);
+        // A missing id is a silent no-op: the Manage sheet only ever edits a meal it just listed,
+        // so this guards a stale id rather than a real path. Nothing changed, nothing failed.
+        if (!target) return "updated";
+        // A rename must not collide with a DIFFERENT usual, mirroring saveMeal's dedupe. Renaming a
+        // meal to its own name (or just editing macros) is fine, so the id !== m.id excludes self.
+        if (patch.name !== undefined) {
+          const key = normaliseName(patch.name);
+          if (meals.some((m) => m.id !== id && normaliseName(m.name) === key)) return "duplicate";
+        }
+        // Spread the patch over the existing meal: useCount / lastUsedAt / id / userId are never in
+        // the patch, so an edit preserves a usual's habit history.
+        set((state) => ({
+          meals: state.meals.map((m) => (m.id === id ? { ...m, ...patch } : m)),
+        }));
+        return "updated";
       },
 
       isSaved: (name) => {

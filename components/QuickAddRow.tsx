@@ -1,4 +1,5 @@
 import { Alert, Pressable, ScrollView, View } from "react-native";
+import { router } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { ScalableText } from "./ScalableText";
 import { colors } from "@/constants/theme";
@@ -27,9 +28,25 @@ export function QuickAddRow({ date }: Props) {
 
   return (
     <View className="gap-2">
-      <ScalableText className="px-1 text-sm font-semibold text-ink-muted">
-        {t("dashboard.recents")}
-      </ScalableText>
+      <View className="flex-row items-center justify-between px-1">
+        <ScalableText className="text-sm font-semibold text-ink-muted">
+          {t("dashboard.recents")}
+        </ScalableText>
+        {/* Jump to the full Manage screen to edit or tidy the whole set (delete also lives on each
+            chip via long-press). */}
+        <Pressable
+          onPress={() => router.push("/usuals")}
+          accessibilityRole="button"
+          accessibilityLabel={tl("Manage The usual", "管理老規矩")}
+          hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+          className="min-h-[44px] flex-row items-center gap-1 active:opacity-70"
+        >
+          <Ionicons name="options-outline" size={14} color={colors.brand} />
+          <ScalableText className="text-sm font-semibold text-brand">
+            {tl("Manage", "管理")}
+          </ScalableText>
+        </Pressable>
+      </View>
       <ScrollView
         horizontal
         showsHorizontalScrollIndicator={false}

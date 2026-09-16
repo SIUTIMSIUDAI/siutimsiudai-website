@@ -72,3 +72,63 @@ describe("savedMealsStore.isSaved", () => {
     expect(useSavedMealsStore.getState().isSaved("  CONGEE ")).toBe(true);
   });
 });
+
+describe("savedMealsStore.updateMeal", () => {
+  beforeEach(() => {
+    useSavedMealsStore.setState({ meals: [], seeded: true });
+  });
+
+  it("edits the macros of an existing meal and reports 'updated'", () => {
+    useSavedMealsStore.getState().saveMeal(BASE);
+    const id = useSavedMealsStore.getState().meals[0].id;
+    const result = useSavedMealsStore.getState().updateMeal(id, { calories: 300, protein: 20 });
+    expect(result).toBe("updated");
+    const meal = useSavedMealsStore.getState().meals[0];
+    expect(meal.calories).toBe(300);
+    expect(meal.protein).toBe(20);
+    expect(meal.carbs).toBe(40); // untouched fields preserved
+  });
+
+  it("renames a meal when the new name does not collide", () => {
+    useSavedMealsStore.getState().saveMeal(BASE);
+    const id = useSavedMealsStore.getState().meals[0].id;
+    const result = useSavedMealsStore
+      .getState()
+      .updateMeal(id, { name: "Fish Congee", nameZh: "魚片粥" });
+    expect(result).toBe("updated");
+    expect(useSavedMealsStore.getState().meals[0].name).toBe("Fish Congee");
+  });
+
+  it("rejects a rename that collides with another usual and reports 'duplicate'", () => {
+    useSavedMealsStore.getState().saveMeal(BASE); // Congee
+    useSavedMealsStore
+      .getState()
+      .saveMeal({ ...BASE, name: "Wonton Noodles", nameZh: "雲吞麵" });
+    const wonton = useSavedMealsStore.getState().meals.find((m) => m.name === "Wonton Noodles")!;
+    // Rename Wonton Noodles -> "  congee " should clash with the existing Congee, case/space-insensitively.
+    const result = useSavedMealsStore.getState().updateMeal(wonton.id, { name: "  congee " });
+    expect(result).toBe("duplicate");
+    expect(useSavedMealsStore.getState().meals.find((m) => m.id === wonton.id)!.name).toBe(
+      "Wonton Noodles",
+    ); // original preserved, never overwritten
+  });
+
+  it("lets a meal keep its own name while editing macros (self is not a collision)", () => {
+    useSavedMealsStore.getState().saveMeal(BASE);
+    const id = useSavedMealsStore.getState().meals[0].id;
+    const result = useSavedMealsStore.getState().updateMeal(id, { name: "Congee", fat: 9 });
+    expect(result).toBe("updated");
+    expect(useSavedMealsStore.getState().meals[0].fat).toBe(9);
+  });
+
+  it("preserves useCount and lastUsedAt across an edit", () => {
+    useSavedMealsStore.getState().saveMeal(BASE);
+    const id = useSavedMealsStore.getState().meals[0].id;
+    useSavedMealsStore.getState().markUsed(id); // useCount -> 1, lastUsedAt set
+    const before = useSavedMealsStore.getState().meals[0];
+    useSavedMealsStore.getState().updateMeal(id, { calories: 250 });
+    const after = useSavedMealsStore.getState().meals[0];
+    expect(after.useCount).toBe(before.useCount);
+    expect(after.lastUsedAt).toBe(before.lastUsedAt);
+  });
+});
