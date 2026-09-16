@@ -9,6 +9,8 @@ import { MicroHistoryChart, MicroHistoryDatum } from "@/components/MicroHistoryC
 import { LockedMacroCard } from "@/components/LockedMacroCard";
 import { LockedTrendCard } from "@/components/LockedTrendCard";
 import { LockedMicroTrendCard } from "@/components/LockedMicroTrendCard";
+import { LockedMealListCard } from "@/components/LockedMealListCard";
+import { MemberEntryRow } from "@/components/MemberEntryRow";
 import { macroColors } from "@/constants/theme";
 import { useLocale } from "@/hooks/useLocale";
 import { useFeatureAccess } from "@/hooks/useFeatureAccess";
@@ -71,6 +73,9 @@ export function HistoryScreen() {
   // Calories are free for every tier and every past day; only the macro split is Pro. So the day
   // gate is the macro-drawer feature flag, not a date window — past days stay browsable for free.
   const { hasAccess: canViewMacros, triggerPaywall } = useFeatureAccess("macro_drawer");
+  // The per-day "what you ate" list is its own Pro perk. Same paywall opener as the macro drawer,
+  // so a free user tapping either lock lands on the same subscription screen.
+  const { hasAccess: canViewMeals } = useFeatureAccess("meal_history");
   const isPaid = activeTier !== "free";
 
   const targets = useMemo(
@@ -82,6 +87,10 @@ export function HistoryScreen() {
 
   const dayTotals = useMemo(() => totalsFor(logsByDate, selected), [logsByDate, selected]);
   const macroTotal = dayTotals.protein + dayTotals.carbs + dayTotals.fat;
+
+  // The individual meals booked for the selected day, in log order. Drives the Pro "what you ate"
+  // list; on an empty day the section is skipped entirely so a blank day stays clean.
+  const dayEntries = logsByDate[selected]?.entries ?? [];
 
   // Real weekly figures are Pro-only. For free users this returns nothing and the screen renders
   // a locked decoy instead, so no historical number ever enters the tree.
@@ -180,6 +189,26 @@ export function HistoryScreen() {
             </View>
           ) : (
             <LockedMacroCard onUnlock={triggerPaywall} />
+          )}
+
+          {/* "What you ate": the per-day meal list. Only shown on days that actually have entries, so
+              an empty day stays clean. Paid tiers get the real read-only rows (same MemberEntryRow the
+              family manager view uses); free users get a blurred decoy that routes to the paywall. */}
+          {dayEntries.length > 0 && (
+            <View className="gap-2">
+              <ScalableText className="px-1 text-xs font-semibold uppercase tracking-wide text-ink-faint">
+                {tl("What you ate", "食咗啲乜")}
+              </ScalableText>
+              {canViewMeals ? (
+                <View className="rounded-2xl border border-[#E4DCCB] bg-surface px-4 py-1">
+                  {dayEntries.map((e) => (
+                    <MemberEntryRow key={e.id} entry={e} />
+                  ))}
+                </View>
+              ) : (
+                <LockedMealListCard onUnlock={triggerPaywall} />
+              )}
+            </View>
           )}
         </View>
 
