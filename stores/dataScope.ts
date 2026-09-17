@@ -25,15 +25,22 @@ interface PersonalStore {
   store: StoreApi<any>;
 }
 
-const PERSONAL_STORES: PersonalStore[] = [
-  { name: "siutimsiudai-nutrition", store: useNutritionStore },
-  { name: "siutimsiudai-recipes", store: useRecipeStore },
-  { name: "siutimsiudai-pantry", store: usePantryStore },
-  { name: "siutimsiudai-meal-plan", store: useMealPlanStore },
-  { name: "siutimsiudai-grocery", store: useGroceryStore },
-  { name: "siutimsiudai-saved-meals", store: useSavedMealsStore },
-  { name: "siutimsiudai-family", store: useFamilyStore },
-];
+// Built lazily, NOT as a module-level constant. nutritionStore imports the sync service, which imports
+// authStore, which imports this module — a require cycle. Reading the store hooks at load time would
+// touch useNutritionStore before it finishes initialising (a temporal-dead-zone crash under strict ES
+// module evaluation, e.g. web). Deferring the read to call time, after every module has loaded, breaks
+// the cycle with no behaviour change.
+function personalStores(): PersonalStore[] {
+  return [
+    { name: "siutimsiudai-nutrition", store: useNutritionStore },
+    { name: "siutimsiudai-recipes", store: useRecipeStore },
+    { name: "siutimsiudai-pantry", store: usePantryStore },
+    { name: "siutimsiudai-meal-plan", store: useMealPlanStore },
+    { name: "siutimsiudai-grocery", store: useGroceryStore },
+    { name: "siutimsiudai-saved-meals", store: useSavedMealsStore },
+    { name: "siutimsiudai-family", store: useFamilyStore },
+  ];
+}
 
 // Reset one store to the signed-in account's data. Reads that account's scoped copy FIRST, then
 // replaces in-memory state in a SINGLE write, so the previous account's data is gone and no
@@ -66,5 +73,5 @@ export async function reconcileDataScope(userId: string | null): Promise<void> {
   // The first account to sign in after this update inherits the device's existing (bare-key) data;
   // every later account starts from its own scoped copy. No-op for the guest scope.
   if (userId) await adoptBareDataIfFirst(userId);
-  await Promise.all(PERSONAL_STORES.map(reloadStoreFromScope));
+  await Promise.all(personalStores().map(reloadStoreFromScope));
 }
