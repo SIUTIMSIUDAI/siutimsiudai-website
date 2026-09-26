@@ -1,5 +1,6 @@
 import { useMemo, useState } from "react";
-import { ScrollView, View } from "react-native";
+import { Pressable, ScrollView, View } from "react-native";
+import { Ionicons } from "@expo/vector-icons";
 import { Screen } from "@/components/Screen";
 import { ScalableText } from "@/components/ScalableText";
 import { HistoryDateStrip } from "@/components/HistoryDateStrip";
@@ -11,20 +12,22 @@ import { LockedTrendCard } from "@/components/LockedTrendCard";
 import { LockedMicroTrendCard } from "@/components/LockedMicroTrendCard";
 import { LockedMealListCard } from "@/components/LockedMealListCard";
 import { MemberEntryRow } from "@/components/MemberEntryRow";
-import { macroColors } from "@/constants/theme";
+import { QuickAddRow } from "@/components/QuickAddRow";
+import { LogInputSheet } from "@/components/LogInputSheet";
+import { colors, macroColors } from "@/constants/theme";
 import { useLocale } from "@/hooks/useLocale";
 import { useFeatureAccess } from "@/hooks/useFeatureAccess";
 import { todayKey, weekdayShort } from "@/utils/formatters";
 import { effectiveMacros } from "@/utils/customizations";
 import { sumMicroTotals } from "@/utils/micros";
 import { computeNutritionTargets } from "@/utils/nutritionTargets";
+import { HISTORY_STRIP_DAYS, isBackfillableDate } from "@/utils/historyWindow";
+import { sortByLoggedAt } from "@/utils/entryTime";
 import { useNutritionStore } from "@/stores/nutritionStore";
 import { useSubscriptionStore } from "@/stores/useSubscriptionStore";
 import { DailyLog, MacroNutrients } from "@/types";
 
 const EMPTY: MacroNutrients = { calories: 0, protein: 0, carbs: 0, fat: 0, fiber: 0 };
-// Five weeks of pills: enough to scroll a free user comfortably into locked territory.
-const STRIP_DAYS = 35;
 
 // Effective day totals after any 少甜 / 少底 tweaks, computed off the persisted logs so the
 // history view reacts to edits exactly like the live dashboard.
@@ -76,6 +79,9 @@ export function HistoryScreen() {
   // The per-day "what you ate" list is its own Pro perk. Same paywall opener as the macro drawer,
   // so a free user tapping either lock lands on the same subscription screen.
   const { hasAccess: canViewMeals } = useFeatureAccess("meal_history");
+  // Adding a forgotten meal to a past day. Pro too, and only on days the strip shows before today.
+  const { hasAccess: canBackfill } = useFeatureAccess("backfill_log");
+  const [backfillOpen, setBackfillOpen] = useState(false);
   const isPaid = activeTier !== "free";
 
   const targets = useMemo(
@@ -83,14 +89,19 @@ export function HistoryScreen() {
     [healthProfile],
   );
 
-  const days = useMemo(() => buildDayRange(STRIP_DAYS, today), [today]);
+  const days = useMemo(() => buildDayRange(HISTORY_STRIP_DAYS, today), [today]);
+  const showBackfill = canBackfill && isBackfillableDate(selected, today);
 
   const dayTotals = useMemo(() => totalsFor(logsByDate, selected), [logsByDate, selected]);
   const macroTotal = dayTotals.protein + dayTotals.carbs + dayTotals.fat;
 
-  // The individual meals booked for the selected day, in log order. Drives the Pro "what you ate"
-  // list; on an empty day the section is skipped entirely so a blank day stays clean.
-  const dayEntries = logsByDate[selected]?.entries ?? [];
+  // The individual meals booked for the selected day, in the order they were eaten, so a backfilled
+  // breakfast reads before that afternoon's snack. Drives the Pro "what you ate" list; on an empty
+  // day the section is skipped entirely so a blank day stays clean.
+  const dayEntries = useMemo(
+    () => sortByLoggedAt(logsByDate[selected]?.entries ?? []),
+    [logsByDate, selected],
+  );
 
   // Real weekly figures are Pro-only. For free users this returns nothing and the screen renders
   // a locked decoy instead, so no historical number ever enters the tree.
@@ -210,6 +221,26 @@ export function HistoryScreen() {
               )}
             </View>
           )}
+
+          {/* Forgot to log? Pro and Max can add a missed meal to any past day on the strip, through
+              the usual logging sheet or a one-tap usual. It shows on empty days too, since those are
+              the days most likely to be missing a meal. Today is left to the Log tab. */}
+          {showBackfill && (
+            <View className="gap-3">
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel={tl(`Add a missed meal to ${prettyDate}`, `為${prettyDate}補記一餐`)}
+                onPress={() => setBackfillOpen(true)}
+                className="min-h-[44px] flex-row items-center justify-center gap-2 rounded-2xl border border-dashed border-brand bg-surface py-3 active:opacity-80"
+              >
+                <Ionicons name="add-circle-outline" size={20} color={colors.brand} />
+                <ScalableText className="text-sm font-bold text-brand">
+                  {tl("Add a missed meal", "補記一餐")}
+                </ScalableText>
+              </Pressable>
+              <QuickAddRow date={selected} />
+            </View>
+          )}
         </View>
 
         {/* Weekly trend is a Pro perk: paid tiers get the real chart, free sees a locked decoy. */}
@@ -238,6 +269,11 @@ export function HistoryScreen() {
           <LockedMicroTrendCard onUnlock={triggerPaywall} />
         )}
       </ScrollView>
+
+      {/* Mounted for tiers that can backfill only; it files the meal under the selected past day. */}
+      {canBackfill && (
+        <LogInputSheet visible={backfillOpen} date={selected} onClose={() => setBackfillOpen(false)} />
+      )}
     </Screen>
   );
 }

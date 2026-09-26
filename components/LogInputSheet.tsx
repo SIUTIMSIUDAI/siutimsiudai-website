@@ -21,7 +21,7 @@ import { PaywallModal } from "./PaywallModal";
 import { SourcesLink } from "./SourcesLink";
 import { colors } from "@/constants/theme";
 import { useLocale } from "@/hooks/useLocale";
-import { formatCalories } from "@/utils/formatters";
+import { formatCalories, todayKey } from "@/utils/formatters";
 import { parseMealText } from "@/utils/parseMeal";
 import { parseAmount } from "@/utils/manualAmount";
 import { isMeteredLogSource } from "@/utils/logMetering";
@@ -178,7 +178,7 @@ function scaleMicros(m: EntryMicronutrients | null, factor: number): EntryMicron
 }
 
 export function LogInputSheet({ visible, date, onClose }: Props) {
-  const { t, tl } = useLocale();
+  const { t, tl, locale } = useLocale();
   const addEntry = useNutritionStore((s) => s.addEntry);
   const savedMeals = useSavedMealsStore((s) => s.meals);
   const markUsed = useSavedMealsStore((s) => s.markUsed);
@@ -187,6 +187,13 @@ export function LogInputSheet({ visible, date, onClose }: Props) {
 
   const [tab, setTab] = useState<Tab>("photo");
   const [mealType, setMealType] = useState<MealType>("lunch");
+  // Opened from History to add a forgotten meal to a past day. The sheet names that day, so a
+  // backfill is never mistaken for today's log.
+  const isBackfill = date !== todayKey();
+  const backfillDay = new Date(`${date}T00:00:00`).toLocaleDateString(
+    locale === "zh-Hant" ? "zh-HK" : "en-US",
+    { weekday: "short", month: "short", day: "numeric" },
+  );
   const [loading, setLoading] = useState(false);
   const [candidates, setCandidates] = useState<Candidate[]>([]);
   const [barcodeMiss, setBarcodeMiss] = useState(false);
@@ -694,6 +701,15 @@ export function LogInputSheet({ visible, date, onClose }: Props) {
               <Ionicons name="close" size={24} color={colors.inkMuted} />
             </Pressable>
           </View>
+
+          {isBackfill && (
+            <View className="mb-3 flex-row items-center gap-2 rounded-2xl bg-brand/10 px-3 py-2">
+              <Ionicons name="time-outline" size={16} color={colors.brand} />
+              <ScalableText className="flex-1 text-sm font-semibold text-brand">
+                {tl(`Adding to ${backfillDay}`, `補記：${backfillDay}`)}
+              </ScalableText>
+            </View>
+          )}
 
           <MealTypePicker value={mealType} onChange={setMealType} />
 

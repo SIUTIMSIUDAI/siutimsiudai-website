@@ -1,4 +1,10 @@
-import { applyTimeOfDay, formatTimeOfDay, parseTimeOfDay } from "../entryTime";
+import {
+  applyTimeOfDay,
+  formatTimeOfDay,
+  loggedAtFor,
+  parseTimeOfDay,
+  sortByLoggedAt,
+} from "../entryTime";
 
 describe("parseTimeOfDay", () => {
   it("parses a valid zero-padded time", () => {
@@ -74,5 +80,71 @@ describe("applyTimeOfDay", () => {
 
   it("returns null when the base date is invalid", () => {
     expect(applyTimeOfDay("not-a-date", "10:00")).toBeNull();
+  });
+});
+
+describe("loggedAtFor", () => {
+  // Local Sat 26 Sep 2026, 15:49:12. Built in local time so every assertion holds in any timezone.
+  const NOW = new Date(2026, 8, 26, 15, 49, 12, 345);
+  const TODAY = "2026-09-26";
+
+  function localParts(iso: string) {
+    const d = new Date(iso);
+    return [d.getFullYear(), d.getMonth() + 1, d.getDate(), d.getHours(), d.getMinutes(), d.getSeconds()];
+  }
+
+  it("stamps an entry for today with the real clock time", () => {
+    expect(loggedAtFor(TODAY, "lunch", NOW, TODAY)).toBe(NOW.toISOString());
+  });
+
+  it("stamps a forgotten meal on the past day it belongs to, not on today", () => {
+    expect(localParts(loggedAtFor("2026-09-22", "lunch", NOW, TODAY))).toEqual([2026, 9, 22, 13, 0, 0]);
+  });
+
+  it.each([
+    ["breakfast", 8, 0],
+    ["lunch", 13, 0],
+    ["snack", 15, 30],
+    ["dinner", 19, 30],
+  ] as const)("gives a backfilled %s its typical time of day", (mealType, hour, minute) => {
+    expect(localParts(loggedAtFor("2026-09-25", mealType, NOW, TODAY))).toEqual([2026, 9, 25, hour, minute, 0]);
+  });
+
+  it("crosses a month boundary without drifting to the wrong day", () => {
+    expect(localParts(loggedAtFor("2026-08-31", "dinner", NOW, TODAY))).toEqual([2026, 8, 31, 19, 30, 0]);
+  });
+
+  it("falls back to the real clock for an unparseable date key instead of throwing", () => {
+    expect(loggedAtFor("not-a-date", "lunch", NOW, TODAY)).toBe(NOW.toISOString());
+  });
+});
+
+describe("sortByLoggedAt", () => {
+  const at = (h: number, m: number) => new Date(2026, 8, 25, h, m, 0, 0).toISOString();
+
+  it("lists a day's meals in the order they were eaten, not the order they were entered", () => {
+    const entered = [
+      { id: "snack", loggedAt: at(15, 30) },
+      { id: "breakfast", loggedAt: at(8, 0) },
+      { id: "dinner", loggedAt: at(19, 30) },
+    ];
+    expect(sortByLoggedAt(entered).map((e) => e.id)).toEqual(["breakfast", "snack", "dinner"]);
+  });
+
+  it("keeps entry order for meals stamped with the same time", () => {
+    const entered = [
+      { id: "first", loggedAt: at(13, 0) },
+      { id: "second", loggedAt: at(13, 0) },
+    ];
+    expect(sortByLoggedAt(entered).map((e) => e.id)).toEqual(["first", "second"]);
+  });
+
+  it("leaves the stored array untouched, since store state must never be sorted in place", () => {
+    const entered = [
+      { id: "snack", loggedAt: at(15, 30) },
+      { id: "breakfast", loggedAt: at(8, 0) },
+    ];
+    sortByLoggedAt(entered);
+    expect(entered.map((e) => e.id)).toEqual(["snack", "breakfast"]);
   });
 });

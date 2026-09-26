@@ -53,8 +53,8 @@ export function LockedMealListCard({ onUnlock }: Props) {
         </ScalableText>
         <ScalableText className="mt-1 text-center text-xs leading-5 text-ink-muted">
           {tl(
-            "Upgrade to Pro to see every meal in your history, not just the totals.",
-            "升級 Pro，睇返歷史入面每一餐，唔淨係總數。",
+            "Upgrade to Pro to see every meal in your history, not just the totals, and add any you forgot to log.",
+            "升級 Pro，睇返歷史入面每一餐，唔淨係總數，漏咗記嘅都可以補返。",
           )}
         </ScalableText>
         <Pressable

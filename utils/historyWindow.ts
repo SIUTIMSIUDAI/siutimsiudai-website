@@ -9,6 +9,11 @@ import { todayKey } from "./formatters";
 
 export const HISTORY_WINDOW_DAYS = 1;
 
+// Days on the History date strip, today included: five weeks of pills, enough to scroll a free user
+// comfortably into locked territory. It is also the backfill window: a forgotten meal can be added to
+// any past day the strip shows, so the two share one number and can never drift apart.
+export const HISTORY_STRIP_DAYS = 35;
+
 /**
  * Whole calendar days from `dateKey` back to `today` (both yyyy-mm-dd). Today is 0, yesterday is 1,
  * a future date is negative. Pure and timezone-stable.
@@ -25,4 +30,13 @@ export function daysAgo(dateKey: string, today: string = todayKey()): number {
  */
 export function isWithinHistoryWindow(dateKey: string, today: string = todayKey()): boolean {
   return daysAgo(dateKey, today) <= HISTORY_WINDOW_DAYS - 1;
+}
+
+/**
+ * Can a forgotten meal be added to `dateKey`? Any past day on the History strip. Never today (the Log
+ * tab already covers it) and never the future. An unparseable key gives NaN, which fails both bounds.
+ */
+export function isBackfillableDate(dateKey: string, today: string = todayKey()): boolean {
+  const n = daysAgo(dateKey, today);
+  return n >= 1 && n < HISTORY_STRIP_DAYS;
 }

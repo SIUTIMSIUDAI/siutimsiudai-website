@@ -12,6 +12,7 @@ import {
   NutritionTargets,
 } from "@/types";
 import { todayKey } from "@/utils/formatters";
+import { loggedAtFor } from "@/utils/entryTime";
 import { sumEntryMacros } from "@/utils/customizations";
 import { computeNutritionTargets } from "@/utils/nutritionTargets";
 import { MicroTotals, sumMicroTotals } from "@/utils/micros";
@@ -108,7 +109,9 @@ export const useNutritionStore = create<NutritionState>()(
             source: input.source ?? "manual",
             imageUri: input.imageUri ?? null,
             barcode: input.barcode ?? null,
-            loggedAt: new Date().toISOString(),
+            // Today's meals keep the real clock; a forgotten meal added to a past day is stamped on
+            // that day at its meal's typical time, so History and family sync show when it was eaten.
+            loggedAt: loggedAtFor(date, input.mealType, new Date(), todayKey()),
             micros: retainMicrosForTier(tier, input.micros),
           };
           return {

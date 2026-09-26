@@ -25,6 +25,7 @@ export type Feature =
   | "pantry_suggest"
   | "photo_recipe"
   | "meal_history"
+  | "backfill_log"
   // Max — the Household Executive suite
   | "family_sync"
   | "household_calendar"
@@ -47,6 +48,9 @@ const FEATURE_MIN_TIER: Record<Feature, SubscriptionTier> = {
   pantry_suggest: "pro",
   photo_recipe: "pro",
   meal_history: "pro",
+  // Adding a forgotten meal to a past day. Pro, because it lives beside the past-day meal list that
+  // only Pro can see, so nobody adds a meal they then cannot see or fix.
+  backfill_log: "pro",
   family_sync: "max",
   household_calendar: "max",
   grocery_export: "max",
