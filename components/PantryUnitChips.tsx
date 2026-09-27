@@ -37,7 +37,7 @@ export function PantryUnitChips({ value, lead, onChange }: Props) {
             accessibilityState={{ selected }}
             accessibilityLabel={chip.label}
             onPress={() => onChange(unitAfterTap(chip, value))}
-            className={`min-h-[44px] items-center justify-center rounded-xl px-4 ${
+            className={`min-h-[44px] min-w-[44px] items-center justify-center rounded-xl px-4 ${
               selected ? "bg-ink" : "bg-surface-sunken"
             }`}
           >

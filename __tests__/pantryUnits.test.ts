@@ -17,6 +17,14 @@ describe("parsePantryUnit", () => {
     (raw, want) => expect(parsePantryUnit(raw)).toBe(want),
   );
   it.each(["bucket", "", null, 3])("rejects %p", (raw) => expect(parsePantryUnit(raw)).toBeNull());
+
+  // Everyday synonyms the model or a person may use. "grams" falling back to piece would read as
+  // "300 pieces of pork". kg and L are deliberately absent: they would need the quantity converted.
+  it.each([
+    ["grams", "g"], ["Gram", "g"], ["millilitres", "ml"], ["milliliters", "ml"], ["pcs", "piece"], ["pc", "piece"],
+    ["tin", "can"], ["Tins", "can"], ["packet", "pack"], ["packets", "pack"], ["punnet", "box"], ["punnets", "box"],
+  ])("reads the synonym %p as %p", (raw, want) => expect(parsePantryUnit(raw)).toBe(want));
+  it.each(["kg", "L", "litres"])("does not guess a converted unit %p", (raw) => expect(parsePantryUnit(raw)).toBeNull());
 });
 
 it("canonicalOf keeps g and ml and counts everything else as pieces", () => {
@@ -48,6 +56,12 @@ describe("formatPantryAmount", () => {
     expect(formatPantryAmount(1209.58, "g", "hk_market", "zh-Hant")).toBe("2 斤"));
   it("still shows a pre-update gram item in metric", () =>
     expect(formatPantryAmount(300, "g", "metric", "en")).toBe("300 g"));
+  // A unit this build doesn't know (saved by a newer release, then rolled back) must not crash the
+  // Pantry tab: it reads as pieces.
+  it("reads an unknown unit as pieces instead of crashing", () => {
+    expect(formatPantryAmount(2, "crate" as PantryUnit, "metric", "en")).toBe("2 pieces");
+    expect(formatPantryAmount(2, "crate" as PantryUnit, "metric", "zh-Hant")).toBe("2 個");
+  });
 });
 
 describe("unitChipOptions", () => {

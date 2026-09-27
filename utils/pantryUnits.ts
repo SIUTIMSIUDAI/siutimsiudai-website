@@ -7,14 +7,35 @@ import { PANTRY_UNIT_LABELS, PANTRY_UNITS } from "@/constants/pantryUnits";
 import { displayInSystem } from "./unitConverter";
 import { formatQuantity } from "./formatters";
 
-// Every spelling a unit may arrive in: its key or its English plural, lower-cased ("Boxes", "loaves").
-// Built from the catalogue, so adding a unit there is the only change needed here.
-const BY_SPELLING: ReadonlyMap<string, PantryUnit> = new Map(
-  PANTRY_UNITS.flatMap((u): [string, PantryUnit][] => [
+// Everyday synonyms for listed units that the model (or a person) may use; "grams" falling back to
+// piece would read as "300 pieces of pork". Only true synonyms: kg and L are left out on purpose,
+// because reading them as g or ml would also need the quantity converted.
+const SYNONYMS: Record<string, PantryUnit> = {
+  gram: "g",
+  grams: "g",
+  millilitre: "ml",
+  millilitres: "ml",
+  milliliter: "ml",
+  milliliters: "ml",
+  pc: "piece",
+  pcs: "piece",
+  tin: "can",
+  tins: "can",
+  packet: "pack",
+  packets: "pack",
+  punnet: "box",
+  punnets: "box",
+};
+
+// Every spelling a unit may arrive in, lower-cased: its key, its English plural ("Boxes", "loaves")
+// or a synonym. Keys and plurals come from the catalogue, so adding a unit there is enough.
+const BY_SPELLING: ReadonlyMap<string, PantryUnit> = new Map([
+  ...PANTRY_UNITS.flatMap((u): [string, PantryUnit][] => [
     [u, u],
     [PANTRY_UNIT_LABELS[u].enPlural.toLowerCase(), u],
   ]),
-);
+  ...Object.entries(SYNONYMS),
+]);
 
 /** Read a unit from the AI or an old row. Case and surrounding space don't matter; null if unknown. */
 export function parsePantryUnit(raw: unknown): PantryUnit | null {
@@ -44,7 +65,9 @@ export function formatPantryAmount(
     return `${formatQuantity(measure.quantity)} ${locale === "zh-Hant" ? measure.unitZh : measure.unit}`;
   }
   const shown = formatQuantity(quantity);
-  const label = PANTRY_UNIT_LABELS[unit];
+  // A unit this build doesn't know (saved by a newer release, then rolled back) reads as pieces
+  // rather than crashing the whole Pantry tab on render.
+  const label = PANTRY_UNIT_LABELS[unit] ?? PANTRY_UNIT_LABELS.piece;
   const word = locale === "zh-Hant" ? label.zh : shown === "1" ? label.en : label.enPlural;
   return `${shown} ${word}`;
 }
