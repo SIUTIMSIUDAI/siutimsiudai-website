@@ -5,6 +5,7 @@ import { router } from "expo-router";
 import { Screen } from "@/components/Screen";
 import { ScalableText } from "@/components/ScalableText";
 import { Button } from "@/components/Button";
+import { PantryUnitChips } from "@/components/PantryUnitChips";
 import { colors } from "@/constants/theme";
 import { useLocale } from "@/hooks/useLocale";
 import { usePantryStore } from "@/stores/pantryStore";
@@ -14,17 +15,18 @@ import { newId } from "@/utils/id";
 import { PantryUnit } from "@/types";
 
 const INPUT = "rounded-xl border border-[#E4DCCB] bg-surface px-3 py-2 text-base text-ink";
-const UNITS: PantryUnit[] = ["piece", "g", "ml"];
 
 // A local, editable copy of one scanned row. quantity is kept as a string so the numeric field
-// edits cleanly; `key` is a stable id for React and per-row updates. `confidence` (present only on
-// AI guesses, not hand-added rows) drives the "AI guess" badge.
+// edits cleanly; `key` is a stable id for React and per-row updates. `lead` is the unit the row
+// started with (the AI's pick, piece for a hand-added row): its chip stays first while the user taps.
+// `confidence` (present only on AI guesses, not hand-added rows) drives the "AI guess" badge.
 interface EditableRow {
   key: string;
   name: string;
   nameZh: string;
   quantity: string;
   unit: PantryUnit;
+  lead: PantryUnit;
   confidence?: number;
 }
 
@@ -48,6 +50,7 @@ export default function PantryReviewScreen() {
       nameZh: it.nameZh,
       quantity: it.quantity > 0 ? String(it.quantity) : "",
       unit: it.unit,
+      lead: it.unit,
       confidence: it.confidence,
     })),
   );
@@ -62,7 +65,7 @@ export default function PantryReviewScreen() {
   }
 
   function addRow() {
-    setRows((prev) => [...prev, { key: newId("row"), name: "", nameZh: "", quantity: "", unit: "piece" }]);
+    setRows((prev) => [...prev, { key: newId("row"), name: "", nameZh: "", quantity: "", unit: "piece", lead: "piece" }]);
   }
 
   // Rows the user actually gave a name (in either language). Empty rows are ignored on save.
@@ -94,9 +97,6 @@ export default function PantryReviewScreen() {
     clearDraft();
     router.back();
   }
-
-  const unitLabel = (u: PantryUnit) =>
-    u === "piece" ? tl("pc", "件") : u === "g" ? tl("g", "克") : tl("ml", "毫升");
 
   return (
     <Screen>
@@ -169,27 +169,12 @@ export default function PantryReviewScreen() {
                     placeholder={t("log.quantity")}
                     placeholderTextColor={colors.inkFaint}
                   />
-                  <View className="flex-1 flex-row gap-1.5">
-                    {UNITS.map((u) => {
-                      const active = u === row.unit;
-                      return (
-                        <Pressable
-                          key={u}
-                          accessibilityRole="button"
-                          accessibilityState={{ selected: active }}
-                          onPress={() => updateRow(row.key, { unit: u })}
-                          className={`min-h-[44px] flex-1 items-center justify-center rounded-xl ${
-                            active ? "bg-ink" : "bg-surface-sunken"
-                          }`}
-                        >
-                          <ScalableText
-                            className={`text-xs font-semibold ${active ? "text-white" : "text-ink-muted"}`}
-                          >
-                            {unitLabel(u)}
-                          </ScalableText>
-                        </Pressable>
-                      );
-                    })}
+                  <View className="flex-1">
+                    <PantryUnitChips
+                      value={row.unit}
+                      lead={row.lead}
+                      onChange={(u) => updateRow(row.key, { unit: u })}
+                    />
                   </View>
                 </View>
 

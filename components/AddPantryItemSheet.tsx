@@ -3,6 +3,7 @@ import { KeyboardAvoidingView, Modal, Platform, Pressable, TextInput, View } fro
 import { Ionicons } from "@expo/vector-icons";
 import { ScalableText } from "./ScalableText";
 import { Button } from "./Button";
+import { PantryUnitChips } from "./PantryUnitChips";
 import { colors } from "@/constants/theme";
 import { useLocale } from "@/hooks/useLocale";
 import { usePantryStore } from "@/stores/pantryStore";
@@ -13,7 +14,6 @@ interface Props {
   onClose: () => void;
 }
 
-const UNITS: PantryUnit[] = ["piece", "g", "ml"];
 const INPUT = "rounded-xl border border-[#E4DCCB] bg-surface px-3 py-2 text-base text-ink";
 
 export function AddPantryItemSheet({ visible, onClose }: Props) {
@@ -24,9 +24,6 @@ export function AddPantryItemSheet({ visible, onClose }: Props) {
   const [nameZh, setNameZh] = useState("");
   const [quantity, setQuantity] = useState("");
   const [unit, setUnit] = useState<PantryUnit>("piece");
-
-  const unitLabel = (u: PantryUnit) =>
-    u === "piece" ? tl("Piece", "件") : u === "g" ? tl("Grams", "克") : tl("ml", "毫升");
 
   function reset() {
     setName("");
@@ -114,28 +111,7 @@ export function AddPantryItemSheet({ visible, onClose }: Props) {
                 <ScalableText className="mb-1 text-xs font-semibold text-ink-muted">
                   {t("recipes.units")}
                 </ScalableText>
-                <View className="flex-row gap-2">
-                  {UNITS.map((u) => {
-                    const active = u === unit;
-                    return (
-                      <Pressable
-                        key={u}
-                        accessibilityRole="button"
-                        accessibilityState={{ selected: active }}
-                        onPress={() => setUnit(u)}
-                        className={`min-h-[44px] flex-1 items-center justify-center rounded-xl ${
-                          active ? "bg-ink" : "bg-surface-sunken"
-                        }`}
-                      >
-                        <ScalableText
-                          className={`text-sm font-semibold ${active ? "text-white" : "text-ink-muted"}`}
-                        >
-                          {unitLabel(u)}
-                        </ScalableText>
-                      </Pressable>
-                    );
-                  })}
-                </View>
+                <PantryUnitChips value={unit} lead="piece" onChange={setUnit} />
               </View>
             </View>
             <Button label={t("common.save")} icon="checkmark" onPress={save} />
