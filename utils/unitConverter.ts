@@ -105,7 +105,7 @@ export function displayInSystem(
   system: MeasurementSystem,
 ): DisplayMeasure {
   if (unit === "piece") {
-    return { quantity: round2(quantity), unit: "piece", unitZh: "件" };
+    return { quantity: round2(quantity), unit: "piece", unitZh: "個" };
   }
   if (unit === "g") {
     if (system === "hk_market") {
