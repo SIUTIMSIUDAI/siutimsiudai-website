@@ -31,15 +31,19 @@ import { enforceAiQuota } from "../_shared/aiQuota.ts";
 const MODEL = Deno.env.get("VERTEX_MODEL") || "gemini-2.5-flash";
 
 const INSTRUCTION = [
-  "You are a kitchen inventory assistant. Look at the photo and list only the RAW food",
-  "ingredients you can see (produce, meat, eggs, tofu, sauces, dry goods). Ignore plates,",
-  "utensils, packaging text, and prepared/cooked dishes.",
+  "You are a kitchen inventory assistant. Look at the photo and list the food ingredients and drinks",
+  "you can see (produce, meat, eggs, tofu, sauces, dry goods, milk, juice, bottled water). Ignore",
+  "plates, utensils, printed text on packaging, and prepared/cooked dishes.",
   "",
   "Respond with ONLY a JSON object, no prose, in exactly this shape:",
-  '{"items":[{"name":"English name","nameZh":"繁體中文名","quantity":<number>,"unit":"g"|"ml"|"piece","confidence":<0..1>}]}',
+  '{"items":[{"name":"English name","nameZh":"繁體中文名","quantity":<number>,"unit":"piece"|"box"|"carton"|"bottle"|"jar"|"can"|"pack"|"bag"|"bunch"|"loaf"|"g"|"ml","confidence":<0..1>}]}',
   "",
   "Rules: nameZh must be Traditional Chinese in Hong Kong usage (e.g. 豉油, 蒜頭, 薯仔).",
-  "Use unit 'piece' for countable items, 'g' for weighed solids, 'ml' for liquids.",
+  "Units: count what you can see. Packaged goods use their package: box (punnets, tofu, eggs),",
+  "carton (milk, juice), bottle (water, soy sauce, oil), jar (jam, sauces), can, pack (noodles,",
+  "sausages, dumplings) or bag (rice, frozen vegetables). Loose items use piece, bunch (leafy greens,",
+  "spring onions, herbs) or loaf (bread). Use g or ml only when nothing can be counted, such as loose",
+  "mince or leftovers. quantity is how many of that unit you see: 3 boxes is quantity 3, unit box.",
   "quantity is your best visual estimate. confidence is how sure you are (0..1).",
   "If you see no food ingredients, return {\"items\":[]}.",
 ].join("\n");
