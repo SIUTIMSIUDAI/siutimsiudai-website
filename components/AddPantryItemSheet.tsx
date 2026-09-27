@@ -6,14 +6,14 @@ import { Button } from "./Button";
 import { colors } from "@/constants/theme";
 import { useLocale } from "@/hooks/useLocale";
 import { usePantryStore } from "@/stores/pantryStore";
-import { CanonicalUnit } from "@/types";
+import { PantryUnit } from "@/types";
 
 interface Props {
   visible: boolean;
   onClose: () => void;
 }
 
-const UNITS: CanonicalUnit[] = ["piece", "g", "ml"];
+const UNITS: PantryUnit[] = ["piece", "g", "ml"];
 const INPUT = "rounded-xl border border-[#E4DCCB] bg-surface px-3 py-2 text-base text-ink";
 
 export function AddPantryItemSheet({ visible, onClose }: Props) {
@@ -23,9 +23,9 @@ export function AddPantryItemSheet({ visible, onClose }: Props) {
   const [name, setName] = useState("");
   const [nameZh, setNameZh] = useState("");
   const [quantity, setQuantity] = useState("");
-  const [unit, setUnit] = useState<CanonicalUnit>("piece");
+  const [unit, setUnit] = useState<PantryUnit>("piece");
 
-  const unitLabel = (u: CanonicalUnit) =>
+  const unitLabel = (u: PantryUnit) =>
     u === "piece" ? tl("Piece", "件") : u === "g" ? tl("Grams", "克") : tl("ml", "毫升");
 
   function reset() {

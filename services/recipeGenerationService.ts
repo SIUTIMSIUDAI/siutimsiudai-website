@@ -1,4 +1,5 @@
-import { CanonicalUnit, StructuredRecipe } from "@/types";
+import { CanonicalUnit, PantryUnit, StructuredRecipe } from "@/types";
+import { canonicalOf } from "@/utils/pantryUnits";
 import { sanitizeMicros } from "@/utils/micros";
 import { classifyInvokeError, type InvokeFailure } from "./functionError";
 import { isSupabaseConfigured, supabase } from "./supabase";
@@ -33,7 +34,7 @@ export interface RecipeSeedIngredient {
   name: string;
   nameZh: string;
   quantity?: number;
-  unit?: CanonicalUnit;
+  unit?: PantryUnit;
 }
 
 // The faithful-recreation seed: a dish the user named (from photo recognition or typed by hand).
@@ -282,15 +283,17 @@ export function buildGenericRecipe(ingredients: RecipeSeedIngredient[]): Structu
     totalMinutes: useSavoury ? 20 : 5,
     sourceUrl: null,
     ingredients: subset.map((i) => {
-      const unit = i.unit ?? "piece";
+      // A pantry unit like "box" is a word for people, not a unit recipe maths understands, so the
+      // recipe counts it as pieces and keeps the word for display.
+      const displayUnit = i.unit ?? "piece";
       const quantity = i.quantity && i.quantity > 0 ? i.quantity : 1;
       return {
         name: en(i),
         nameZh: zh(i),
         quantity,
-        unit,
-        displayUnit: unit,
-        rawText: `${quantity} ${unit} ${en(i)}`.trim(),
+        unit: canonicalOf(displayUnit),
+        displayUnit,
+        rawText: `${quantity} ${displayUnit} ${en(i)}`.trim(),
         substitutedFrom: null,
       };
     }),

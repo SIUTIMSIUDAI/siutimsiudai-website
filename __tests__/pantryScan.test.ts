@@ -3,6 +3,7 @@
 jest.mock("@/services/supabase", () => ({ supabase: null, isSupabaseConfigured: false }));
 
 import { mockScan, parseScanResponse } from "@/services/pantryVisionService";
+import { PANTRY_UNITS } from "@/constants/pantryUnits";
 import {
   buildGenericRecipe,
   parseRecipeResponse,
@@ -43,6 +44,13 @@ describe("parseScanResponse", () => {
     expect(rows?.[0].confidence).toBeUndefined();
   });
 
+  it("keeps a real-world unit the AI names, even plural or capitalised", () => {
+    const rows = parseScanResponse({
+      items: [{ name: "Blueberries", nameZh: "藍莓", quantity: 3, unit: "Boxes" }],
+    });
+    expect(rows?.[0]).toMatchObject({ unit: "box", quantity: 3 });
+  });
+
   it("fills a missing name side from the other and clamps confidence into 0..1", () => {
     const rows = parseScanResponse({
       items: [{ nameZh: "豉油", unit: "ml", quantity: 200, confidence: 5 }],
@@ -58,7 +66,7 @@ describe("mockScan", () => {
     for (const it of items) {
       expect(it.name.length).toBeGreaterThan(0);
       expect(it.nameZh.length).toBeGreaterThan(0);
-      expect(["g", "ml", "piece"]).toContain(it.unit);
+      expect(PANTRY_UNITS).toContain(it.unit);
       expect(it.quantity).toBeGreaterThanOrEqual(0);
     }
   });
@@ -86,6 +94,11 @@ describe("buildGenericRecipe", () => {
     const tomato = recipe.ingredients.find((i) => i.name === "Tomato");
     expect(egg).toMatchObject({ quantity: 6, unit: "piece" });
     expect(tomato).toMatchObject({ quantity: 1, unit: "piece" });
+  });
+
+  it("files a packaged pantry unit as pieces for recipe maths but keeps the word for display", () => {
+    const recipe = buildGenericRecipe([{ name: "Blueberries", nameZh: "藍莓", quantity: 3, unit: "box" }]);
+    expect(recipe.ingredients[0]).toMatchObject({ unit: "piece", displayUnit: "box", quantity: 3 });
   });
 
   it("produces a bilingual, numbered, functional method", () => {

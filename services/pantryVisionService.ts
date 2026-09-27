@@ -1,4 +1,5 @@
-import { CanonicalUnit, ScannedIngredient } from "@/types";
+import { ScannedIngredient } from "@/types";
+import { parsePantryUnit } from "@/utils/pantryUnits";
 import { isSupabaseConfigured, supabase } from "./supabase";
 import { classifyInvokeError, InvokeFailure } from "./functionError";
 import { delay } from "./util";
@@ -49,18 +50,18 @@ export interface PantryVisionService {
 }
 
 const SCAN_FN = "pantry-scan";
-const UNITS: readonly CanonicalUnit[] = ["g", "ml", "piece"];
 
 // Coerce one loosely-typed row from the proxy (or a future provider) into a clean ScannedIngredient.
-// Drops anything without a usable name, clamps the unit to our enum, and forces quantity to a
-// finite non-negative number so a bad model response can never inject junk into the pantry.
+// Drops anything without a usable name, reads the unit against the pantry's fixed list (plurals and
+// capitals included, anything unknown becomes a piece), and forces quantity to a finite
+// non-negative number so a bad model response can never inject junk into the pantry.
 function normalizeRow(raw: unknown): ScannedIngredient | null {
   if (!raw || typeof raw !== "object") return null;
   const r = raw as Record<string, unknown>;
   const name = typeof r.name === "string" ? r.name.trim() : "";
   const nameZh = typeof r.nameZh === "string" ? r.nameZh.trim() : "";
   if (!name && !nameZh) return null; // a row we can't label is useless on the review screen
-  const unit = UNITS.includes(r.unit as CanonicalUnit) ? (r.unit as CanonicalUnit) : "piece";
+  const unit = parsePantryUnit(r.unit) ?? "piece";
   const q = Number(r.quantity);
   const quantity = Number.isFinite(q) && q > 0 ? q : 0;
   const c = Number(r.confidence);
@@ -103,7 +104,11 @@ const MOCK_POOL: ScannedIngredient[] = [
   { name: "Egg", nameZh: "雞蛋", quantity: 6, unit: "piece", confidence: 0.94 },
   { name: "Tomato", nameZh: "番茄", quantity: 3, unit: "piece", confidence: 0.9 },
   { name: "Spring onion", nameZh: "葱", quantity: 2, unit: "piece", confidence: 0.82 },
-  { name: "Choy sum", nameZh: "菜心", quantity: 200, unit: "g", confidence: 0.78 },
+  { name: "Choy sum", nameZh: "菜心", quantity: 1, unit: "bunch", confidence: 0.78 },
+  { name: "Blueberries", nameZh: "藍莓", quantity: 3, unit: "box", confidence: 0.9 },
+  { name: "Milk", nameZh: "牛奶", quantity: 1, unit: "carton", confidence: 0.88 },
+  { name: "Bottled water", nameZh: "樽裝水", quantity: 5, unit: "bottle", confidence: 0.92 },
+  { name: "Luncheon meat", nameZh: "午餐肉", quantity: 2, unit: "can", confidence: 0.85 },
   { name: "Pork", nameZh: "豬肉", quantity: 300, unit: "g", confidence: 0.86 },
   { name: "Tofu", nameZh: "豆腐", quantity: 1, unit: "piece", confidence: 0.8 },
   { name: "Garlic", nameZh: "蒜頭", quantity: 4, unit: "piece", confidence: 0.71 },

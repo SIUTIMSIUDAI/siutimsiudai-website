@@ -11,10 +11,10 @@ import { usePantryStore } from "@/stores/pantryStore";
 import { usePantryScanStore } from "@/stores/pantryScanStore";
 import { syncPantryItemsToCloud } from "@/services/pantrySyncService";
 import { newId } from "@/utils/id";
-import { CanonicalUnit } from "@/types";
+import { PantryUnit } from "@/types";
 
 const INPUT = "rounded-xl border border-[#E4DCCB] bg-surface px-3 py-2 text-base text-ink";
-const UNITS: CanonicalUnit[] = ["piece", "g", "ml"];
+const UNITS: PantryUnit[] = ["piece", "g", "ml"];
 
 // A local, editable copy of one scanned row. quantity is kept as a string so the numeric field
 // edits cleanly; `key` is a stable id for React and per-row updates. `confidence` (present only on
@@ -24,7 +24,7 @@ interface EditableRow {
   name: string;
   nameZh: string;
   quantity: string;
-  unit: CanonicalUnit;
+  unit: PantryUnit;
   confidence?: number;
 }
 
@@ -95,7 +95,7 @@ export default function PantryReviewScreen() {
     router.back();
   }
 
-  const unitLabel = (u: CanonicalUnit) =>
+  const unitLabel = (u: PantryUnit) =>
     u === "piece" ? tl("pc", "件") : u === "g" ? tl("g", "克") : tl("ml", "毫升");
 
   return (

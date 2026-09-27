@@ -1,6 +1,6 @@
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
-import { CanonicalUnit, PantryItem, Recipe } from "@/types";
+import { PantryItem, PantryUnit, Recipe } from "@/types";
 import { canonicalizeIngredient } from "@/constants/ingredientDictionary";
 import { newId } from "@/utils/id";
 import { persistStorage } from "./persistStorage";
@@ -9,7 +9,7 @@ const GUEST_USER = "guest";
 
 export type NewPantryItemInput = Pick<PantryItem, "name" | "nameZh"> & {
   quantity?: number;
-  unit?: CanonicalUnit;
+  unit?: PantryUnit;
   inStock?: boolean;
 };
 

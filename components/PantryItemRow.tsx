@@ -3,8 +3,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { ScalableText } from "./ScalableText";
 import { colors } from "@/constants/theme";
 import { useLocale } from "@/hooks/useLocale";
-import { formatQuantity } from "@/utils/formatters";
-import { displayInSystem } from "@/utils/unitConverter";
+import { formatPantryAmount } from "@/utils/pantryUnits";
 import { MeasurementSystem, PantryItem } from "@/types";
 
 interface Props {
@@ -18,8 +17,8 @@ interface Props {
 // and grocery deduction); quantity shows only when tracked by amount.
 export function PantryItemRow({ item, system, onToggle, onRemove }: Props) {
   const { t, tl, locale } = useLocale();
-  const measure = item.quantity > 0 ? displayInSystem(item.quantity, item.unit, system) : null;
-  const unitLabel = measure ? (locale === "zh-Hant" ? measure.unitZh : measure.unit) : "";
+  // "3 boxes" / "3 盒"; null for an item marked in stock without an amount.
+  const amount = formatPantryAmount(item.quantity, item.unit, system, locale);
 
   return (
     <View className="flex-row items-center gap-2 border-b border-[#E8E1D2] py-2">
@@ -42,11 +41,7 @@ export function PantryItemRow({ item, system, onToggle, onRemove }: Props) {
         >
           {tl(item.name, item.nameZh)}
         </ScalableText>
-        {measure && (
-          <ScalableText className="text-xs text-ink-muted">
-            {formatQuantity(measure.quantity)} {unitLabel}
-          </ScalableText>
-        )}
+        {amount && <ScalableText className="text-xs text-ink-muted">{amount}</ScalableText>}
       </View>
       <Pressable
         accessibilityRole="button"

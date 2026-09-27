@@ -198,7 +198,7 @@ export interface PantryItem {
   name: string;
   nameZh: string;
   quantity: number;
-  unit: CanonicalUnit;
+  unit: PantryUnit;
   inStock: boolean;
   updatedAt: string;
 }
@@ -273,7 +273,7 @@ export interface ScannedIngredient {
   name: string;
   nameZh: string;
   quantity: number;
-  unit: CanonicalUnit;
+  unit: PantryUnit;
   confidence?: number; // 0..1 from the model; undefined for manually added rows
 }
 
