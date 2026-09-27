@@ -17,6 +17,23 @@ export type RecipeSourceType = "url" | "ocr" | "manual" | "photo";
 /** Units we persist in. Everything is normalised to one of these. */
 export type CanonicalUnit = "g" | "ml" | "piece";
 
+/**
+ * Units a pantry item or scan result can carry: the canonical three plus the real-world count units
+ * a fridge holds ("3 boxes of blueberries", "5 bottles of water"). Recipes and grocery lists stay on
+ * CanonicalUnit. The list and its labels live in constants/pantryUnits.ts.
+ */
+export type PantryUnit =
+  | CanonicalUnit
+  | "box"
+  | "carton"
+  | "bottle"
+  | "jar"
+  | "can"
+  | "pack"
+  | "bag"
+  | "bunch"
+  | "loaf";
+
 export type MeasurementSystem = "metric" | "imperial" | "hk_market";
 
 export interface MacroNutrients {
