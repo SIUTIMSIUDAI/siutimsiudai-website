@@ -23,9 +23,21 @@ const LINK_SECONDS = 60 * 60;
 
 export type AvatarSaveResult = { ok: true; url: string | null } | { ok: false };
 
+// The picker returns JPEG for camera-roll photos but keeps PNG for screenshots and saved PNGs, so a
+// photo is labelled by what its bytes are. Anything else (a GIF) is refused, matching the bucket's
+// allowed types.
+const PHOTO_FORMATS = [
+  { signature: [0xff, 0xd8, 0xff], contentType: "image/jpeg", extension: "jpg" },
+  { signature: [0x89, 0x50, 0x4e, 0x47], contentType: "image/png", extension: "png" },
+];
+
+function photoFormat(bytes: Uint8Array) {
+  return PHOTO_FORMATS.find((f) => f.signature.every((b, i) => bytes[i] === b)) ?? null;
+}
+
 /** Where a new photo goes: in the owner's folder (what the storage policies check), named by time. */
-export function avatarObjectPath(userId: string, now: number): string {
-  return `${userId}/${now}.jpg`;
+export function avatarObjectPath(userId: string, now: number, extension = "jpg"): string {
+  return `${userId}/${now}.${extension}`;
 }
 
 async function currentUserId(): Promise<string | null> {
@@ -77,20 +89,23 @@ export async function getAvatarUrls(paths: string[]): Promise<Record<string, str
 }
 
 /**
- * Save a new photo (raw base64 JPEG from the picker). The profile is pointed at the new file before the
- * old one is deleted, so a failure part-way never leaves the profile pointing at nothing. A leftover
- * old file (its delete failed) is swept up by the next removal or by account deletion.
+ * Save a new photo (raw base64 JPEG or PNG from the picker). The profile is pointed at the new file
+ * before the old one is deleted, so a failure part-way never leaves the profile pointing at nothing. A
+ * leftover old file (its delete failed) is swept up by the next removal or by account deletion.
  */
 export async function saveMyAvatar(base64: string): Promise<AvatarSaveResult> {
   if (!isSupabaseConfigured || !supabase) return { ok: false };
+  const body = base64ToArrayBuffer(base64);
+  const format = photoFormat(new Uint8Array(body));
+  if (!format) return { ok: false };
   const uid = await currentUserId();
   if (!uid) return { ok: false };
   const bucket = supabase.storage.from(AVATAR_BUCKET);
   const previous = await readAvatarPath(uid);
-  const path = avatarObjectPath(uid, Date.now());
+  const path = avatarObjectPath(uid, Date.now(), format.extension);
 
-  const { error: uploadError } = await bucket.upload(path, base64ToArrayBuffer(base64), {
-    contentType: "image/jpeg",
+  const { error: uploadError } = await bucket.upload(path, body, {
+    contentType: format.contentType,
   });
   if (uploadError) return { ok: false };
 

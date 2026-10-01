@@ -4,8 +4,9 @@
 -- none). It sits on profiles, so the existing policies decide who can learn it: own_profiles (yourself)
 -- and manager_read_profiles (a manager reading each dependent), the same rule as display_name.
 --
--- Files are stored as avatars/<auth.uid()>/<epoch ms>.jpg. The storage policies below compare the
--- FIRST path segment to the caller: the owner has full control of their own folder, and a manager may
+-- Files are stored as avatars/<auth.uid()>/<epoch ms>.jpg, or .png: the photo picker keeps
+-- screenshots as PNG, so the bucket takes JPEG or PNG up to 5 MB. The storage policies below compare
+-- the FIRST path segment to the caller: the owner has full control of their own folder, and a manager may
 -- read a dependent's folder. The uid is compared AS TEXT rather than casting the path segment to uuid,
 -- so a malformed name can never raise a cast error during policy evaluation (the pattern drafted in
 -- 0008 for meal-images). Nothing else can read or write the bucket.
@@ -18,7 +19,7 @@ begin;
 alter table public.profiles add column if not exists avatar_path text;
 
 insert into storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
-values ('avatars', 'avatars', false, 2097152, array['image/jpeg'])
+values ('avatars', 'avatars', false, 5242880, array['image/jpeg', 'image/png'])
 on conflict (id) do nothing;
 
 drop policy if exists avatars_owner on storage.objects;

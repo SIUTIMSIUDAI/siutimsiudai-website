@@ -16,6 +16,8 @@ const mockUid = "6f1c2a9e-3b7d-4e21-9a55-0c8d4b2e7f10";
 const UID = mockUid;
 const PREVIOUS = `${UID}/1700000000000.jpg`;
 const JPEG_BASE64 = "/9j/4A=="; // FF D8 FF E0, the start of a JPEG
+const PNG_BASE64 = "iVBORw0KGgo="; // 89 50 4E 47 0D 0A 1A 0A, the PNG signature
+const GIF_BASE64 = "R0lGODlh"; // "GIF89a"
 
 // Ordered record of every write, so the tests can check what happened in which order.
 const mockLog: string[] = [];
@@ -95,6 +97,19 @@ describe("saveMyAvatar", () => {
     expect(path).toMatch(new RegExp(`^${UID}/\\d+\\.jpg$`));
     expect(Array.from(new Uint8Array(body as ArrayBuffer))).toEqual([255, 216, 255, 224]);
     expect(options).toEqual({ contentType: "image/jpeg" });
+  });
+
+  it("labels a PNG as PNG, since the picker keeps screenshots as PNG", async () => {
+    await saveMyAvatar(PNG_BASE64);
+    const [path, , options] = mockBucket.upload.mock.calls[0];
+    expect(path).toMatch(new RegExp(`^${UID}/\\d+\\.png$`));
+    expect(options).toEqual({ contentType: "image/png" });
+  });
+
+  it("refuses a file that is neither JPEG nor PNG, without uploading it", async () => {
+    await expect(saveMyAvatar(GIF_BASE64)).resolves.toEqual({ ok: false });
+    expect(mockBucket.upload).not.toHaveBeenCalled();
+    expect(mockState.avatarPath).toBe(PREVIOUS);
   });
 
   it("points the profile at the new photo before deleting the old one", async () => {
