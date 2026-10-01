@@ -52,6 +52,20 @@ Deno.serve(async (req: Request) => {
   const userId = userData?.user?.id;
   if (userErr || !userId) return json({ error: "unauthorized" }, 401);
 
+  // Profile photos sit in Storage, which is not removed along with the auth user. Delete them first;
+  // if that fails, stop, so the user's retry finishes the job instead of a photo being left behind.
+  const avatars = admin.storage.from("avatars");
+  const { data: photos, error: listErr } = await avatars.list(userId);
+  let photoErr = listErr;
+  if (!photoErr && photos && photos.length > 0) {
+    ({ error: photoErr } = await avatars.remove(photos.map((p) => `${userId}/${p.name}`)));
+  }
+  if (photoErr) {
+    console.error("[delete-account] photo cleanup failed:", photoErr.message);
+    reportServerError(photoErr, { fn: "delete-account", code: "photo_cleanup_failed", status: 500 });
+    return json({ error: "delete_failed" }, 500);
+  }
+
   // Deletes the auth user; any app tables keyed to auth.users with ON DELETE CASCADE go with it.
   const { error: delErr } = await admin.auth.admin.deleteUser(userId);
   if (delErr) {
