@@ -8,13 +8,16 @@ import { Button } from "@/components/Button";
 import { UnitToggle } from "@/components/UnitToggle";
 import { HealthProfileSheet } from "@/components/HealthProfileSheet";
 import { ConfirmDialog } from "@/components/ConfirmDialog";
+import { Avatar } from "@/components/Avatar";
 import { LegalLinks } from "@/components/LegalLinks";
 import { SourcesLink } from "@/components/SourcesLink";
 import { colors } from "@/constants/theme";
 import { useLocale } from "@/hooks/useLocale";
 import { useBiometricLogin } from "@/hooks/useBiometricLogin";
 import { getMyDisplayName, setMyDisplayName } from "@/services/profileService";
+import { getMyAvatarUrl, removeMyAvatar, saveMyAvatar } from "@/services/avatarService";
 import { normaliseDisplayName } from "@/utils/displayName";
+import { pickImageBase64 } from "@/utils/pickImageBase64";
 import * as biometricAuth from "@/services/biometricAuth";
 import { biometricNameKey } from "@/utils/biometricLogin";
 import { useAppStore } from "@/stores/appStore";
@@ -55,6 +58,12 @@ export default function ProfileScreen() {
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [deleteError, setDeleteError] = useState(false);
+  // The profile photo: a signed link (null for none), whether a save or removal is running, and which
+  // of the two failed so the right message shows.
+  const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
+  const [avatarBusy, setAvatarBusy] = useState(false);
+  const [avatarError, setAvatarError] = useState<"save" | "remove" | null>(null);
+  const [removeAvatarOpen, setRemoveAvatarOpen] = useState(false);
 
   const session = useAuthStore((s) => s.session);
   const biometric = useBiometricLogin();
@@ -110,6 +119,44 @@ export default function ProfileScreen() {
       active = false;
     };
   }, []);
+
+  // Load the photo once, like the name above. No photo, signed out or no backend all resolve to null,
+  // which shows the person icon.
+  useEffect(() => {
+    let active = true;
+    void getMyAvatarUrl().then((url) => {
+      if (active) setAvatarUrl(url);
+    });
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  async function changeAvatar() {
+    setAvatarError(null);
+    const picked = await pickImageBase64("library", { square: true });
+    // Backing out of the picker is a decision, not a failure.
+    if (picked.status === "cancel") return;
+    if (picked.status !== "ok") {
+      setAvatarError("save");
+      return;
+    }
+    setAvatarBusy(true);
+    const result = await saveMyAvatar(picked.base64);
+    setAvatarBusy(false);
+    if (result.ok) setAvatarUrl(result.url);
+    else setAvatarError("save");
+  }
+
+  async function confirmRemoveAvatar() {
+    setRemoveAvatarOpen(false);
+    setAvatarError(null);
+    setAvatarBusy(true);
+    const result = await removeMyAvatar();
+    setAvatarBusy(false);
+    if (result.ok) setAvatarUrl(null);
+    else setAvatarError("remove");
+  }
 
   function commitTarget() {
     const next = Math.max(0, Math.round(Number(targetText) || 0)) || 2000;
@@ -191,9 +238,26 @@ export default function ProfileScreen() {
 
         <View className="gap-3 rounded-2xl border border-[#E4DCCB] bg-surface p-4">
           <View className="flex-row items-center gap-3">
-            <View className="h-12 w-12 items-center justify-center rounded-full bg-surface-sunken">
-              <Ionicons name="person" size={22} color={colors.inkMuted} />
-            </View>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel={tl("Change profile photo", "更換頭像")}
+              disabled={avatarBusy}
+              onPress={() => {
+                void changeAvatar();
+              }}
+              className="active:opacity-70"
+            >
+              <Avatar uri={avatarUrl} size={48} fallbackIcon="person" />
+              {/* A small camera badge says the circle can be tapped. */}
+              <View className="absolute -bottom-0.5 -right-0.5 h-5 w-5 items-center justify-center rounded-full border-2 border-surface bg-ink">
+                <Ionicons name="camera" size={10} color="#FFFFFF" />
+              </View>
+              {avatarBusy ? (
+                <View className="absolute inset-0 items-center justify-center rounded-full bg-black/30">
+                  <ActivityIndicator color="#FFFFFF" />
+                </View>
+              ) : null}
+            </Pressable>
             <View className="flex-1">
               <ScalableText className="text-base font-bold text-ink">
                 {tl("Signed in", "已登入")}
@@ -203,6 +267,33 @@ export default function ProfileScreen() {
               </ScalableText>
             </View>
           </View>
+          {avatarError ? (
+            <ScalableText className="text-xs text-[#C0392B]">
+              {avatarError === "save"
+                ? tl(
+                    "Your photo could not be saved. Please check your connection and try again.",
+                    "未能儲存頭像，請檢查網絡後再試。",
+                  )
+                : tl(
+                    "Your photo could not be removed. Please check your connection and try again.",
+                    "未能移除頭像，請檢查網絡後再試。",
+                  )}
+            </ScalableText>
+          ) : null}
+          {avatarUrl ? (
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel={tl("Remove profile photo", "移除頭像")}
+              disabled={avatarBusy}
+              onPress={() => setRemoveAvatarOpen(true)}
+              className="min-h-[44px] flex-row items-center gap-3 rounded-xl bg-surface-sunken px-3 py-2.5 active:opacity-70"
+            >
+              <Ionicons name="trash-outline" size={18} color={colors.inkMuted} />
+              <ScalableText className="flex-1 text-sm font-semibold text-ink">
+                {tl("Remove profile photo", "移除頭像")}
+              </ScalableText>
+            </Pressable>
+          ) : null}
           {canChangePassword ? (
             <Pressable
               accessibilityRole="button"
@@ -518,6 +609,14 @@ export default function ProfileScreen() {
         initial={healthProfile}
         onClose={() => setHealthSheetOpen(false)}
         onSaved={handleHealthSaved}
+      />
+      <ConfirmDialog
+        visible={removeAvatarOpen}
+        title={tl("Remove your profile photo?", "移除你的頭像？")}
+        message={tl("It will be deleted from your account.", "頭像會從你的帳戶中刪除。")}
+        confirmLabel={tl("Remove", "移除")}
+        onConfirm={() => void confirmRemoveAvatar()}
+        onCancel={() => setRemoveAvatarOpen(false)}
       />
       <ConfirmDialog
         visible={deleteOpen}
