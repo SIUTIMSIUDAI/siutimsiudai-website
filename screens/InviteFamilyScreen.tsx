@@ -8,6 +8,7 @@ import { Screen } from "@/components/Screen";
 import { ScalableText } from "@/components/ScalableText";
 import { Button } from "@/components/Button";
 import { ConfirmDialog } from "@/components/ConfirmDialog";
+import { Avatar } from "@/components/Avatar";
 import { colors } from "@/constants/theme";
 import { useLocale } from "@/hooks/useLocale";
 import { useAuthStore } from "@/stores/authStore";
@@ -19,6 +20,7 @@ import {
   removeMember,
   revokeInvite,
 } from "@/services/familyService";
+import { getAvatarUrls } from "@/services/avatarService";
 import { hasActiveMaxEntitlement } from "@/services/revenueCatService";
 import { createReasonKey, FAMILY_MAX_MEMBERS, isGroupFull, remainingSeats } from "@/utils/familyInvite";
 import type { FamilyInvite, FamilyMember } from "@/types/family";
@@ -70,6 +72,19 @@ export function InviteFamilyScreen() {
 
   const role = snapshot?.role ?? null;
   const members = snapshot?.members ?? [];
+  // Signed links for the members' photos, keyed on the paths themselves so a roster refresh that
+  // changes no photo does not sign them again.
+  const avatarKey = members.map((m) => m.avatarPath ?? "").join("|");
+  const [avatarUrls, setAvatarUrls] = useState<Record<string, string>>({});
+  useEffect(() => {
+    let active = true;
+    void getAvatarUrls(avatarKey.split("|").filter(Boolean)).then((urls) => {
+      if (active) setAvatarUrls(urls);
+    });
+    return () => {
+      active = false;
+    };
+  }, [avatarKey]);
   const invitations = snapshot?.invitations ?? [];
   const maxMembers = snapshot?.group?.maxMembers ?? FAMILY_MAX_MEMBERS;
   const groupFull = isGroupFull(members.length, maxMembers);
@@ -298,13 +313,11 @@ export function InviteFamilyScreen() {
                           : {})}
                         className="flex-row items-center gap-3 rounded-2xl border border-[#E4DCCB] bg-surface p-3 active:opacity-70"
                       >
-                        <View className="h-10 w-10 items-center justify-center rounded-full bg-surface-sunken">
-                          <Ionicons
-                            name={m.role === "manager" ? "star" : "person"}
-                            size={18}
-                            color={colors.inkMuted}
-                          />
-                        </View>
+                        <Avatar
+                          uri={m.avatarPath ? avatarUrls[m.avatarPath] : null}
+                          size={40}
+                          fallbackIcon={m.role === "manager" ? "star" : "person"}
+                        />
                         <View className="flex-1">
                           <ScalableText className="text-base font-semibold text-ink" numberOfLines={1}>
                             {memberName(m)}
