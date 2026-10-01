@@ -5,11 +5,11 @@ import { Screen } from "@/components/Screen";
 import { ScalableText } from "@/components/ScalableText";
 import { HistoryDateStrip } from "@/components/HistoryDateStrip";
 import { MacroProgressBar } from "@/components/MacroProgressBar";
-import { WeeklyMacroChart, WeeklyMacroDatum } from "@/components/WeeklyMacroChart";
-import { MicroHistoryChart, MicroHistoryDatum } from "@/components/MicroHistoryChart";
+import { NutrientReportCard } from "@/components/NutrientReportCard";
+import { NutrientDetailSheet } from "@/components/NutrientDetailSheet";
+import { RangeCalendarSheet } from "@/components/RangeCalendarSheet";
 import { LockedMacroCard } from "@/components/LockedMacroCard";
 import { LockedTrendCard } from "@/components/LockedTrendCard";
-import { LockedMicroTrendCard } from "@/components/LockedMicroTrendCard";
 import { LockedMealListCard } from "@/components/LockedMealListCard";
 import { MemberEntryRow } from "@/components/MemberEntryRow";
 import { QuickAddRow } from "@/components/QuickAddRow";
@@ -17,10 +17,11 @@ import { LogInputSheet } from "@/components/LogInputSheet";
 import { colors, macroColors } from "@/constants/theme";
 import { useLocale } from "@/hooks/useLocale";
 import { useFeatureAccess } from "@/hooks/useFeatureAccess";
-import { todayKey, weekdayShort } from "@/utils/formatters";
+import { todayKey } from "@/utils/formatters";
 import { effectiveMacros } from "@/utils/customizations";
-import { sumMicroTotals } from "@/utils/micros";
 import { computeNutritionTargets } from "@/utils/nutritionTargets";
+import { DateRange, datesInRange, matchPreset, presetRange } from "@/utils/dateRange";
+import { buildReport, dayNutrients, ReportNutrientKey } from "@/utils/nutritionReport";
 import { HISTORY_STRIP_DAYS, isBackfillableDate } from "@/utils/historyWindow";
 import { sortByLoggedAt } from "@/utils/entryTime";
 import { useNutritionStore } from "@/stores/nutritionStore";
@@ -103,34 +104,33 @@ export function HistoryScreen() {
     [logsByDate, selected],
   );
 
-  // Real weekly figures are Pro-only. For free users this returns nothing and the screen renders
-  // a locked decoy instead, so no historical number ever enters the tree.
-  const weekly: WeeklyMacroDatum[] = useMemo(() => {
-    if (!isPaid) return [];
-    return days.slice(-7).map((dateKey) => {
-      const totals = totalsFor(logsByDate, dateKey);
-      return {
-        dateKey,
-        label: weekdayShort(dateKey, locale),
-        protein: totals.protein,
-        carbs: totals.carbs,
-        fat: totals.fat,
-        isToday: dateKey === today,
-      };
-    });
-  }, [days, logsByDate, locale, today, isPaid]);
+  // The report: how the chosen range compared with the user's targets (last 7 days until they pick
+  // other dates). Pro-only: for free users the range yields no days and the screen renders a locked
+  // decoy instead, so no historical number ever enters the tree.
+  const [range, setRange] = useState<DateRange>(() => presetRange("last7", today));
+  const [calendarOpen, setCalendarOpen] = useState(false);
+  const [detailKey, setDetailKey] = useState<ReportNutrientKey | null>(null);
+  const rangeDays = useMemo(
+    () => (isPaid ? datesInRange(range).map((dateKey) => dayNutrients(logsByDate, dateKey)) : []),
+    [isPaid, range, logsByDate],
+  );
+  const report = useMemo(() => buildReport(rangeDays, targets, today), [rangeDays, targets, today]);
+  const detailRow = detailKey ? (report.rows.find((r) => r.key === detailKey) ?? null) : null;
 
-  // Seven days of tracked-micro totals for the premium micro trend. Same Pro-only gate: free users
-  // get [] and see a locked decoy, so no real micronutrient figure reaches the tree.
-  const microWeekly: MicroHistoryDatum[] = useMemo(() => {
-    if (!isPaid) return [];
-    return days.slice(-7).map((dateKey) => ({
-      dateKey,
-      label: weekdayShort(dateKey, locale),
-      micros: sumMicroTotals(logsByDate[dateKey]?.entries ?? []),
-      isToday: dateKey === today,
-    }));
-  }, [days, logsByDate, locale, today, isPaid]);
+  const rangeLabel = (() => {
+    const preset = matchPreset(range, today);
+    if (preset === "today") return tl("Today", "今日");
+    if (preset === "thisWeek") return tl("This week", "今個星期");
+    if (preset === "last7") return tl("Last 7 days", "過去 7 日");
+    if (preset === "last30") return tl("Last 30 days", "過去 30 日");
+    const short = (dateKey: string) =>
+      new Date(`${dateKey}T00:00:00`).toLocaleDateString(locale === "zh-Hant" ? "zh-HK" : "en-US", {
+        month: "short",
+        day: "numeric",
+      });
+    if (range.from === range.to) return short(range.from);
+    return tl(`${short(range.from)} to ${short(range.to)}`, `${short(range.from)}至${short(range.to)}`);
+  })();
 
   const prettyDate = new Date(`${selected}T00:00:00`).toLocaleDateString(
     locale === "zh-Hant" ? "zh-HK" : "en-US",
@@ -243,32 +243,39 @@ export function HistoryScreen() {
           )}
         </View>
 
-        {/* Weekly trend is a Pro perk: paid tiers get the real chart, free sees a locked decoy. */}
+        {/* How you did against your targets over the chosen dates: a Pro perk. Free sees a locked
+            decoy with invented figures. */}
         {isPaid ? (
-          <WeeklyMacroChart
-            data={weekly}
-            title={t("history.weeklyTrend")}
-            legend={{
-              carbs: t("dashboard.carbs"),
-              fat: t("dashboard.fat"),
-              protein: t("dashboard.protein"),
-            }}
+          <NutrientReportCard
+            report={report}
+            rangeLabel={rangeLabel}
+            hasTargets={targets != null}
+            onPickRange={() => setCalendarOpen(true)}
+            onOpenNutrient={setDetailKey}
           />
         ) : (
           <LockedTrendCard onUnlock={triggerPaywall} />
         )}
-
-        {/* Micronutrient trend: one toggleable 7-day chart (Pro), or a locked decoy for free. */}
-        {isPaid ? (
-          <MicroHistoryChart
-            data={microWeekly}
-            targets={targets?.micros ?? null}
-            title={tl("Micronutrient trend", "微量營養走勢")}
-          />
-        ) : (
-          <LockedMicroTrendCard onUnlock={triggerPaywall} />
-        )}
       </ScrollView>
+
+      {isPaid && (
+        <>
+          <RangeCalendarSheet
+            visible={calendarOpen}
+            value={range}
+            today={today}
+            onApply={setRange}
+            onClose={() => setCalendarOpen(false)}
+          />
+          <NutrientDetailSheet
+            visible={detailRow != null}
+            row={detailRow}
+            days={rangeDays}
+            today={today}
+            onClose={() => setDetailKey(null)}
+          />
+        </>
+      )}
 
       {/* Mounted for tiers that can backfill only; it files the meal under the selected past day. */}
       {canBackfill && (

@@ -45,7 +45,6 @@
     "subtitle": "回顧你嘅代謝資產負債表",
     "booked": "kcal 已入帳",
     "targetLine": "／目標 {{count}} kcal",
-    "weeklyTrend": "近 7 日",
     "empty": "呢日冇入過帳。"
   },
   "log": {

@@ -45,7 +45,6 @@
     "subtitle": "Review your metabolic balance sheet",
     "booked": "kcal booked",
     "targetLine": "of {{count}} kcal budget",
-    "weeklyTrend": "Last 7 days",
     "empty": "Nothing booked to the ledger this day."
   },
   "log": {
