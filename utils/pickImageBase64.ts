@@ -9,17 +9,25 @@ export type ImageCaptureResult =
   | { status: "denied" }
   | { status: "error" };
 
+export interface PickImageOptions {
+  // Crop to a square and save smaller: a profile photo is only ever shown small.
+  square?: boolean;
+}
+
 // Resolve one image (as raw base64 JPEG, no data: prefix) from the camera or the photo library.
 // "camera" asks permission and returns "denied" on refusal rather than silently falling through;
 // "library" (and web, which has no in-preview camera) needs no permission on iOS. Never throws.
-// quality 0.5 keeps the payload real while giving Gemini enough detail to name a dish.
+// quality 0.5 keeps the payload real while giving Gemini enough detail to name a dish. Square photos
+// use the picker's own crop and quality 0.3 instead, because no resize library is in the binary.
 export async function pickImageBase64(
   source: "camera" | "library",
+  { square = false }: PickImageOptions = {},
 ): Promise<ImageCaptureResult> {
   const options: ImagePicker.ImagePickerOptions = {
     mediaTypes: ["images"],
-    quality: 0.5,
+    quality: square ? 0.3 : 0.5,
     base64: true,
+    ...(square ? { allowsEditing: true, aspect: [1, 1] as [number, number] } : {}),
   };
   try {
     let result: ImagePicker.ImagePickerResult;
