@@ -9,6 +9,8 @@ import { UnitToggle } from "@/components/UnitToggle";
 import { HealthProfileSheet } from "@/components/HealthProfileSheet";
 import { ConfirmDialog } from "@/components/ConfirmDialog";
 import { Avatar } from "@/components/Avatar";
+import { ActionSheet, type ActionSheetOption } from "@/components/ActionSheet";
+import { NameDialog } from "@/components/NameDialog";
 import { LegalLinks } from "@/components/LegalLinks";
 import { SourcesLink } from "@/components/SourcesLink";
 import { colors } from "@/constants/theme";
@@ -49,11 +51,10 @@ export default function ProfileScreen() {
   const setHealthProfile = useNutritionStore((s) => s.setHealthProfile);
   const clearHealthProfile = useNutritionStore((s) => s.clearHealthProfile);
   const [targetText, setTargetText] = useState(String(target));
-  // "How should we call you?" — the name family members see. Prefilled from the saved profile below;
-  // nameSaved briefly flips the Save button to "Saved" as a light confirmation, like the copy button
-  // on the family screen.
-  const [nameText, setNameText] = useState("");
-  const [nameSaved, setNameSaved] = useState(false);
+  // The name family members see, shown at the top in place of "Signed in" and changed in NameDialog.
+  // Null until loaded, or when none is set ("Add your name").
+  const [displayName, setDisplayName] = useState<string | null>(null);
+  const [nameDialogOpen, setNameDialogOpen] = useState(false);
   const [healthSheetOpen, setHealthSheetOpen] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [deleting, setDeleting] = useState(false);
@@ -63,7 +64,7 @@ export default function ProfileScreen() {
   const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
   const [avatarBusy, setAvatarBusy] = useState(false);
   const [avatarError, setAvatarError] = useState<"save" | "remove" | null>(null);
-  const [removeAvatarOpen, setRemoveAvatarOpen] = useState(false);
+  const [photoMenuOpen, setPhotoMenuOpen] = useState(false);
 
   const session = useAuthStore((s) => s.session);
   const biometric = useBiometricLogin();
@@ -108,12 +109,12 @@ export default function ProfileScreen() {
   const canChangePassword = hasPasswordIdentity(user?.identities);
   const socialNames = socialProviderNames(user?.identities);
 
-  // Load the saved name once so the field shows the user's current name rather than a blank box. A
-  // signed-out or unconfigured session resolves to null and the field simply stays empty.
+  // Load the saved name once for the heading. A signed-out or unconfigured session resolves to null,
+  // which shows "Add your name".
   useEffect(() => {
     let active = true;
     void getMyDisplayName().then((saved) => {
-      if (active && saved) setNameText(saved);
+      if (active) setDisplayName(saved);
     });
     return () => {
       active = false;
@@ -148,8 +149,8 @@ export default function ProfileScreen() {
     else setAvatarError("save");
   }
 
-  async function confirmRemoveAvatar() {
-    setRemoveAvatarOpen(false);
+  // Chosen from the photo menu, which is itself the confirmation, so it removes straight away.
+  async function removeAvatar() {
     setAvatarError(null);
     setAvatarBusy(true);
     const result = await removeMyAvatar();
@@ -164,17 +165,33 @@ export default function ProfileScreen() {
     setTargetText(String(next));
   }
 
-  async function commitName() {
-    const clean = normaliseDisplayName(nameText);
-    // Reflect the cleaned value back so the box shows exactly what was stored (trimmed, capped), or
-    // clears if they saved an empty name.
-    setNameText(clean ?? "");
+  // Saved from NameDialog. The heading shows exactly what was stored (trimmed, capped), and saving an
+  // empty name clears it back to "Add your name".
+  async function saveName(text: string): Promise<boolean> {
+    const clean = normaliseDisplayName(text);
     const res = await setMyDisplayName(clean);
-    if (res.ok) {
-      setNameSaved(true);
-      setTimeout(() => setNameSaved(false), 2000);
-    }
+    if (res.ok) setDisplayName(clean);
+    return res.ok;
   }
+
+  // Remove is offered only when there is a photo to remove.
+  const photoOptions: ActionSheetOption[] = [
+    {
+      label: tl("Choose from photo library", "喺相簿揀相"),
+      icon: "images-outline",
+      onPress: () => void changeAvatar(),
+    },
+    ...(avatarUrl
+      ? [
+          {
+            label: tl("Remove profile photo", "移除頭像"),
+            icon: "trash-outline" as const,
+            destructive: true,
+            onPress: () => void removeAvatar(),
+          },
+        ]
+      : []),
+  ];
 
   function handleHealthSaved(profile: HealthProfile) {
     setHealthProfile(profile);
@@ -240,11 +257,9 @@ export default function ProfileScreen() {
           <View className="flex-row items-center gap-3">
             <Pressable
               accessibilityRole="button"
-              accessibilityLabel={tl("Change profile photo", "更換頭像")}
+              accessibilityLabel={tl("Profile photo options", "頭像選項")}
               disabled={avatarBusy}
-              onPress={() => {
-                void changeAvatar();
-              }}
+              onPress={() => setPhotoMenuOpen(true)}
               className="active:opacity-70"
             >
               <Avatar uri={avatarUrl} size={48} fallbackIcon="person" />
@@ -258,14 +273,28 @@ export default function ProfileScreen() {
                 </View>
               ) : null}
             </Pressable>
-            <View className="flex-1">
-              <ScalableText className="text-base font-bold text-ink">
-                {tl("Signed in", "已登入")}
-              </ScalableText>
+            {/* The name family members see, in place of "Signed in". Tapping anywhere here edits it. */}
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel={
+                displayName ? tl("Change your name", "更改名稱") : tl("Add your name", "填你個名")
+              }
+              onPress={() => setNameDialogOpen(true)}
+              className="min-h-[44px] flex-1 justify-center active:opacity-70"
+            >
+              <View className="flex-row items-center gap-1.5">
+                <ScalableText
+                  className={`shrink text-base font-bold ${displayName ? "text-ink" : "text-ink-muted"}`}
+                  numberOfLines={1}
+                >
+                  {displayName ?? tl("Add your name", "填你個名")}
+                </ScalableText>
+                <Ionicons name="pencil" size={14} color={colors.inkMuted} />
+              </View>
               <ScalableText className="text-xs text-ink-muted" numberOfLines={1}>
                 {user?.email ?? tl("Synced to your account", "已同步到你的帳戶")}
               </ScalableText>
-            </View>
+            </Pressable>
           </View>
           {avatarError ? (
             <ScalableText className="text-xs text-[#C0392B]">
@@ -279,20 +308,6 @@ export default function ProfileScreen() {
                     "未能移除頭像，請檢查網絡後再試。",
                   )}
             </ScalableText>
-          ) : null}
-          {avatarUrl ? (
-            <Pressable
-              accessibilityRole="button"
-              accessibilityLabel={tl("Remove profile photo", "移除頭像")}
-              disabled={avatarBusy}
-              onPress={() => setRemoveAvatarOpen(true)}
-              className="min-h-[44px] flex-row items-center gap-3 rounded-xl bg-surface-sunken px-3 py-2.5 active:opacity-70"
-            >
-              <Ionicons name="trash-outline" size={18} color={colors.inkMuted} />
-              <ScalableText className="flex-1 text-sm font-semibold text-ink">
-                {tl("Remove profile photo", "移除頭像")}
-              </ScalableText>
-            </Pressable>
           ) : null}
           {canChangePassword ? (
             <Pressable
@@ -347,23 +362,8 @@ export default function ProfileScreen() {
                   {t("auth.biometricEnableFailed", { method: biometricName })}
                 </ScalableText>
               )}
-              {/* Said plainly, because it changes what the button below does. Signing out keeps the
-                  session alive behind the sensor so the shortcut still works next time. */}
-              {biometric.enabled && !biometricError && (
-                <ScalableText className="text-xs text-ink-muted">
-                  {t("auth.biometricSignOutNotice", { method: biometricName })}
-                </ScalableText>
-              )}
             </View>
           )}
-          <Button
-            label={tl("Sign out", "登出")}
-            icon="log-out-outline"
-            variant="secondary"
-            onPress={() => {
-              void signOut();
-            }}
-          />
         </View>
 
         <View className="gap-3 rounded-2xl border border-[#E4DCCB] bg-surface p-4">
@@ -491,31 +491,6 @@ export default function ProfileScreen() {
 
         <View className="gap-2">
           <ScalableText className="px-1 text-sm font-semibold text-ink-muted">
-            {t("profile.nameLabel")}
-          </ScalableText>
-          <View className="flex-row items-center gap-2">
-            <TextInput
-              className={`${INPUT} flex-1`}
-              value={nameText}
-              onChangeText={(v) => {
-                setNameText(v);
-                if (nameSaved) setNameSaved(false);
-              }}
-              onSubmitEditing={commitName}
-              placeholder={t("profile.namePlaceholder")}
-              placeholderTextColor={colors.inkFaint}
-              maxLength={40}
-              returnKeyType="done"
-            />
-            <Button
-              label={nameSaved ? t("profile.nameSaved") : t("common.save")}
-              onPress={commitName}
-            />
-          </View>
-        </View>
-
-        <View className="gap-2">
-          <ScalableText className="px-1 text-sm font-semibold text-ink-muted">
             {t("profile.calorieTarget")}
           </ScalableText>
           <View className="flex-row items-center gap-2">
@@ -545,6 +520,16 @@ export default function ProfileScreen() {
             <LegalLinks align="start" />
           </View>
         </View>
+
+        {/* Account exits sit together at the end, with the permanent one last. */}
+        <Button
+          label={tl("Sign out", "登出")}
+          icon="log-out-outline"
+          variant="secondary"
+          onPress={() => {
+            void signOut();
+          }}
+        />
 
         <View className="gap-2">
           <Pressable
@@ -610,13 +595,16 @@ export default function ProfileScreen() {
         onClose={() => setHealthSheetOpen(false)}
         onSaved={handleHealthSaved}
       />
-      <ConfirmDialog
-        visible={removeAvatarOpen}
-        title={tl("Remove your profile photo?", "移除你的頭像？")}
-        message={tl("It will be deleted from your account.", "頭像會從你的帳戶中刪除。")}
-        confirmLabel={tl("Remove", "移除")}
-        onConfirm={() => void confirmRemoveAvatar()}
-        onCancel={() => setRemoveAvatarOpen(false)}
+      <ActionSheet
+        visible={photoMenuOpen}
+        options={photoOptions}
+        onClose={() => setPhotoMenuOpen(false)}
+      />
+      <NameDialog
+        visible={nameDialogOpen}
+        initial={displayName}
+        onSave={saveName}
+        onClose={() => setNameDialogOpen(false)}
       />
       <ConfirmDialog
         visible={deleteOpen}

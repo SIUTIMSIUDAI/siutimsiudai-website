@@ -196,7 +196,6 @@
     "chinese": "繁體中文",
     "nameLabel": "點稱呼你好呢？",
     "namePlaceholder": "你嘅名或者花名",
-    "nameSaved": "已儲存",
     "calorieTarget": "每日卡路里目標",
     "signIn": "登入同步",
     "signInHint": "跨裝置備份記錄、食譜同存貨。",
@@ -342,7 +341,6 @@
     "biometricToggle": "用 {{method}} 登入",
     "biometricToggleBody": "用 {{method}} 重新登入，毋須輸入密碼。",
     "biometricEnableFailed": "此裝置無法設定 {{method}}，請再試一次。",
-    "biometricSignOutNotice": "登出後，你仍可在此裝置用 {{method}} 重新登入。如要完全登出，請先關閉此設定。",
     "biometricErr": {
       "unenrolled": "此裝置尚未設定 {{method}}。請先在裝置設定中新增，然後再試。",
       "locked_out": "{{method}} 因多次嘗試失敗而被鎖定。請用裝置密碼解鎖，然後再試。",
