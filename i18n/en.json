@@ -104,6 +104,7 @@
     "ingredients": "Ingredients",
     "steps": "Steps",
     "cook": "Start cooking",
+    "cookedIt": "Cooked it",
     "scale": "Servings",
     "units": "Units",
     "substitute": "Swap",
@@ -151,6 +152,24 @@
     "suggest": "Suggest a recipe",
     "suggestFailed": "Couldn't come up with a recipe right now. Check your connection and try again.",
     "suggestRateLimited": "You've used today's AI suggestions. The allowance resets at midnight. You can still add a recipe yourself."
+  },
+  "pantryUpdate": {
+    "title": "Update your pantry",
+    "intro": "Here's what this dish used from your pantry. Fix anything that's off.",
+    "youHave": "You have {{amount}}",
+    "used": "Used",
+    "left": "{{amount}} left",
+    "noneLeft": "None left",
+    "noChange": "No change",
+    "keep": "Still have some",
+    "useOne": "Used 1 {{unit}}",
+    "useUp": "Used it up",
+    "otherOne": "1 other ingredient in this recipe isn't in your pantry.",
+    "otherMany": "{{count}} other ingredients in this recipe aren't in your pantry.",
+    "confirm": "Update pantry",
+    "later": "Not now",
+    "nothing": "None of this recipe's ingredients are in your pantry, so there's nothing to update.",
+    "ok": "OK"
   },
   "pantryScan": {
     "title": "Scan your kitchen",

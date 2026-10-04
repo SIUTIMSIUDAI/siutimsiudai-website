@@ -14,6 +14,7 @@ import { CartExportSheet } from "@/components/CartExportSheet";
 import { MissingIngredientsCallout } from "@/components/MissingIngredientsCallout";
 import { PlanPickerSheet } from "@/components/PlanPickerSheet";
 import { ConfirmDialog } from "@/components/ConfirmDialog";
+import { PantryUpdateSheet } from "@/components/PantryUpdateSheet";
 import { SourcesLink } from "@/components/SourcesLink";
 import { healthySwapService } from "@/services";
 import { colors } from "@/constants/theme";
@@ -45,6 +46,7 @@ export default function RecipeDetailScreen() {
   const [planOpen, setPlanOpen] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [cartOpen, setCartOpen] = useState(false);
+  const [cookedOpen, setCookedOpen] = useState(false);
   const [healthyLoading, setHealthyLoading] = useState(false);
 
   // The pantry gap, computed once from the exact merge path the cart-export sheet uses, then reused
@@ -258,6 +260,13 @@ export default function RecipeDetailScreen() {
             icon="flame"
             onPress={() => router.push({ pathname: "/cook/[id]", params: { id: recipe.id } })}
           />
+          {/* Cooked without cook mode: the same pantry update that cook mode's Finish offers. */}
+          <Button
+            label={t("recipes.cookedIt")}
+            icon="checkmark-done"
+            variant="secondary"
+            onPress={() => setCookedOpen(true)}
+          />
           <Button
             label={t("recipes.planAdd")}
             icon="calendar-outline"
@@ -281,6 +290,11 @@ export default function RecipeDetailScreen() {
       />
       <CartExportSheet visible={cartOpen} recipe={recipe} onClose={() => setCartOpen(false)} />
       <PlanPickerSheet visible={planOpen} recipeId={recipe.id} onClose={() => setPlanOpen(false)} />
+      <PantryUpdateSheet
+        visible={cookedOpen}
+        ingredients={recipe.ingredients}
+        onClose={() => setCookedOpen(false)}
+      />
       <ConfirmDialog
         visible={deleteOpen}
         title={t("recipes.deleteTitle")}

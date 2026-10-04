@@ -4,10 +4,13 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { router, useLocalSearchParams } from "expo-router";
 import { ScalableText } from "@/components/ScalableText";
+import { PantryUpdateSheet } from "@/components/PantryUpdateSheet";
 import { colors } from "@/constants/theme";
 import { useLocale } from "@/hooks/useLocale";
 import { useVoiceNav } from "@/hooks/useVoiceNav";
+import { usePantryStore } from "@/stores/pantryStore";
 import { useRecipeStore } from "@/stores/recipeStore";
+import { planPantryDeduction } from "@/utils/pantryDeduction";
 
 // In-step countdown. Re-mounts per step (key={step.id}) so each step gets a fresh timer.
 // Capped font scaling keeps the big digits from overflowing at the largest OS text sizes.
@@ -89,15 +92,36 @@ export default function CookScreen() {
     indexRef.current = index;
   }, [index]);
 
+  // Finishing asks what the dish took out of the pantry, when it took anything; otherwise cook mode
+  // just closes as before. Voice commands pause while that sheet is up.
+  const [pantryOpen, setPantryOpen] = useState(false);
+  const pantryOpenRef = useRef(false);
+  useEffect(() => {
+    pantryOpenRef.current = pantryOpen;
+  }, [pantryOpen]);
+
+  const finish = useCallback(() => {
+    const cooked = useRecipeStore.getState().recipes.find((r) => r.id === id);
+    const usedPantry =
+      cooked != null &&
+      planPantryDeduction(cooked.ingredients, usePantryStore.getState().items).rows.length > 0;
+    if (usedPantry) setPantryOpen(true);
+    else router.back();
+  }, [id]);
+
   const goPrev = useCallback(() => setIndex((i) => Math.max(0, i - 1)), []);
   const goNext = useCallback(() => {
-    if (indexRef.current >= total - 1) router.back();
+    if (indexRef.current >= total - 1) finish();
     else setIndex((i) => Math.min(total - 1, i + 1));
-  }, [total]);
+  }, [total, finish]);
 
   const voice = useVoiceNav({
     locale,
-    onCommand: (command) => (command === "next" ? goNext() : goPrev()),
+    onCommand: (command) => {
+      if (pantryOpenRef.current) return;
+      if (command === "next") goNext();
+      else goPrev();
+    },
   });
 
   if (!recipe || recipe.steps.length === 0) {
@@ -231,6 +255,13 @@ export default function CookScreen() {
           <Ionicons name={isLast ? "checkmark" : "chevron-forward"} size={22} color={colors.white} />
         </Pressable>
       </View>
+
+      <PantryUpdateSheet
+        visible={pantryOpen}
+        ingredients={recipe.ingredients}
+        onClose={() => setPantryOpen(false)}
+        afterClose={() => router.back()}
+      />
     </SafeAreaView>
   );
 }

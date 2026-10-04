@@ -3,6 +3,7 @@ import { persist } from "zustand/middleware";
 import { PantryItem, PantryUnit, Recipe } from "@/types";
 import { canonicalizeIngredient } from "@/constants/ingredientDictionary";
 import { newId } from "@/utils/id";
+import type { PantryUpdate } from "@/utils/pantryDeduction";
 import { persistStorage } from "./persistStorage";
 
 const GUEST_USER = "guest";
@@ -51,6 +52,8 @@ interface PantryState {
   addManyItems: (inputs: NewPantryItemInput[]) => PantryItem[];
   toggleInStock: (id: string) => void;
   setQuantity: (id: string, quantity: number) => void;
+  // What cooking took out: each item's new amount and stock flag, set together in one write.
+  applyUpdates: (updates: PantryUpdate[]) => void;
   removeItem: (id: string) => void;
 
   // Recipes whose every ingredient maps to an in-stock pantry item (bilingual match).
@@ -99,6 +102,19 @@ export const usePantryStore = create<PantryState>()(
               : it,
           ),
         })),
+
+      applyUpdates: (updates) => {
+        const byId = new Map(updates.map((u) => [u.id, u]));
+        const now = new Date().toISOString();
+        set((state) => ({
+          items: state.items.map((it) => {
+            const u = byId.get(it.id);
+            return u
+              ? { ...it, quantity: Math.max(0, u.quantity), inStock: u.inStock, updatedAt: now }
+              : it;
+          }),
+        }));
+      },
 
       removeItem: (id) => set((state) => ({ items: state.items.filter((it) => it.id !== id) })),
 

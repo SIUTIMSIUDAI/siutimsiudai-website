@@ -104,6 +104,7 @@
     "ingredients": "材料",
     "steps": "步驟",
     "cook": "開始煮",
+    "cookedIt": "煮好咗",
     "scale": "份數",
     "units": "單位",
     "substitute": "替換",
@@ -151,6 +152,24 @@
     "suggest": "推介食譜",
     "suggestFailed": "暫時無法推介食譜。請檢查網絡連線後再試一次。",
     "suggestRateLimited": "今日的 AI 推介次數已用完，午夜過後重設。你仍然可以自己新增食譜。"
+  },
+  "pantryUpdate": {
+    "title": "更新存貨",
+    "intro": "呢味餸用咗以下存貨，有出入就改返啱佢。",
+    "youHave": "有 {{amount}}",
+    "used": "用咗",
+    "left": "剩 {{amount}}",
+    "noneLeft": "冇剩",
+    "noChange": "唔使改",
+    "keep": "仲有剩",
+    "useOne": "用咗 1 {{unit}}",
+    "useUp": "用晒",
+    "otherOne": "呢個食譜仲有 1 樣材料唔喺存貨度。",
+    "otherMany": "呢個食譜仲有 {{count}} 樣材料唔喺存貨度。",
+    "confirm": "更新存貨",
+    "later": "遲啲先",
+    "nothing": "呢個食譜嘅材料都唔喺存貨度，冇嘢要更新。",
+    "ok": "好"
   },
   "pantryScan": {
     "title": "掃描你個廚房",
