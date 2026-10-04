@@ -56,12 +56,23 @@ export interface RecipeGenerationFailure {
 
 export type RecipeGenerationOutcome = RecipeGenerationSuccess | RecipeGenerationFailure;
 
+export interface RecipeSuggestionsSuccess {
+  ok: true;
+  // Up to three different dishes. Empty means the pantry can't make a full dish yet.
+  recipes: StructuredRecipe[];
+}
+
+export type RecipeSuggestionsOutcome = RecipeSuggestionsSuccess | RecipeGenerationFailure;
+
 export interface RecipeGenerationService {
   generate(ingredients: RecipeSeedIngredient[]): Promise<RecipeGenerationOutcome>;
   generateFromDish(dish: RecipeDishSeed): Promise<RecipeGenerationOutcome>;
+  // Up to three dishes from one AI use. `avoid` names dishes already shown, for "More ideas".
+  suggest(ingredients: RecipeSeedIngredient[], avoid?: string[]): Promise<RecipeSuggestionsOutcome>;
 }
 
 const GENERATE_FN = "generate-recipe";
+const SUGGEST_COUNT = 3;
 const UNITS: readonly CanonicalUnit[] = ["g", "ml", "piece"];
 
 // --- Response validation (live path) --------------------------------------------------------
@@ -135,13 +146,37 @@ export function parseRecipeResponse(data: unknown): StructuredRecipe | null {
   };
 }
 
+/**
+ * The dishes in a suggestions answer, each validated exactly as a single recipe is. A dish that fails
+ * is dropped; if every one fails, or the answer isn't a list, the result is null (a failed call).
+ * An empty list stays empty: the model saying the pantry can't make a dish is a real answer.
+ */
+export function parseSuggestionsResponse(data: unknown): StructuredRecipe[] | null {
+  const list = (data as { recipes?: unknown })?.recipes;
+  if (!Array.isArray(list)) {
+    // A server from before suggestions answers with one recipe, which is still one suggestion.
+    const single = parseRecipeResponse(data);
+    return single ? [single] : null;
+  }
+  if (list.length === 0) return [];
+  const recipes = list
+    .map((recipe) => parseRecipeResponse({ recipe }))
+    .filter((r): r is StructuredRecipe => r !== null)
+    .slice(0, SUGGEST_COUNT);
+  return recipes.length > 0 ? recipes : null;
+}
+
+// Send ONLY the ingredient names/amounts. No profile, no targets: the recipe must be generic.
+function seedPayload(ingredients: RecipeSeedIngredient[]) {
+  return ingredients.map((i) => ({ name: i.name, nameZh: i.nameZh, quantity: i.quantity, unit: i.unit }));
+}
+
 async function generateViaProxy(
   ingredients: RecipeSeedIngredient[],
 ): Promise<RecipeGenerationOutcome> {
   if (!supabase) return { ok: false, error: "unavailable" };
   const { data, error } = await supabase.functions.invoke<{ recipe?: unknown }>(GENERATE_FN, {
-    // Send ONLY the ingredient names/amounts. No profile, no targets: the recipe must be generic.
-    body: { ingredients: ingredients.map((i) => ({ name: i.name, nameZh: i.nameZh, quantity: i.quantity, unit: i.unit })) },
+    body: { ingredients: seedPayload(ingredients) },
   });
   // Separates the 429 daily cap from a plain outage; see ./functionError.
   if (error) return { ok: false, error: await classifyInvokeError(error) };
@@ -150,6 +185,24 @@ async function generateViaProxy(
   // is a recipe, and a null here is a failed generation, not an invitation to invent one.
   const recipe = parseRecipeResponse(data);
   return recipe ? { ok: true, recipe } : { ok: false, error: "unavailable" };
+}
+
+async function suggestViaProxy(
+  ingredients: RecipeSeedIngredient[],
+  avoid: string[],
+): Promise<RecipeSuggestionsOutcome> {
+  if (!supabase) return { ok: false, error: "unavailable" };
+  const { data, error } = await supabase.functions.invoke<{ recipes?: unknown }>(GENERATE_FN, {
+    // The pantry, how many dishes, and which ones were already shown. Still no profile or targets.
+    body: {
+      ingredients: seedPayload(ingredients),
+      count: SUGGEST_COUNT,
+      ...(avoid.length > 0 ? { avoid } : {}),
+    },
+  });
+  if (error) return { ok: false, error: await classifyInvokeError(error) };
+  const recipes = parseSuggestionsResponse(data);
+  return recipes ? { ok: true, recipes } : { ok: false, error: "unavailable" };
 }
 
 async function generateDishViaProxy(dish: RecipeDishSeed): Promise<RecipeGenerationOutcome> {
@@ -301,6 +354,20 @@ export function buildGenericRecipe(ingredients: RecipeSeedIngredient[]): Structu
   };
 }
 
+// Demo stand-in for suggestions, reachable ONLY when Supabase is unconfigured. The pantry's main
+// ingredients are dealt into up to three piles, each cooked with the seasonings, so the demo shows
+// several different dishes without inventing anything. Like the others, never a failure fallback.
+export function buildSuggestedRecipes(ingredients: RecipeSeedIngredient[]): StructuredRecipe[] {
+  const named = ingredients.filter((i) => (i.name || i.nameZh).trim().length > 0);
+  const heroes = named.filter((i) => !matches(SEASONING_MARKERS, i));
+  const seasonings = named.filter((i) => matches(SEASONING_MARKERS, i));
+  if (heroes.length === 0) return named.length > 0 ? [buildGenericRecipe(named)] : [];
+  const piles = Array.from({ length: SUGGEST_COUNT }, (_, p) =>
+    heroes.filter((_, i) => i % SUGGEST_COUNT === p),
+  ).filter((pile) => pile.length > 0);
+  return piles.map((pile) => buildGenericRecipe([...pile, ...seasonings]));
+}
+
 // Demo stand-in for the dish path, reachable ONLY when Supabase is unconfigured (Expo Go, web,
 // tests). Like buildGenericRecipe, it is NOT a failure fallback: it exists so the photo flow is
 // demoable with no backend. It names the recipe after the dish and gives honest generic steps.
@@ -373,6 +440,18 @@ export const recipeGenerationService: RecipeGenerationService = {
     }
     try {
       return await generateDishViaProxy(dish);
+    } catch {
+      return { ok: false, error: "unavailable" };
+    }
+  },
+
+  async suggest(ingredients, avoid = []) {
+    if (!isSupabaseConfigured) {
+      await delay(1200); // exercise the "generating" spinner in mock mode
+      return { ok: true, recipes: buildSuggestedRecipes(ingredients) };
+    }
+    try {
+      return await suggestViaProxy(ingredients, avoid);
     } catch {
       return { ok: false, error: "unavailable" };
     }

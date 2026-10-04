@@ -149,9 +149,20 @@
     "cookNowHint": "Dishes you can make with what's in stock",
     "empty": "Pantry's bare. Add what's in your kitchen.",
     "scan": "Scan",
-    "suggest": "Suggest a recipe",
-    "suggestFailed": "Couldn't come up with a recipe right now. Check your connection and try again.",
-    "suggestRateLimited": "You've used today's AI suggestions. The allowance resets at midnight. You can still add a recipe yourself."
+    "suggest": "Suggest recipes",
+    "suggestFailed": "Couldn't come up with recipes right now. Check your connection and try again.",
+    "suggestRateLimited": "You've used today's AI suggestions. The allowance resets at midnight. You can still add a recipe yourself.",
+    "suggesting": "Thinking up a few dishes. This can take a moment.",
+    "ideasTitle": "Ideas from your pantry",
+    "uses": "Uses: {{list}}",
+    "alsoNeeds": "Also needs: {{list}}",
+    "addRecipe": "Add to recipes",
+    "added": "Added",
+    "open": "Open",
+    "addAll": "Add all",
+    "moreIdeas": "More ideas",
+    "nothingCookable": "Your pantry can't make a full dish yet. Add a few more ingredients and try again.",
+    "closeIdeas": "Close ideas"
   },
   "pantryUpdate": {
     "title": "Update your pantry",

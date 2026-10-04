@@ -151,7 +151,18 @@
     "scan": "掃描",
     "suggest": "推介食譜",
     "suggestFailed": "暫時無法推介食譜。請檢查網絡連線後再試一次。",
-    "suggestRateLimited": "今日的 AI 推介次數已用完，午夜過後重設。你仍然可以自己新增食譜。"
+    "suggestRateLimited": "今日的 AI 推介次數已用完，午夜過後重設。你仍然可以自己新增食譜。",
+    "suggesting": "諗緊有咩餸好煮，等陣呀。",
+    "ideasTitle": "存貨煮得嘅餸",
+    "uses": "用到：{{list}}",
+    "alsoNeeds": "仲要：{{list}}",
+    "addRecipe": "加入食譜",
+    "added": "已加入",
+    "open": "打開",
+    "addAll": "全部加入",
+    "moreIdeas": "再諗多啲",
+    "nothingCookable": "存貨暫時未夠煮一味餸，加多幾樣材料再試吓啦。",
+    "closeIdeas": "收起建議"
   },
   "pantryUpdate": {
     "title": "更新存貨",

@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { Pressable, ScrollView, View } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { router } from "expo-router";
@@ -9,6 +9,7 @@ import { PantryItemRow } from "@/components/PantryItemRow";
 import { GroceryItemRow } from "@/components/GroceryItemRow";
 import { AddPantryItemSheet } from "@/components/AddPantryItemSheet";
 import { GroceryCompileSheet } from "@/components/GroceryCompileSheet";
+import { RecipeSuggestions } from "@/components/RecipeSuggestions";
 import { colors } from "@/constants/theme";
 import { useLocale } from "@/hooks/useLocale";
 import { useAppStore } from "@/stores/appStore";
@@ -18,6 +19,7 @@ import { useGroceryStore } from "@/stores/groceryStore";
 import { useFeatureAccess } from "@/hooks/useFeatureAccess";
 import { recipeGenerationService } from "@/services/recipeGenerationService";
 import type { InvokeFailure } from "@/services/functionError";
+import type { StructuredRecipe } from "@/types";
 
 export default function PantryScreen() {
   const { t, tl } = useLocale();
@@ -33,7 +35,7 @@ export default function PantryScreen() {
   const toggleGrocery = useGroceryStore((s) => s.toggleItem);
   const clearGrocery = useGroceryStore((s) => s.clear);
 
-  // "Suggest a recipe" generates a fresh recipe with AI, so it's a paid perk (Pro and Max). Free
+  // "Suggest recipes" generates fresh recipes with AI, so it's a paid perk (Pro and Max). Free
   // users see the button with a lock and land on the paywall when they tap it.
   const { hasAccess: canSuggest, triggerPaywall } = useFeatureAccess("pantry_suggest");
 
@@ -43,6 +45,18 @@ export default function PantryScreen() {
   // Why the generation failed, not merely that it did. "rate_limited" is the daily per-user cap,
   // where tapping again cannot work and saying "try again" would be a lie.
   const [suggestFailed, setSuggestFailed] = useState<InvokeFailure | null>(null);
+  // The suggestions on screen (null when none are), and every title shown since they opened, so
+  // "More ideas" can ask for different dishes.
+  const [suggestions, setSuggestions] = useState<StructuredRecipe[] | null>(null);
+  const [seenTitles, setSeenTitles] = useState<string[]>([]);
+  // What each suggestion was saved as once added. Mirrored in a ref so a quick double tap reads the
+  // first tap's result and never saves the same dish twice.
+  const [addedIds, setAddedIdsState] = useState<Array<string | null>>([]);
+  const addedRef = useRef<Array<string | null>>([]);
+  const setAddedIds = (next: Array<string | null>) => {
+    addedRef.current = next;
+    setAddedIdsState(next);
+  };
 
   // Recompute the highlight whenever stock or the recipe set changes.
   const cookable = useMemo(() => cookableRecipes(recipes), [cookableRecipes, recipes, items]);
@@ -50,31 +64,72 @@ export default function PantryScreen() {
   const remaining = list ? list.items.filter((it) => !it.checked).length : 0;
   const inStock = useMemo(() => items.filter((it) => it.inStock), [items]);
 
-  // Generate one recipe from whatever is in stock (NOT tailored to any nutrition target), save it,
-  // and open it. The generation runs server-side on Vertex AI when Supabase is configured; a local
-  // template answers ONLY in Expo Go / web / tests, where there is no backend to call at all.
+  // Up to three dishes from whatever is in stock (NOT tailored to any nutrition target), shown as
+  // cards to add one at a time or all at once. One AI use per tap, "More ideas" included. The
+  // generation runs server-side on Vertex AI when Supabase is configured; a local template answers
+  // ONLY in Expo Go / web / tests, where there is no backend to call at all.
   //
-  // A failure saves nothing and navigates nowhere. This is a paid Pro/Max perk, so serving the
-  // template on failure would sell AI output no model produced — and since success files the result
-  // in the recipe box, the fake would outlive the moment and sit there afterwards looking like a
-  // genuine suggestion.
-  async function suggestRecipe() {
-    if (generating || inStock.length === 0) return;
+  // A failure saves nothing and leaves whatever was already showing. This is a paid Pro/Max perk, so
+  // serving the template on failure would sell AI output no model produced, and once added to the
+  // recipe box the fake would sit there afterwards looking like a genuine suggestion.
+  // Set synchronously, unlike `generating`, so a quick double tap can't spend two AI uses.
+  const inFlight = useRef(false);
+  async function suggestRecipes(more: boolean) {
+    if (inFlight.current || inStock.length === 0) return;
+    inFlight.current = true;
     setGenerating(true);
     setSuggestFailed(null);
     try {
-      const outcome = await recipeGenerationService.generate(
+      const seen = more ? seenTitles : [];
+      const outcome = await recipeGenerationService.suggest(
         inStock.map((it) => ({ name: it.name, nameZh: it.nameZh, quantity: it.quantity, unit: it.unit })),
+        seen.slice(-12),
       );
       if (!outcome.ok) {
         setSuggestFailed(outcome.error);
         return;
       }
-      const recipe = useRecipeStore.getState().addRecipe(outcome.recipe, "manual");
-      openRecipe(recipe.id);
+      setSuggestions(outcome.recipes);
+      setAddedIds(outcome.recipes.map(() => null));
+      setSeenTitles([...seen, ...outcome.recipes.map((r) => r.title)]);
     } finally {
+      inFlight.current = false;
       setGenerating(false);
     }
+  }
+
+  // Only a saved id still in the recipe box counts as added, so a recipe deleted since can be added
+  // again instead of opening to "not found".
+  const liveAddedIds = useMemo(
+    () => addedIds.map((id) => (id && recipes.some((r) => r.id === id) ? id : null)),
+    [addedIds, recipes],
+  );
+  function currentAddedIds(): Array<string | null> {
+    const box = useRecipeStore.getState().recipes;
+    return addedRef.current.map((id) => (id && box.some((r) => r.id === id) ? id : null));
+  }
+
+  function addSuggestion(index: number) {
+    if (!suggestions) return;
+    const added = currentAddedIds();
+    if (added[index]) return;
+    added[index] = useRecipeStore.getState().addRecipe(suggestions[index], "manual").id;
+    setAddedIds(added);
+  }
+
+  function addAllSuggestions() {
+    if (!suggestions) return;
+    setAddedIds(
+      currentAddedIds().map(
+        (id, i) => id ?? useRecipeStore.getState().addRecipe(suggestions[i], "manual").id,
+      ),
+    );
+  }
+
+  function closeSuggestions() {
+    setSuggestions(null);
+    setAddedIds([]);
+    setSeenTitles([]);
   }
 
   return (
@@ -98,14 +153,21 @@ export default function PantryScreen() {
               icon={canSuggest ? "sparkles" : "lock-closed"}
               loading={generating}
               disabled={canSuggest && inStock.length === 0}
-              onPress={canSuggest ? suggestRecipe : triggerPaywall}
+              onPress={canSuggest ? () => void suggestRecipes(false) : triggerPaywall}
               accessibilityLabel={
                 canSuggest
                   ? t("pantry.suggest")
-                  : tl("Suggest a recipe, unlock with Pro", "推介食譜，升級 Pro 解鎖")
+                  : tl("Suggest recipes, unlock with Pro", "推介食譜，升級 Pro 解鎖")
               }
             />
           </View>
+
+          {/* Three full recipes take longer than one, so say something is happening. */}
+          {generating ? (
+            <ScalableText accessibilityLiveRegion="polite" className="px-1 text-xs text-ink-muted">
+              {t("pantry.suggesting")}
+            </ScalableText>
+          ) : null}
 
           {/* Honest failure state. Nothing was saved, so the button above is the retry — unless the
               reason was the daily cap, in which case tapping again cannot help and we say so. */}
@@ -126,6 +188,20 @@ export default function PantryScreen() {
             </View>
           )}
         </View>
+
+        {suggestions ? (
+          <RecipeSuggestions
+            recipes={suggestions}
+            addedIds={liveAddedIds}
+            pantry={items}
+            loading={generating}
+            onAdd={addSuggestion}
+            onAddAll={addAllSuggestions}
+            onOpen={openRecipe}
+            onMore={() => void suggestRecipes(true)}
+            onClose={closeSuggestions}
+          />
+        ) : null}
 
         {cookable.length > 0 && (
           <View className="gap-2">
