@@ -24,6 +24,7 @@ describe("featureMeetsTier — free tier", () => {
     expect(featureMeetsTier("free", "pantry_suggest")).toBe(false);
     expect(featureMeetsTier("free", "photo_recipe")).toBe(false);
     expect(featureMeetsTier("free", "backfill_log")).toBe(false);
+    expect(featureMeetsTier("free", "pantry_scan")).toBe(false);
   });
 
   it("is blocked from every Max perk", () => {
@@ -43,6 +44,7 @@ describe("featureMeetsTier — pro tier", () => {
     expect(featureMeetsTier("pro", "macro_drawer")).toBe(true);
     expect(featureMeetsTier("pro", "micro_tracker")).toBe(true);
     expect(featureMeetsTier("pro", "backfill_log")).toBe(true);
+    expect(featureMeetsTier("pro", "pantry_scan")).toBe(true);
   });
 
   it("still cannot reach the Max suite", () => {
@@ -60,6 +62,7 @@ describe("featureMeetsTier — max tier", () => {
     expect(featureMeetsTier("max", "pantry_suggest")).toBe(true);
     expect(featureMeetsTier("max", "photo_recipe")).toBe(true);
     expect(featureMeetsTier("max", "backfill_log")).toBe(true);
+    expect(featureMeetsTier("max", "pantry_scan")).toBe(true);
     expect(featureMeetsTier("max", "family_sync")).toBe(true);
     expect(featureMeetsTier("max", "household_calendar")).toBe(true);
     expect(featureMeetsTier("max", "grocery_export")).toBe(true);

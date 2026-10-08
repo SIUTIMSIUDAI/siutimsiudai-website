@@ -38,6 +38,8 @@ export default function PantryScreen() {
   // "Suggest recipes" generates fresh recipes with AI, so it's a paid perk (Pro and Max). Free
   // users see the button with a lock and land on the paywall when they tap it.
   const { hasAccess: canSuggest, triggerPaywall } = useFeatureAccess("pantry_suggest");
+  // The AI scan, fridge photo or receipt, is a paid perk too (owner decision 2026-10-08).
+  const scanAccess = useFeatureAccess("pantry_scan");
 
   const [addOpen, setAddOpen] = useState(false);
   const [compileOpen, setCompileOpen] = useState(false);
@@ -143,8 +145,11 @@ export default function PantryScreen() {
             <Button
               className="flex-1"
               label={t("pantry.scan")}
-              icon="camera"
-              onPress={() => router.push("/pantry-scan")}
+              icon={scanAccess.hasAccess ? "camera" : "lock-closed"}
+              onPress={scanAccess.hasAccess ? () => router.push("/pantry-scan") : scanAccess.triggerPaywall}
+              accessibilityLabel={
+                scanAccess.hasAccess ? t("pantry.scan") : tl("Scan, unlock with Pro", "掃描，升級 Pro 解鎖")
+              }
             />
             <Button
               className="flex-1"
