@@ -191,7 +191,17 @@
     "rateLimited": "You've used today's AI scans. The allowance resets at midnight. You can still add ingredients manually.",
     "permissionTitle": "Camera access needed",
     "permissionBody": "Let Siu Tim Siu Dai use the camera to spot what's in your kitchen. Nothing saves until you review it.",
-    "grant": "Allow camera"
+    "grant": "Allow camera",
+    "modeFridge": "Fridge",
+    "modeReceipt": "Receipt",
+    "receiptTitle": "Scan a receipt",
+    "receiptHint": "Long receipt? Take up to 3 photos, top to bottom.",
+    "library": "Library",
+    "read": "Read receipt",
+    "photoCount": "{{count}} of 3",
+    "removePhoto": "Remove photo {{count}}",
+    "readingReceipt": "Reading your receipt...",
+    "tooLarge": "These photos are too big to send together. Remove one and try again."
   },
   "pantryReview": {
     "title": "Review & edit",
@@ -199,7 +209,11 @@
     "add": "Add item",
     "empty": "Nothing caught. Add items by hand, or go back and scan again.",
     "confirm": "Save {{count}} to pantry",
-    "aiGuess": "AI guess"
+    "aiGuess": "AI guess",
+    "receiptSubtitle": "Here's what we read on your receipt. Fix anything that's off. Items you already have get topped up.",
+    "topUp": "Tops up: {{from}} → {{to}}",
+    "backInStock": "Back in stock",
+    "alreadyHave": "Already in your pantry"
   },
   "grocery": {
     "title": "Grocery list",

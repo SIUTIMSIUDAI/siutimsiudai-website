@@ -191,7 +191,17 @@
     "rateLimited": "今日的 AI 掃描次數已用完，午夜過後重設。你仍然可以手動新增食材。",
     "permissionTitle": "要開相機權限",
     "permissionBody": "俾少甜少底用相機影下你廚房有咩食材。睇清楚之前唔會儲存。",
-    "grant": "允許相機"
+    "grant": "允許相機",
+    "modeFridge": "雪櫃",
+    "modeReceipt": "收據",
+    "receiptTitle": "掃描收據",
+    "receiptHint": "收據太長？由上至下最多影 3 張。",
+    "library": "相簿",
+    "read": "讀取收據",
+    "photoCount": "{{count}} / 3",
+    "removePhoto": "移除第 {{count}} 張相",
+    "readingReceipt": "讀緊你張收據…",
+    "tooLarge": "呢幾張相太大，一次過傳唔到。移除一張再試吓。"
   },
   "pantryReview": {
     "title": "檢查同修改",
@@ -199,7 +209,11 @@
     "add": "加多樣",
     "empty": "乜都影唔到。自己加返，或者返去再掃描。",
     "confirm": "儲存 {{count}} 樣入存貨",
-    "aiGuess": "AI 估"
+    "aiGuess": "AI 估",
+    "receiptSubtitle": "以下係收據上讀到嘅嘢，有出入就改返啱。存貨已經有嘅會幫你補返數量。",
+    "topUp": "補貨：{{from}} → {{to}}",
+    "backInStock": "重新有貨",
+    "alreadyHave": "存貨已經有"
   },
   "grocery": {
     "title": "購物清單",
