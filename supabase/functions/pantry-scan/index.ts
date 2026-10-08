@@ -5,6 +5,10 @@
 // The client (services/pantryVisionService.ts) sends { imageBase64, mediaType? }; we ask Gemini to
 // identify the RAW ingredients in the photo and return them as a clean JSON list.
 //
+// Receipt mode: { mode: "receipt", images: [{ data, mediaType? }] } with one to three photos of the
+// same grocery receipt, read together in ONE call (one AI use). Same { items } reply, so the app's
+// review screen handles both. Requests without `mode` (every app already installed) are unchanged.
+//
 // Deploy:  supabase functions deploy pantry-scan
 // Secrets (shared by pantry-scan and generate-recipe):
 //   supabase secrets set GCP_SERVICE_ACCOUNT_KEY="$(cat service-account.json)"
@@ -25,6 +29,7 @@
 import { CORS, extractJson, json, proxyError, vertexGenerateContent } from "../_shared/vertex.ts";
 import { requireUser } from "../_shared/requireUser.ts";
 import { enforceAiQuota } from "../_shared/aiQuota.ts";
+import { receiptImages } from "./receipt.ts";
 
 // Vision-capable Gemini. Swappable to any current Gemini vision model (env override) without
 // touching the client.
@@ -48,6 +53,35 @@ const INSTRUCTION = [
   "If you see no food ingredients, return {\"items\":[]}.",
 ].join("\n");
 
+// The receipt brief: what was BOUGHT, read off the paper, rather than what a photo shows. Same item
+// shape and units as INSTRUCTION, so the review screen and the pantry treat both alike.
+const RECEIPT_INSTRUCTION = [
+  "You are reading a grocery shopping receipt, usually from Hong Kong. The photos are parts of ONE",
+  "receipt, in order from top to bottom, and may overlap: never count the same line twice.",
+  "",
+  "List the food and drink that was bought: produce, meat, seafood, eggs, dairy, tofu, sauces,",
+  "seasonings, dry goods, noodles, rice, frozen food, bread, snacks and drinks. Leave out everything",
+  "else: non-food (tissues, detergent, toiletries, kitchenware), bags, bottle deposits, discounts,",
+  "coupons, points, subtotals, totals, tax, payment and change lines.",
+  "",
+  "Receipts abbreviate. Turn each line into the plain ingredient a cook would recognise and drop",
+  "brand names and pack codes, for example 'MKPL本地菜心' is Choy sum / 菜心 and 'NESTLE EVAP MILK",
+  "410G' is Evaporated milk / 淡奶.",
+  "",
+  "Respond with ONLY a JSON object, no prose, in exactly this shape:",
+  '{"items":[{"name":"English name","nameZh":"繁體中文名","quantity":<number>,"unit":"piece"|"box"|"carton"|"bottle"|"jar"|"can"|"pack"|"bag"|"bunch"|"loaf"|"g"|"ml","confidence":<0..1>}]}',
+  "",
+  "Rules: nameZh must be Traditional Chinese in Hong Kong usage (e.g. 豉油, 蒜頭, 薯仔).",
+  "quantity is how many were bought: '2 x', 'QTY 2' or '@2' means 2. Packaged goods use their",
+  "package as the unit: box (eggs, tofu, punnets), carton (milk, juice), bottle, jar, can, pack or",
+  "bag. Produce sold by count uses piece or bunch, and bread uses loaf. Anything sold by weight uses",
+  "g (convert kg: 0.452 kg is 452 g); anything sold by volume without a package uses ml. A multipack",
+  "counts as one pack unless the receipt shows more were bought.",
+  "If the same item appears on several lines, combine them into one row.",
+  "confidence is how sure you are that you read the line and named the item correctly (0..1).",
+  "If the photos are not a receipt, or it lists no food or drink, return {\"items\":[]}.",
+].join("\n");
+
 Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: CORS });
   if (req.method !== "POST") return json({ error: "method_not_allowed" }, 405);
@@ -65,7 +99,27 @@ Deno.serve(async (req: Request) => {
   if (!quota.ok) return quota.response;
 
   try {
-    const { imageBase64, mediaType } = await req.json();
+    const body = await req.json();
+
+    // Receipt mode: one to three photos of the same receipt in one call. Everything below it is
+    // the fridge scan, unchanged.
+    if (body?.mode === "receipt") {
+      const images = receiptImages(body.images);
+      if (!images) return json({ error: "bad_request" }, 400);
+      const receiptText = await vertexGenerateContent(MODEL, {
+        // A long receipt is a long bilingual list. Vertex bills tokens produced, not the ceiling.
+        maxOutputTokens: 4096,
+        parts: [
+          ...images.map((image) => ({ inlineData: { mimeType: image.mimeType, data: image.data } })),
+          { text: RECEIPT_INSTRUCTION },
+        ],
+      });
+      const receipt = extractJson(receiptText) as { items?: unknown };
+      // Re-validated row by row in the app (parseScanResponse) and always reviewed before saving.
+      return json({ items: Array.isArray(receipt.items) ? receipt.items : [] }, 200);
+    }
+
+    const { imageBase64, mediaType } = body;
     if (typeof imageBase64 !== "string" || imageBase64.length === 0) {
       return json({ error: "bad_request" }, 400);
     }
