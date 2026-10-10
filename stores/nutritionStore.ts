@@ -13,7 +13,7 @@ import {
 } from "@/types";
 import { todayKey } from "@/utils/formatters";
 import { loggedAtFor } from "@/utils/entryTime";
-import { sumEntryMacros } from "@/utils/customizations";
+import { sumEntryMacros, toggledCustomizations } from "@/utils/customizations";
 import { computeNutritionTargets } from "@/utils/nutritionTargets";
 import { MicroTotals, sumMicroTotals } from "@/utils/micros";
 import { newId } from "@/utils/id";
@@ -34,6 +34,8 @@ export interface NewFoodEntryInput extends MacroNutrients {
   barcode?: string | null;
   // Optional per-meal vitamins & minerals. Gated on save: kept for paid tiers, dropped for free.
   micros?: EntryMicronutrients | null;
+  // The AI's added-sugar estimate (g) for 少甜 / 走甜; 0 for packaged products. See FoodEntry.
+  addedSugar?: number;
 }
 
 // Premium policy at the single daily-log save path: only paid tiers keep per-meal micronutrients
@@ -113,6 +115,7 @@ export const useNutritionStore = create<NutritionState>()(
             // that day at its meal's typical time, so History and family sync show when it was eaten.
             loggedAt: loggedAtFor(date, input.mealType, new Date(), todayKey()),
             micros: retainMicrosForTier(tier, input.micros),
+            ...(input.addedSugar !== undefined ? { addedSugar: input.addedSugar } : {}),
           };
           return {
             logsByDate: {
@@ -180,11 +183,8 @@ export const useNutritionStore = create<NutritionState>()(
                 ...log,
                 entries: log.entries.map((e) => {
                   if (e.id !== entryId) return e;
-                  const active = e.customizations ?? [];
-                  const next = active.includes(customization)
-                    ? active.filter((c) => c !== customization)
-                    : [...active, customization];
-                  return { ...e, customizations: next };
+                  // 少甜 and 走甜 replace each other rather than stacking.
+                  return { ...e, customizations: toggledCustomizations(e.customizations, customization) };
                 }),
               },
             },

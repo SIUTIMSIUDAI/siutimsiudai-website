@@ -73,6 +73,8 @@ interface Candidate {
   // Premium per-serving vitamins & minerals from the photo / voice AI. Carried to addEntry, where
   // the save path keeps it for paid tiers and drops it for free (retainMicrosForTier).
   micros?: EntryMicronutrients | null;
+  // The AI's added-sugar estimate (g) for 少甜 / 走甜; 0 for a packaged product. See FoodEntry.
+  addedSugar?: number;
 }
 
 // The resolved nutrition for a manual entry once a dish is known — from a quick-tag, a corrected
@@ -84,6 +86,7 @@ interface ManualNutrition {
   fat: number;
   fiber: number;
   micros: EntryMicronutrients | null;
+  addedSugar?: number;
 }
 
 const TABS: { key: Tab; icon: keyof typeof Ionicons.glyphMap; labelKey: string }[] = [
@@ -365,6 +368,7 @@ export function LogInputSheet({ visible, date, onClose }: Props) {
         portionLabel: r.portionLabel,
         portionLabelZh: r.portionLabelZh,
         micros: r.micros,
+        addedSugar: r.addedSugar,
       })),
     );
     setLoading(false);
@@ -396,6 +400,7 @@ export function LogInputSheet({ visible, date, onClose }: Props) {
         source: "voice",
         unit: p.unit,
         micros: p.micros,
+        addedSugar: p.addedSugar,
       })),
     );
     setLoading(false);
@@ -454,6 +459,8 @@ export function LogInputSheet({ visible, date, onClose }: Props) {
           source: "barcode",
           barcode: product.barcode,
           unit: product.servingSize,
+          // A packaged product's sugar can't be taken out, so 少甜 / 走甜 aren't offered on it.
+          addedSugar: 0,
         },
       ]);
     }
@@ -478,6 +485,7 @@ export function LogInputSheet({ visible, date, onClose }: Props) {
         quantity: c.quantity,
         barcode: c.barcode ?? null,
         micros: c.micros ?? null,
+        addedSugar: c.addedSugar,
       },
       date,
     );
@@ -541,6 +549,7 @@ export function LogInputSheet({ visible, date, onClose }: Props) {
       fat: n.fat * opts.factor,
       fiber: n.fiber * opts.factor,
       micros: scaleMicros(n.micros, opts.factor),
+      addedSugar: n.addedSugar === undefined ? undefined : n.addedSugar * opts.factor,
       source: "manual",
       unit: opts.unit,
       quantity: opts.quantity,
@@ -566,6 +575,7 @@ export function LogInputSheet({ visible, date, onClose }: Props) {
         fat: n.fat * opts.factor,
         fiber: n.fiber * opts.factor,
         micros: scaleMicros(n.micros, opts.factor),
+        addedSugar: n.addedSugar === undefined ? undefined : n.addedSugar * opts.factor,
         // Keep the slip's origin so one photo call still costs exactly one weekly log even when every
         // line is hand-corrected. A corrected line is no longer an AI guess, so it carries neither a
         // confidence badge nor an AI portion label.
@@ -644,6 +654,7 @@ export function LogInputSheet({ visible, date, onClose }: Props) {
         fat: best.fat,
         fiber: best.fiber,
         micros: best.micros ?? null,
+        addedSugar: best.addedSugar,
       },
       { factor: 1, quantity: best.quantity, unit: best.unit },
     );
@@ -668,6 +679,7 @@ export function LogInputSheet({ visible, date, onClose }: Props) {
       fat: c.fat,
       fiber: c.fiber,
       micros: c.micros ?? null,
+      addedSugar: c.addedSugar,
     });
     setTab("manual");
     setManualMiss(false);

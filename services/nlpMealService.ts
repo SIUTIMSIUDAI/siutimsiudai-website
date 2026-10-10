@@ -2,6 +2,7 @@ import { MealType, ParsedMeal } from "@/types";
 import { detectMealType } from "@/utils/parseMeal";
 import { estimateMealText } from "@/utils/estimateMeal";
 import { sanitizeMicros } from "@/utils/micros";
+import { parseAddedSugar } from "@/utils/addedSugar";
 import { isSupabaseConfigured, supabase } from "./supabase";
 import { classifyInvokeError, InvokeFailure } from "./functionError";
 import { delay } from "./util";
@@ -66,18 +67,21 @@ function toMeal(raw: unknown, fallbackMealType: MealType): ParsedMeal | null {
   if (!name && !nameZh) return null; // a food we can't label is useless in the log
   const q = Number(r.quantity);
   const micros = sanitizeMicros(r.micros);
+  const carbs = toNonNegative(r.carbs);
+  const addedSugar = parseAddedSugar(r.addedSugar, carbs);
   return {
     name: name || nameZh,
     nameZh: nameZh || name,
     calories: toNonNegative(r.calories),
     protein: toNonNegative(r.protein),
-    carbs: toNonNegative(r.carbs),
+    carbs,
     fat: toNonNegative(r.fat),
     fiber: toNonNegative(r.fiber),
     quantity: Number.isFinite(q) && q > 0 ? q : 1,
     unit: typeof r.unit === "string" && r.unit.trim() ? r.unit.trim() : "1 serving",
     mealType: MEAL_TYPES.includes(r.mealType as MealType) ? (r.mealType as MealType) : fallbackMealType,
     ...(micros ? { micros } : {}),
+    ...(addedSugar !== undefined ? { addedSugar } : {}),
   };
 }
 

@@ -9,7 +9,7 @@ const GUEST_USER = "guest";
 
 export type NewSavedMealInput = Pick<
   SavedMeal,
-  "name" | "nameZh" | "calories" | "protein" | "carbs" | "fat" | "fiber"
+  "name" | "nameZh" | "calories" | "protein" | "carbs" | "fat" | "fiber" | "addedSugar"
 > & { defaultMealType?: MealType };
 
 // The editable fields of a usual. Everything a user can change on the Manage usuals sheet; the
@@ -114,6 +114,7 @@ export const useSavedMealsStore = create<SavedMealsState>()(
           defaultMealType: input.defaultMealType ?? "snack",
           useCount: 0,
           lastUsedAt: null,
+          ...(input.addedSugar !== undefined ? { addedSugar: input.addedSugar } : {}),
         };
         set((state) => ({ meals: [meal, ...state.meals] }));
         return "added";

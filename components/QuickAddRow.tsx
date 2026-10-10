@@ -89,6 +89,7 @@ export function QuickAddRow({ date }: Props) {
                   fiber: m.fiber,
                   mealType: m.defaultMealType,
                   source: "manual",
+                  addedSugar: m.addedSugar,
                 },
                 date,
               );

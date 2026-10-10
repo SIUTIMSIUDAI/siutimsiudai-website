@@ -1,9 +1,10 @@
 import {
   ALL_CUSTOMIZATIONS,
-  CUSTOMIZATION_DELTAS,
+  availableCustomizations,
   customizationSavings,
   effectiveMacros,
   sumEntryMacros,
+  toggledCustomizations,
 } from "@/utils/customizations";
 import { MacroNutrients, MealCustomization } from "@/types";
 
@@ -65,14 +66,106 @@ describe("customizationSavings", () => {
 });
 
 describe("customization tables", () => {
-  it("has a delta for every listed customization", () => {
+  it("every listed tweak takes something off an item", () => {
     for (const key of ALL_CUSTOMIZATIONS) {
-      expect(CUSTOMIZATION_DELTAS[key]).toBeDefined();
+      expect(customizationSavings(BASE, [key])).toBeGreaterThan(0);
     }
   });
 });
 
-type Entry = MacroNutrients & { customizations?: MealCustomization[] };
+// A sweetened drink the AI estimated: 22 g of its carbs are added sugar.
+const LEMON_TEA = { calories: 160, protein: 0, carbs: 38, fat: 0, fiber: 0, addedSugar: 22 };
+
+describe("sugar tweaks with the item's own added sugar", () => {
+  it("takes off all the added sugar for 走甜: 4 kcal a gram", () => {
+    const m = effectiveMacros(LEMON_TEA, ["no_sugar"]);
+    expect(m.carbs).toBe(16);
+    expect(m.calories).toBe(72);
+  });
+
+  it("takes off half of it for 少甜", () => {
+    const m = effectiveMacros(LEMON_TEA, ["less_sugar"]);
+    expect(m.carbs).toBe(27);
+    expect(m.calories).toBe(116);
+  });
+
+  it("uses each item's own amount, so a less sweet item saves less", () => {
+    const milkTea = { calories: 120, protein: 3, carbs: 18, fat: 5, fiber: 0, addedSugar: 9 };
+    expect(customizationSavings(milkTea, ["no_sugar"])).toBe(36);
+  });
+
+  it("falls back to a typical sweetened drink when the item has no estimate", () => {
+    expect(customizationSavings(BASE, ["no_sugar"])).toBe(90);
+    expect(effectiveMacros(BASE, ["no_sugar"]).carbs).toBe(78);
+    expect(customizationSavings(BASE, ["less_sugar"])).toBe(45);
+  });
+
+  it("never goes below zero, even with the typical fallback on a small item", () => {
+    const small: MacroNutrients = { calories: 50, protein: 1, carbs: 10, fat: 1, fiber: 0 };
+    const m = effectiveMacros(small, ["no_sugar"]);
+    expect(m.calories).toBe(10);
+    expect(m.carbs).toBe(0);
+  });
+
+  it("counts only 走甜 if both sugar tweaks are somehow on", () => {
+    expect(effectiveMacros(LEMON_TEA, ["less_sugar", "no_sugar"])).toEqual(
+      effectiveMacros(LEMON_TEA, ["no_sugar"]),
+    );
+  });
+
+  it("leaves 少底 as it was, alongside a sugar tweak", () => {
+    const meal = { calories: 700, protein: 25, carbs: 95, fat: 20, fiber: 3, addedSugar: 10 };
+    const m = effectiveMacros(meal, ["less_rice", "no_sugar"]);
+    expect(m.calories).toBe(700 - 140 - 40);
+    expect(m.carbs).toBe(95 - 30 - 10);
+  });
+});
+
+describe("availableCustomizations", () => {
+  it("offers both sugar tweaks and 少底 for an item with added sugar", () => {
+    expect(availableCustomizations({ source: "photo", addedSugar: 22 })).toEqual([
+      "less_sugar",
+      "no_sugar",
+      "less_rice",
+    ]);
+  });
+
+  it("offers the sugar tweaks, at typical figures, when there is no estimate", () => {
+    expect(availableCustomizations({ source: "manual" })).toEqual(["less_sugar", "no_sugar", "less_rice"]);
+  });
+
+  it("hides the sugar tweaks when the item has no added sugar", () => {
+    expect(availableCustomizations({ source: "photo", addedSugar: 0 })).toEqual(["less_rice"]);
+  });
+
+  it("hides the sugar tweaks for a packaged product scanned by barcode", () => {
+    expect(availableCustomizations({ source: "barcode" })).toEqual(["less_rice"]);
+  });
+
+  it("still shows a sugar tweak that is already ticked, so it can be unticked", () => {
+    expect(
+      availableCustomizations({ source: "barcode", customizations: ["less_sugar"] }),
+    ).toEqual(["less_sugar", "less_rice"]);
+  });
+});
+
+describe("toggledCustomizations", () => {
+  it("ticks and unticks a tweak", () => {
+    expect(toggledCustomizations([], "less_rice")).toEqual(["less_rice"]);
+    expect(toggledCustomizations(["less_rice"], "less_rice")).toEqual([]);
+  });
+
+  it("swaps 少甜 for 走甜 and back, never both", () => {
+    expect(toggledCustomizations(["less_sugar", "less_rice"], "no_sugar")).toEqual(["less_rice", "no_sugar"]);
+    expect(toggledCustomizations(["no_sugar"], "less_sugar")).toEqual(["less_sugar"]);
+  });
+
+  it("treats a missing list as nothing ticked", () => {
+    expect(toggledCustomizations(undefined, "no_sugar")).toEqual(["no_sugar"]);
+  });
+});
+
+type Entry = MacroNutrients & { customizations?: MealCustomization[]; addedSugar?: number };
 
 describe("sumEntryMacros", () => {
   it("sums base macros when there are no customizations", () => {
@@ -103,6 +196,14 @@ describe("sumEntryMacros", () => {
       fat: 12,
       fiber: 5,
     });
+  });
+
+  it("uses each entry's own added sugar when summing a day", () => {
+    const entries: Entry[] = [
+      { ...LEMON_TEA, customizations: ["no_sugar"] },
+      { calories: 300, protein: 10, carbs: 40, fat: 8, fiber: 2 },
+    ];
+    expect(sumEntryMacros(entries).calories).toBe(72 + 300);
   });
 
   it("returns zeros for an empty day", () => {

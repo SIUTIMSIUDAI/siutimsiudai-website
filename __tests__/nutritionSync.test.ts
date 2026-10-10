@@ -103,3 +103,17 @@ describe("dirty-date set", () => {
     expect(removeDirty([], "2026-08-28")).toEqual([]);
   });
 });
+
+describe("buildDailyLogPayload: added sugar", () => {
+  it("publishes each entry's added-sugar estimate, or null when there is none", () => {
+    const log: DailyLog = {
+      id: "l",
+      userId: "u",
+      logDate: "2026-10-10",
+      entries: [entry({ addedSugar: 22, customizations: ["no_sugar"] }), entry({ id: "fe2" })],
+    };
+    const p = buildDailyLogPayload(log);
+    expect(p.p_entries.map((e) => e.added_sugar)).toEqual([22, null]);
+    expect(p.p_entries[0].customizations).toEqual(["no_sugar"]);
+  });
+});

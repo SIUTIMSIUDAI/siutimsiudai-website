@@ -10,7 +10,7 @@ export type LogSource = "photo" | "voice" | "barcode" | "label" | "manual";
 
 // Cha-chaan-teng-style order tweaks the user can tick on a logged item. Each one deducts a
 // fixed macro delta (see utils/customizations.ts) and is fully reversible.
-export type MealCustomization = "less_sugar" | "less_rice";
+export type MealCustomization = "less_sugar" | "no_sugar" | "less_rice";
 
 export type RecipeSourceType = "url" | "ocr" | "manual" | "photo";
 
@@ -116,10 +116,14 @@ export interface FoodEntry extends MacroNutrients {
   imageUri: string | null;
   barcode: string | null;
   loggedAt: string;
-  // Active order tweaks (少甜 / 少底). The stored macros above are always the untweaked
+  // Active order tweaks (少甜 / 走甜 / 少底). The stored macros above are always the untweaked
   // base; effective values are derived on read via utils/customizations.ts, so toggling
   // is lossless.
   customizations?: MealCustomization[];
+  // Grams of sugar added when it was made (sugar, syrup, honey, condensed milk), estimated by the
+  // AI at logging: what 少甜 halves and 走甜 removes. 0 for none (and for packaged products, whose
+  // sugar can't be taken out); absent when there is no estimate (older or typed-in entries).
+  addedSugar?: number;
   // Premium per-meal vitamins & minerals. Only retained in history for paid tiers; the save
   // path drops it to null for free users (see retainMicrosForTier). Absent on today's entries
   // since no capture flow populates it yet, but the gate is codified for when micro capture ships.
@@ -141,6 +145,8 @@ export interface SavedMeal extends MacroNutrients {
   defaultMealType: MealType;
   useCount: number;
   lastUsedAt: string | null;
+  // Added-sugar estimate carried from the logged meal it was saved from, for 少甜 / 走甜.
+  addedSugar?: number;
 }
 
 export interface RecipeIngredient {
@@ -262,6 +268,8 @@ export interface FoodRecognitionResult extends MacroNutrients {
   // Premium per-serving vitamins & minerals the vision AI estimated for this dish. Threaded into
   // the logged entry (paid tiers) to feed the daily micronutrient tracker.
   micros?: EntryMicronutrients;
+  // Grams of sugar added when it was made, for 少甜 / 走甜. Absent when the reply had none.
+  addedSugar?: number;
 }
 
 // One raw ingredient the pantry vision service thinks it saw in a photo. Deliberately NOT
@@ -286,6 +294,8 @@ export interface ParsedMeal extends MacroNutrients {
   // Premium per-serving vitamins & minerals the NLP AI estimated for this dish. Threaded into the
   // logged entry (paid tiers) to feed the daily micronutrient tracker.
   micros?: EntryMicronutrients;
+  // Grams of sugar added when it was made, for 少甜 / 走甜. Absent when the reply had none.
+  addedSugar?: number;
 }
 
 export interface BarcodeProduct extends MacroNutrients {

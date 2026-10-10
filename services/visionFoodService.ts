@@ -1,6 +1,7 @@
 import { FoodRecognitionResult } from "@/types";
 import { HK_DISHES, HkDish } from "@/constants/hkDishes";
 import { sanitizeMicros } from "@/utils/micros";
+import { parseAddedSugar } from "@/utils/addedSugar";
 import { isSupabaseConfigured, supabase } from "./supabase";
 import { classifyInvokeError, InvokeFailure } from "./functionError";
 import { delay } from "./util";
@@ -60,12 +61,14 @@ function toRecognitionRow(raw: unknown): FoodRecognitionResult | null {
   const unitZh = typeof r.unitZh === "string" && r.unitZh.trim() ? r.unitZh.trim() : unit;
   const c = Number(r.confidence);
   const micros = sanitizeMicros(r.micros);
+  const carbs = toNonNegative(r.carbs);
+  const addedSugar = parseAddedSugar(r.addedSugar, carbs);
   return {
     name: name || nameZh,
     nameZh: nameZh || name,
     calories: toNonNegative(r.calories),
     protein: toNonNegative(r.protein),
-    carbs: toNonNegative(r.carbs),
+    carbs,
     fat: toNonNegative(r.fat),
     fiber: toNonNegative(r.fiber),
     // Deliberately middling default: an unlabelled guess should not wear a high-confidence badge.
@@ -73,6 +76,7 @@ function toRecognitionRow(raw: unknown): FoodRecognitionResult | null {
     portionLabel: unit,
     portionLabelZh: unitZh,
     ...(micros ? { micros } : {}),
+    ...(addedSugar !== undefined ? { addedSugar } : {}),
   };
 }
 

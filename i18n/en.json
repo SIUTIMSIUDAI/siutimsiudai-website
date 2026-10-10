@@ -84,6 +84,7 @@
   "custom": {
     "title": "Tweak the order",
     "lessSugar": "Less sugar",
+    "noSugar": "No sugar",
     "lessRice": "Less rice",
     "hint": "Tap to tweak, just like ordering at the cha chaan teng."
   },

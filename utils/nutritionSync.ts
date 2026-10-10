@@ -26,6 +26,9 @@ export interface SyncEntryPayload {
   logged_at: string;
   customizations: MealCustomization[];
   micros: EntryMicronutrients | null;
+  // Grams of added sugar for 少甜 / 走甜, so the manager recomputes the same effective numbers.
+  // null when the entry has no estimate.
+  added_sugar: number | null;
 }
 
 // The full argument object handed to supabase.rpc("sync_daily_log", ...).
@@ -64,6 +67,7 @@ export function buildDailyLogPayload(log: DailyLog): SyncDailyLogArgs {
       barcode: e.barcode,
       logged_at: e.loggedAt,
       customizations: e.customizations ?? [],
+      added_sugar: e.addedSugar ?? null,
       micros: e.micros ?? null,
     })),
   };

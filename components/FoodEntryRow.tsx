@@ -5,7 +5,11 @@ import { colors } from "@/constants/theme";
 import { useLocale } from "@/hooks/useLocale";
 import { formatCalories, shortTime } from "@/utils/formatters";
 import { formatAmountLabel } from "@/utils/manualAmount";
-import { ALL_CUSTOMIZATIONS, effectiveMacros } from "@/utils/customizations";
+import {
+  availableCustomizations,
+  customizationSavings,
+  effectiveMacros,
+} from "@/utils/customizations";
 import { tick } from "@/utils/haptics";
 import { FoodEntry, LogSource, MealCustomization } from "@/types";
 
@@ -27,6 +31,7 @@ const SOURCE_ICON: Record<LogSource, keyof typeof Ionicons.glyphMap> = {
 
 const CUSTOM_LABEL: Record<MealCustomization, string> = {
   less_sugar: "custom.lessSugar",
+  no_sugar: "custom.noSugar",
   less_rice: "custom.lessRice",
 };
 
@@ -87,16 +92,22 @@ export function FoodEntryRow({ entry, onEdit, onRemove, onToggleCustomization }:
         </Pressable>
       </View>
 
-      {/* Order tweaks: tick 少甜 / 少底 like a waiter marking a notepad. */}
+      {/* Order tweaks: tick 少甜 / 走甜 / 少底 like a waiter marking a notepad. Each shows what it takes
+          off this item, worked out from the item's own added sugar; the sugar ones only appear where
+          there is sugar to take out. */}
       <View className="flex-row flex-wrap gap-2" style={{ paddingLeft: 52 }}>
-        {ALL_CUSTOMIZATIONS.map((key) => {
+        {availableCustomizations(entry).map((key) => {
           const on = active.includes(key);
+          const label = t(CUSTOM_LABEL[key]);
+          // Only the sugar tweaks carry a figure: theirs is worked out from the item itself, while 少底
+          // is a fixed allowance offered on every item, which would read oddly on a drink.
+          const saves = key === "less_rice" ? 0 : customizationSavings(entry, [key]);
           return (
             <Pressable
               key={key}
               accessibilityRole="button"
               accessibilityState={{ selected: on }}
-              accessibilityLabel={t(CUSTOM_LABEL[key])}
+              accessibilityLabel={saves > 0 ? `${label}, -${saves} kcal` : label}
               onPress={() => {
                 tick();
                 onToggleCustomization(key);
@@ -113,8 +124,13 @@ export function FoodEntryRow({ entry, onEdit, onRemove, onToggleCustomization }:
               <ScalableText
                 className={`text-xs font-semibold ${on ? "text-white" : "text-ink-muted"}`}
               >
-                {t(CUSTOM_LABEL[key])}
+                {label}
               </ScalableText>
+              {saves > 0 ? (
+                <ScalableText className={`text-xs ${on ? "text-white" : "text-ink-muted"}`}>
+                  -{saves} kcal
+                </ScalableText>
+              ) : null}
             </Pressable>
           );
         })}

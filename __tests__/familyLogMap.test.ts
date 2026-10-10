@@ -68,3 +68,20 @@ describe("mapDayFromRows", () => {
     expect(mapDayFromRows(logRow, []).entries).toEqual([]);
   });
 });
+
+describe("mapDayFromRows: added sugar and 走甜", () => {
+  it("reads a member's added-sugar estimate and keeps 走甜, so the manager sees the same numbers", () => {
+    const day = mapDayFromRows(logRow, [row({ carbs: 38, added_sugar: 22, customizations: ["no_sugar"] })]);
+    expect(day.entries[0].addedSugar).toBe(22);
+    expect(day.entries[0].customizations).toEqual(["no_sugar"]);
+  });
+
+  it("reads PostgREST's numeric string, and treats null as no estimate", () => {
+    const day = mapDayFromRows(logRow, [
+      row({ carbs: 38, added_sugar: "9" }),
+      row({ id: "e2", carbs: 38, added_sugar: null }),
+    ]);
+    expect(day.entries[0].addedSugar).toBe(9);
+    expect(day.entries[1]).not.toHaveProperty("addedSugar");
+  });
+});

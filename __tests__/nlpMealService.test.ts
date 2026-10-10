@@ -90,3 +90,24 @@ describe("parseMealResponse", () => {
     expect(meals?.[0].micros).toBeUndefined();
   });
 });
+
+describe("parseMealResponse: added sugar for 少甜 / 走甜", () => {
+  it("carries the model's added sugar, capped at the item's carbs", () => {
+    const [tea, cake] = parseMealResponse(
+      {
+        meals: [
+          { name: "Iced lemon tea", nameZh: "凍檸茶", calories: 160, carbs: 38, addedSugar: 22 },
+          { name: "Sponge cake", nameZh: "海綿蛋糕", calories: 200, carbs: 25, addedSugar: 40 },
+        ],
+      },
+      "lunch",
+    )!;
+    expect(tea.addedSugar).toBe(22);
+    expect(cake.addedSugar).toBe(25);
+  });
+
+  it("leaves added sugar out when an older server doesn't send it", () => {
+    const [meal] = parseMealResponse({ meals: [{ name: "Rice", nameZh: "白飯", calories: 200, carbs: 45 }] }, "lunch")!;
+    expect(meal).not.toHaveProperty("addedSugar");
+  });
+});

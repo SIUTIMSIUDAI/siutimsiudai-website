@@ -106,6 +106,8 @@ export function EditEntrySheet({ visible, entry, onClose, onSave }: Props) {
   const [aiError, setAiError] = useState<InvokeFailure | null>(null);
   const [aiMiss, setAiMiss] = useState(false);
   const [reMicros, setReMicros] = useState<EntryMicronutrients | null | undefined>(undefined);
+  // The re-estimate's added sugar (g) for 少甜 / 走甜; undefined keeps the entry's own figure.
+  const [reSugar, setReSugar] = useState<number | undefined>(undefined);
 
   // Prefill from the entry whenever the sheet opens on a new item. Keyed on id + visible (not the
   // whole entry object) so re-renders don't clobber what the user is typing.
@@ -125,6 +127,7 @@ export function EditEntrySheet({ visible, entry, onClose, onSave }: Props) {
     setAiError(null);
     setAiMiss(false);
     setReMicros(undefined);
+    setReSugar(undefined);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [entry?.id, visible]);
 
@@ -161,6 +164,10 @@ export function EditEntrySheet({ visible, entry, onClose, onSave }: Props) {
     if (reMicros !== undefined) {
       patch.micros = reMicros;
     }
+    // A fresh estimate also refreshes the added sugar the 少甜 / 走甜 tweaks take out.
+    if (reSugar !== undefined) {
+      patch.addedSugar = reSugar;
+    }
     onSave(patch);
   }
 
@@ -181,6 +188,7 @@ export function EditEntrySheet({ visible, entry, onClose, onSave }: Props) {
       fat: toNum(fat),
       fiber: toNum(fiber),
       defaultMealType: mealType,
+      addedSugar: reSugar ?? entry?.addedSugar,
     });
   }
 
@@ -218,6 +226,7 @@ export function EditEntrySheet({ visible, entry, onClose, onSave }: Props) {
     // A successful re-estimate always sets reMicros to a defined value (the AI's micros, or null
     // when it returned none): that defined value is what makes handleSave send the micros patch.
     setReMicros(best.micros ?? null);
+    setReSugar(best.addedSugar);
   }
 
   return (

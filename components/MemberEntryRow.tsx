@@ -20,6 +20,7 @@ const SOURCE_ICON: Record<LogSource, keyof typeof Ionicons.glyphMap> = {
 
 const CUSTOM_LABEL: Record<MealCustomization, string> = {
   less_sugar: "custom.lessSugar",
+  no_sugar: "custom.noSugar",
   less_rice: "custom.lessRice",
 };
 

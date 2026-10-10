@@ -4,6 +4,7 @@
 
 import { DailyLog, FoodEntry, LogSource, MealCustomization, MealType } from "@/types";
 import { sanitizeMicros } from "./micros";
+import { parseAddedSugar } from "./addedSugar";
 
 export interface DailyLogRow {
   id: string;
@@ -30,9 +31,11 @@ export interface FoodEntryRow {
   logged_at: string;
   customizations: unknown; // jsonb; validated below
   micros: unknown; // jsonb; validated below
+  // numeric, nullable (null = no estimate); validated below. Absent before 0011 was applied.
+  added_sugar?: unknown;
 }
 
-const VALID_CUSTOMIZATIONS: readonly MealCustomization[] = ["less_sugar", "less_rice"];
+const VALID_CUSTOMIZATIONS: readonly MealCustomization[] = ["less_sugar", "no_sugar", "less_rice"];
 
 function parseCustomizations(raw: unknown): MealCustomization[] {
   if (!Array.isArray(raw)) return [];
@@ -42,6 +45,7 @@ function parseCustomizations(raw: unknown): MealCustomization[] {
 }
 
 function mapEntryRow(r: FoodEntryRow): FoodEntry {
+  const addedSugar = parseAddedSugar(r.added_sugar, Number(r.carbs));
   return {
     id: r.id,
     dailyLogId: r.daily_log_id,
@@ -61,6 +65,7 @@ function mapEntryRow(r: FoodEntryRow): FoodEntry {
     loggedAt: r.logged_at,
     customizations: parseCustomizations(r.customizations),
     micros: sanitizeMicros(r.micros) ?? null,
+    ...(addedSugar !== undefined ? { addedSugar } : {}),
   };
 }
 
