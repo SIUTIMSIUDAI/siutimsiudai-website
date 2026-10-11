@@ -10,6 +10,7 @@ import { colors } from "@/constants/theme";
 import { useLocale } from "@/hooks/useLocale";
 import { SubscriptionTier, useSubscriptionStore } from "@/stores/useSubscriptionStore";
 import { resolvePaywallCta } from "@/utils/paywallCta";
+import { purchaseSuccessBody, trialCta, trialPriceLine } from "@/utils/freeTrial";
 import {
   configureRevenueCat,
   getSubscriptionOfferings,
@@ -57,7 +58,7 @@ interface Plan {
  *    one, which handed out a paid tier for nothing and announced a purchase that never happened.
  */
 export function SubscriptionScreen() {
-  const { tl } = useLocale();
+  const { tl, locale } = useLocale();
   const activeTier = useSubscriptionStore((s) => s.activeTier);
   const setTier = useSubscriptionStore((s) => s.setTier);
   const [annual, setAnnual] = useState(false);
@@ -98,6 +99,11 @@ export function SubscriptionScreen() {
   // billing at all, which is a demo and may simulate a checkout. Here the honest move is to say so.
   // Granting the tier would hand out Pro for free and tell the user they had paid for it.
   const billingUnavailable = isBillingConfigured && settled && (!live || offerings === null);
+
+  // Whether any plan card on screen offers a free trial, which brings in the trial small print.
+  const trialOnScreen = [offerings?.pro, offerings?.max].some(
+    (p) => (annual ? p?.annual : p?.monthly)?.trial != null,
+  );
 
   const plans: Plan[] = [
     {
@@ -255,7 +261,11 @@ export function SubscriptionScreen() {
       if (Platform.OS !== "web") {
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
       }
-      Alert.alert(plan.successTitle, plan.successBody);
+      // The receipt, not the paywall, says whether a trial started, so the end date shown is Apple's.
+      Alert.alert(
+        plan.successTitle,
+        purchaseSuccessBody(plan.successBody, res.trialEndsAt, option.trial, locale, tl),
+      );
     } else {
       showFailure(res.reason);
     }
@@ -411,6 +421,8 @@ export function SubscriptionScreen() {
           const showPrice = option?.priceString ?? (annual ? plan.annualPrice : plan.price);
           const showUnit = annual ? plan.annualUnit : plan.priceUnit;
           const showSub = option ? "" : annual ? plan.annualSub : plan.priceSub;
+          // Only set when the store confirmed this person can still get the plan's free trial.
+          const trial = option?.trial ?? null;
           return (
             <View key={plan.tier} className={`rounded-2xl p-5 ${plan.cardClass}`}>
               {plan.ribbon ? (
@@ -453,6 +465,13 @@ export function SubscriptionScreen() {
               {showSub ? (
                 <ScalableText className="mt-0.5 text-xs text-ink-faint">{showSub}</ScalableText>
               ) : null}
+              {/* Apple: the billed amount stays the most prominent price, so the trial sits under
+                  it in smaller type, stating its length and what is charged once it ends. */}
+              {trial && option ? (
+                <ScalableText className="mt-1 text-sm font-semibold" style={{ color: plan.accentColor }}>
+                  {trialPriceLine(trial, option.priceString, annual, tl)}
+                </ScalableText>
+              ) : null}
 
               <ScalableText className="mt-3 text-sm text-ink-muted">{plan.pitch}</ScalableText>
 
@@ -489,7 +508,11 @@ export function SubscriptionScreen() {
                   className="text-base font-bold"
                   style={{ color: isCurrent ? colors.inkMuted : colors.white }}
                 >
-                  {isCurrent ? tl("You're all set", "你已經搞掂") : plan.cta}
+                  {isCurrent
+                    ? tl("You're all set", "你已經搞掂")
+                    : trial && plan.tier !== "free"
+                      ? trialCta(plan.tier, trial, tl)
+                      : plan.cta}
                 </ScalableText>
               </Pressable>
             </View>
@@ -534,6 +557,16 @@ export function SubscriptionScreen() {
                   "價錢以港幣計。示範找數，唔會真扣錢，隨時取消。",
                 )}
         </ScalableText>
+
+        {/* Billing disclosure, so it stays plain rather than playful. */}
+        {trialOnScreen ? (
+          <ScalableText className="px-1 text-center text-xs text-ink-faint">
+            {tl(
+              "Free trials turn into a paid plan when they end. Turn off renewal in Settings at least 24 hours before your trial ends to avoid being charged.",
+              "免費試用期結束後會自動轉為收費計劃。如不想被收費，請於試用期結束前最少 24 小時到「設定」關閉自動續訂。",
+            )}
+          </ScalableText>
+        ) : null}
 
         <Pressable
           onPress={restorePurchases}
