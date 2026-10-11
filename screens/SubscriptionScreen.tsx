@@ -146,7 +146,7 @@ export function SubscriptionScreen() {
         tl("Full macro drawer: sugar, sodium, carbs", "完整營養抽屜：糖、鈉、碳水"),
         tl("1-tap 少甜少底 recipe tweaks", "一撳 少甜少底 改食譜"),
         tl("AI cookbook URL scraper", "AI 食譜連結擷取"),
-        tl("Scan your fridge and receipts into your pantry", "掃描雪櫃同收據，直接入存貨"),
+        tl("Scan receipts into your pantry", "掃描收據，直接入存貨"),
         tl("Wet-market unit converter (斤 / 兩)", "街市單位換算（斤 / 兩）"),
       ],
       cta: tl("Make me a regular", "收我做熟客"),

@@ -3,6 +3,7 @@ import {
   availableCustomizations,
   customizationSavings,
   effectiveMacros,
+  isRiceDish,
   sumEntryMacros,
   toggledCustomizations,
 } from "@/utils/customizations";
@@ -121,31 +122,75 @@ describe("sugar tweaks with the item's own added sugar", () => {
   });
 });
 
+const TEA = { name: "Iced lemon tea", nameZh: "凍檸茶" };
+const PORK_CHOP_RICE = { name: "Baked pork chop rice", nameZh: "焗豬扒飯" };
+
 describe("availableCustomizations", () => {
-  it("offers both sugar tweaks and 少底 for an item with added sugar", () => {
-    expect(availableCustomizations({ source: "photo", addedSugar: 22 })).toEqual([
+  it("offers both sugar tweaks on a sweet drink, and no 少底", () => {
+    expect(availableCustomizations({ ...TEA, source: "photo", addedSugar: 22 })).toEqual([
       "less_sugar",
       "no_sugar",
-      "less_rice",
     ]);
   });
 
   it("offers the sugar tweaks, at typical figures, when there is no estimate", () => {
-    expect(availableCustomizations({ source: "manual" })).toEqual(["less_sugar", "no_sugar", "less_rice"]);
+    expect(availableCustomizations({ ...TEA, source: "manual" })).toEqual(["less_sugar", "no_sugar"]);
   });
 
-  it("hides the sugar tweaks when the item has no added sugar", () => {
-    expect(availableCustomizations({ source: "photo", addedSugar: 0 })).toEqual(["less_rice"]);
+  it("offers only 少底 on a rice dish with no added sugar", () => {
+    expect(availableCustomizations({ ...PORK_CHOP_RICE, source: "photo", addedSugar: 0 })).toEqual([
+      "less_rice",
+    ]);
   });
 
-  it("hides the sugar tweaks for a packaged product scanned by barcode", () => {
-    expect(availableCustomizations({ source: "barcode" })).toEqual(["less_rice"]);
+  it("offers everything on a sweetened rice dish", () => {
+    const sweetSourPork = { name: "Sweet and sour pork rice", nameZh: "咕嚕肉飯", source: "photo" as const, addedSugar: 12 };
+    expect(availableCustomizations(sweetSourPork)).toEqual(["less_sugar", "no_sugar", "less_rice"]);
   });
 
-  it("still shows a sugar tweak that is already ticked, so it can be unticked", () => {
+  it("offers nothing on a packaged drink scanned by barcode", () => {
+    expect(availableCustomizations({ name: "Vita lemon tea", nameZh: "維他檸檬茶", source: "barcode" })).toEqual([]);
+  });
+
+  it("still shows a tweak that is already ticked, so it can be unticked", () => {
     expect(
-      availableCustomizations({ source: "barcode", customizations: ["less_sugar"] }),
+      availableCustomizations({ ...TEA, source: "barcode", customizations: ["less_sugar", "less_rice"] }),
     ).toEqual(["less_sugar", "less_rice"]);
+  });
+});
+
+describe("isRiceDish", () => {
+  it("knows a rice dish by 飯 in its Chinese name", () => {
+    for (const nameZh of ["焗豬扒飯", "揚州炒飯", "白飯", "石鍋拌飯", "飯糰"]) {
+      expect(isRiceDish({ name: "", nameZh })).toBe(true);
+    }
+  });
+
+  it("knows a rice dish by the word 'rice' in its English name", () => {
+    for (const name of ["Steamed rice", "Yangzhou fried rice", "Glutinous rice with chicken", "Rice"]) {
+      expect(isRiceDish({ name, nameZh: "" })).toBe(true);
+    }
+  });
+
+  it("leaves out rice noodles, rice rolls, rice paper, rice wine, rice cakes, rice crackers and congee", () => {
+    const notRice: Array<[string, string]> = [
+      ["Rice noodle roll", "腸粉"],
+      // The name 腸粉 carries in the app's own HK dish list (constants/hkDishes.ts).
+      ["Steamed Rice Roll", "腸粉"],
+      ["Fried rice vermicelli", "炒米粉"],
+      ["Rice paper rolls", "米紙卷"],
+      ["Rice wine", "米酒"],
+      ["Rice cake", "年糕"],
+      ["Rice crackers", "米餅"],
+      ["Rice porridge", "白粥"],
+    ];
+    for (const [name, nameZh] of notRice) expect(isRiceDish({ name, nameZh })).toBe(false);
+  });
+
+  it("isn't fooled by drinks, noodles or words that merely contain 'rice'", () => {
+    expect(isRiceDish({ name: "Hong Kong milk tea", nameZh: "港式奶茶" })).toBe(false);
+    expect(isRiceDish({ name: "Beef chow fun", nameZh: "乾炒牛河" })).toBe(false);
+    expect(isRiceDish({ name: "Price special", nameZh: "" })).toBe(false);
   });
 });
 

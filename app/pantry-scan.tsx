@@ -8,6 +8,7 @@ import { router } from "expo-router";
 import { ScalableText } from "@/components/ScalableText";
 import { Button } from "@/components/Button";
 import { colors } from "@/constants/theme";
+import { useFeatureAccess } from "@/hooks/useFeatureAccess";
 import { useLocale } from "@/hooks/useLocale";
 import {
   imageTypeOf,
@@ -36,10 +37,12 @@ const RECEIPT_QUALITY = 0.4;
 // guesses go to the review screen for editing, and nothing saves from here. A failed scan stops on
 // this screen and says so: we never advance to review with ingredients the user did not photograph.
 export default function PantryScanScreen() {
-  const { t } = useLocale();
+  const { t, tl } = useLocale();
   const [permission, requestPermission] = useCameraPermissions();
   const cameraRef = useRef<CameraView>(null);
   const setDraft = usePantryScanStore((s) => s.setDraft);
+  // The fridge scan is free; scanning a receipt is a Pro perk (owner decision 2026-10-10).
+  const receiptAccess = useFeatureAccess("receipt_scan");
 
   const [mode, setMode] = useState<ScanSource>("fridge");
   const [shots, setShots] = useState<Shot[]>([]);
@@ -228,27 +231,30 @@ export default function PantryScanScreen() {
             <View className="h-11 w-11" />
           </View>
 
-          {/* Fridge | Receipt. */}
+          {/* Fridge | Receipt. Receipt is locked on the free plan and opens the paywall instead. */}
           <View className="flex-row self-center rounded-full bg-black/50 p-1">
             {(["fridge", "receipt"] as const).map((m) => {
               const on = mode === m;
+              const label = t(m === "fridge" ? "pantryScan.modeFridge" : "pantryScan.modeReceipt");
+              const locked = m === "receipt" && !receiptAccess.hasAccess;
               return (
                 <Pressable
                   key={m}
                   accessibilityRole="button"
                   accessibilityState={{ selected: on }}
-                  accessibilityLabel={t(m === "fridge" ? "pantryScan.modeFridge" : "pantryScan.modeReceipt")}
-                  onPress={() => switchMode(m)}
+                  accessibilityLabel={locked ? tl("Receipt, unlock with Pro", "收據，升級 Pro 解鎖") : label}
+                  onPress={() => (locked ? receiptAccess.triggerPaywall() : switchMode(m))}
                   disabled={scanning}
-                  className={`min-h-[44px] min-w-[96px] items-center justify-center rounded-full px-4 ${
+                  className={`min-h-[44px] min-w-[96px] flex-row items-center justify-center gap-1.5 rounded-full px-4 ${
                     on ? "bg-white" : ""
                   }`}
                 >
+                  {locked ? <Ionicons name="lock-closed" size={14} color={colors.white} /> : null}
                   <ScalableText
                     className={`text-sm font-semibold ${on ? "text-ink" : "text-white"}`}
                     maxFontSizeMultiplier={1.3}
                   >
-                    {t(m === "fridge" ? "pantryScan.modeFridge" : "pantryScan.modeReceipt")}
+                    {label}
                   </ScalableText>
                 </Pressable>
               );

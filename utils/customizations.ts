@@ -4,7 +4,8 @@ import { LogSource, MacroNutrients, MealCustomization } from "@/types";
 // - less_sugar (少甜) takes off half of the item's added sugar; no_sugar (走甜) takes off all of it.
 //   "Added sugar" is what went in when it was made (sugar, syrup, honey, condensed milk), estimated
 //   per item by the AI when the meal is logged. Every gram is 4 kcal of carbs.
-// - less_rice (少底): halves a rice base under a 碟頭飯 style dish (a fixed, rounded HK estimate).
+// - less_rice (少底): halves a rice base under a 碟頭飯 style dish (a fixed, rounded HK estimate),
+//   offered on rice dishes only.
 // Deltas are negative and applied on read, so toggling on and off is perfectly reversible.
 
 /** What a tweak needs to know about the item it adjusts. */
@@ -81,18 +82,39 @@ export function customizationSavings(
   return base.calories - effectiveMacros(base, active).calories;
 }
 
+// A rice dish, by name: 飯 in Chinese (焗豬扒飯, 炒飯, 白飯), or the word "rice" in English unless it is
+// rice noodles, rice vermicelli, a rice roll (腸粉), rice paper, rice wine, a rice cake, rice crackers
+// or congee.
+const RICE_ZH = /[飯饭]/;
+const RICE_EN = /\brice\b(?!\s*(noodle|vermicelli|roll|paper|wine|cake|cracker|flour|milk|vinegar))/i;
+const NOT_RICE_EN = /\b(congee|porridge)\b/i;
+
+export function isRiceDish(item: { name?: string; nameZh?: string }): boolean {
+  const en = item.name ?? "";
+  // A dish typed in Chinese only carries the Chinese in both fields, so check both for 飯.
+  if (RICE_ZH.test(item.nameZh ?? "") || RICE_ZH.test(en)) return true;
+  return RICE_EN.test(en) && !NOT_RICE_EN.test(en);
+}
+
 /**
  * The tweaks worth offering on an item, in display order. The sugar ones only where there is sugar
  * to take out: not when the estimate says none, and not on a packaged product scanned by barcode,
- * which can't be made less sweet. A tweak already ticked always stays, so it can be unticked.
+ * which can't be made less sweet. 少底 only on a rice dish. A tweak already ticked always stays, so
+ * it can be unticked.
  */
 export function availableCustomizations(
-  item: TweakableItem & { source?: LogSource; customizations?: MealCustomization[] },
+  item: TweakableItem & {
+    name?: string;
+    nameZh?: string;
+    source?: LogSource;
+    customizations?: MealCustomization[];
+  },
 ): MealCustomization[] {
   const active = item.customizations ?? [];
   const sugarOffered = item.source !== "barcode" && item.addedSugar !== 0;
+  const riceOffered = isRiceDish(item);
   return ALL_CUSTOMIZATIONS.filter(
-    (key) => !SUGAR_TWEAKS.includes(key) || sugarOffered || active.includes(key),
+    (key) => active.includes(key) || (SUGAR_TWEAKS.includes(key) ? sugarOffered : riceOffered),
   );
 }
 

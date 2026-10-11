@@ -23,7 +23,7 @@ export type Feature =
   | "url_scraper"
   | "wet_market_units"
   | "pantry_suggest"
-  | "pantry_scan"
+  | "receipt_scan"
   | "photo_recipe"
   | "meal_history"
   | "backfill_log"
@@ -47,8 +47,8 @@ const FEATURE_MIN_TIER: Record<Feature, SubscriptionTier> = {
   url_scraper: "pro",
   wet_market_units: "pro",
   pantry_suggest: "pro",
-  // The AI pantry scan, fridge photo and grocery receipt alike (owner decision 2026-10-08).
-  pantry_scan: "pro",
+  // Scanning a grocery receipt into the pantry. The fridge scan stays free (owner decision 2026-10-10).
+  receipt_scan: "pro",
   photo_recipe: "pro",
   meal_history: "pro",
   // Adding a forgotten meal to a past day. Pro, because it lives beside the past-day meal list that
