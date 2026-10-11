@@ -1,9 +1,9 @@
 import {
   ALL_CUSTOMIZATIONS,
   availableCustomizations,
-  customizationSavings,
   effectiveMacros,
   isRiceDish,
+  isSweetDrinkOrDessert,
   sumEntryMacros,
   toggledCustomizations,
 } from "@/utils/customizations";
@@ -58,18 +58,10 @@ describe("effectiveMacros", () => {
   });
 });
 
-describe("customizationSavings", () => {
-  it("reports the positive kcal removed", () => {
-    expect(customizationSavings(BASE, ["less_sugar"])).toBe(45);
-    expect(customizationSavings(BASE, ["less_rice"])).toBe(140);
-    expect(customizationSavings(BASE, [])).toBe(0);
-  });
-});
-
 describe("customization tables", () => {
   it("every listed tweak takes something off an item", () => {
     for (const key of ALL_CUSTOMIZATIONS) {
-      expect(customizationSavings(BASE, [key])).toBeGreaterThan(0);
+      expect(effectiveMacros(BASE, [key]).calories).toBeLessThan(BASE.calories);
     }
   });
 });
@@ -92,13 +84,13 @@ describe("sugar tweaks with the item's own added sugar", () => {
 
   it("uses each item's own amount, so a less sweet item saves less", () => {
     const milkTea = { calories: 120, protein: 3, carbs: 18, fat: 5, fiber: 0, addedSugar: 9 };
-    expect(customizationSavings(milkTea, ["no_sugar"])).toBe(36);
+    expect(effectiveMacros(milkTea, ["no_sugar"]).calories).toBe(120 - 36);
   });
 
   it("falls back to a typical sweetened drink when the item has no estimate", () => {
-    expect(customizationSavings(BASE, ["no_sugar"])).toBe(90);
+    expect(effectiveMacros(BASE, ["no_sugar"]).calories).toBe(800 - 90);
     expect(effectiveMacros(BASE, ["no_sugar"]).carbs).toBe(78);
-    expect(customizationSavings(BASE, ["less_sugar"])).toBe(45);
+    expect(effectiveMacros(BASE, ["less_sugar"]).calories).toBe(800 - 45);
   });
 
   it("never goes below zero, even with the typical fallback on a small item", () => {
@@ -133,8 +125,15 @@ describe("availableCustomizations", () => {
     ]);
   });
 
-  it("offers the sugar tweaks, at typical figures, when there is no estimate", () => {
+  it("offers the sugar tweaks on a drink, at typical figures, when there is no estimate", () => {
     expect(availableCustomizations({ ...TEA, source: "manual" })).toEqual(["less_sugar", "no_sugar"]);
+  });
+
+  it("offers them on a sweet dessert too", () => {
+    expect(availableCustomizations({ name: "Red bean soup", nameZh: "紅豆沙", source: "manual" })).toEqual([
+      "less_sugar",
+      "no_sugar",
+    ]);
   });
 
   it("offers only 少底 on a rice dish with no added sugar", () => {
@@ -143,9 +142,23 @@ describe("availableCustomizations", () => {
     ]);
   });
 
-  it("offers everything on a sweetened rice dish", () => {
+  // Owner, 2026-10-11: 焗豬扒飯 should not have 少甜 / 走甜. Old 老規矩 entries carry no estimate, which
+  // used to fall back to "a typical sweet drink" and put sugar chips on every savoury dish.
+  it("never offers sugar tweaks on savoury food, even with no estimate", () => {
+    expect(availableCustomizations({ ...PORK_CHOP_RICE, source: "manual" })).toEqual(["less_rice"]);
+    expect(availableCustomizations({ name: "Wonton noodles", nameZh: "雲吞麵", source: "manual" })).toEqual([]);
+  });
+
+  it("nor on a savoury dish whose sauce has sugar in it", () => {
     const sweetSourPork = { name: "Sweet and sour pork rice", nameZh: "咕嚕肉飯", source: "photo" as const, addedSugar: 12 };
-    expect(availableCustomizations(sweetSourPork)).toEqual(["less_sugar", "no_sugar", "less_rice"]);
+    expect(availableCustomizations(sweetSourPork)).toEqual(["less_rice"]);
+  });
+
+  it("nor on a bun, or on anything already sugar-free", () => {
+    expect(availableCustomizations({ name: "Pineapple bun", nameZh: "菠蘿包", source: "manual" })).toEqual([]);
+    expect(
+      availableCustomizations({ name: "無糖豆漿燕麥片配奇亞籽", nameZh: "無糖豆漿燕麥片配奇亞籽", source: "manual" }),
+    ).toEqual([]);
   });
 
   it("offers nothing on a packaged drink scanned by barcode", () => {
@@ -187,10 +200,95 @@ describe("isRiceDish", () => {
     for (const [name, nameZh] of notRice) expect(isRiceDish({ name, nameZh })).toBe(false);
   });
 
+  it("leaves out 湯圓, a dessert of glutinous rice balls", () => {
+    expect(isRiceDish({ name: "Glutinous rice balls in ginger soup", nameZh: "薑汁湯圓" })).toBe(false);
+  });
+
   it("isn't fooled by drinks, noodles or words that merely contain 'rice'", () => {
     expect(isRiceDish({ name: "Hong Kong milk tea", nameZh: "港式奶茶" })).toBe(false);
     expect(isRiceDish({ name: "Beef chow fun", nameZh: "乾炒牛河" })).toBe(false);
     expect(isRiceDish({ name: "Price special", nameZh: "" })).toBe(false);
+  });
+});
+
+// 少甜 / 走甜 are things you ask a cha chaan teng or dessert shop for: on drinks and sweet desserts,
+// where they add the sugar, syrup or condensed milk themselves (owner's choice, 2026-10-11).
+describe("isSweetDrinkOrDessert", () => {
+  const yes = (name: string, nameZh: string) => expect(isSweetDrinkOrDessert({ name, nameZh })).toBe(true);
+  const no = (name: string, nameZh: string) => expect(isSweetDrinkOrDessert({ name, nameZh })).toBe(false);
+
+  it("knows the drinks", () => {
+    yes("Hong Kong milk tea", "港式奶茶");
+    yes("Iced lemon tea", "凍檸茶");
+    yes("Hot coffee", "熱咖啡");
+    yes("Yuenyeung", "鴛鴦");
+    yes("Soy milk", "豆漿");
+    yes("Bubble milk tea", "珍珠奶茶");
+    yes("Horlicks", "好立克");
+    yes("Matcha latte", "抹茶拿鐵");
+    yes("Green tea", "綠茶");
+    yes("Honey lemon", "檸蜜");
+  });
+
+  it("knows them typed in Chinese only", () => {
+    yes("凍啡", "凍啡");
+    yes("檸檬水", "檸檬水");
+    yes("菊花茶", "菊花茶");
+  });
+
+  it("knows them typed in English only", () => {
+    yes("Iced latte", "");
+    yes("Mango pomelo sago", "");
+  });
+
+  it("doesn't take milk or butter for meat", () => {
+    yes("Chocolate milk", "朱古力牛奶");
+    yes("Avocado milkshake", "牛油果奶昔");
+  });
+
+  it("knows the sweet desserts", () => {
+    yes("Red bean soup", "紅豆沙");
+    yes("Tofu pudding", "豆腐花");
+    yes("Mango pomelo sago", "楊枝甘露");
+    yes("Black sesame soup", "芝麻糊");
+    yes("Glutinous rice balls in ginger soup", "薑汁湯圓");
+    yes("Sweet soup", "糖水");
+  });
+
+  it("leaves out savoury food, even when it has a drink in its name", () => {
+    no("Baked pork chop rice", "焗豬扒飯");
+    no("Wonton noodles", "雲吞麵");
+    no("Coffee pork ribs", "咖啡排骨");
+    no("Milk tea chicken wings", "奶茶雞翼");
+    no("Lemon chicken", "檸檬雞");
+    no("Tea egg", "茶葉蛋");
+    no("Chawanmushi", "茶碗蒸");
+    no("Yuenyeung fried rice", "鴛鴦炒飯");
+  });
+
+  it("leaves out buns, cakes and tarts", () => {
+    no("Pineapple bun", "菠蘿包");
+    no("Egg tart", "蛋撻");
+    no("Lemon tart", "檸檬撻");
+    no("Hong Kong-style French toast", "西多士");
+    no("Matcha cake", "抹茶蛋糕");
+  });
+
+  it("leaves out a tea meal, which isn't a cup of tea", () => {
+    no("Cha chaan teng set", "茶餐廳常餐");
+    no("Afternoon tea set", "下午茶餐");
+  });
+
+  it("leaves out sodas and anything already sugar-free", () => {
+    no("Coke", "可樂");
+    no("Coke Zero", "零系可樂");
+    no("Unsweetened soy milk", "無糖豆漿");
+    no("無糖豆漿燕麥片配奇亞籽", "無糖豆漿燕麥片配奇亞籽");
+    no("Iced lemon tea, no sugar", "凍檸茶走甜");
+  });
+
+  it("says no when it doesn't recognise the name", () => {
+    no("Mystery bowl", "");
   });
 });
 

@@ -73,20 +73,11 @@ export function effectiveMacros(
   };
 }
 
-// The kcal a set of tweaks removes from a base item (a positive number for display, e.g.
-// "-45 kcal"). Used to caption the toggles.
-export function customizationSavings(
-  base: MacroNutrients & TweakableItem,
-  active: MealCustomization[] | undefined,
-): number {
-  return base.calories - effectiveMacros(base, active).calories;
-}
-
 // A rice dish, by name: 飯 in Chinese (焗豬扒飯, 炒飯, 白飯), or the word "rice" in English unless it is
-// rice noodles, rice vermicelli, a rice roll (腸粉), rice paper, rice wine, a rice cake, rice crackers
-// or congee.
+// rice noodles, rice vermicelli, a rice roll (腸粉), rice balls (湯圓), rice paper, rice wine, a rice
+// cake, rice crackers or congee.
 const RICE_ZH = /[飯饭]/;
-const RICE_EN = /\brice\b(?!\s*(noodle|vermicelli|roll|paper|wine|cake|cracker|flour|milk|vinegar))/i;
+const RICE_EN = /\brice\b(?!\s*(noodle|vermicelli|roll|ball|paper|wine|cake|cracker|flour|milk|vinegar))/i;
 const NOT_RICE_EN = /\b(congee|porridge)\b/i;
 
 export function isRiceDish(item: { name?: string; nameZh?: string }): boolean {
@@ -96,11 +87,37 @@ export function isRiceDish(item: { name?: string; nameZh?: string }): boolean {
   return RICE_EN.test(en) && !NOT_RICE_EN.test(en);
 }
 
+// A drink or sweet dessert, by name, in either language: where a cha chaan teng or dessert shop adds
+// the sugar, syrup or condensed milk itself, so 少甜 / 走甜 can be asked for. Never savoury food, a rice
+// dish, a bake, a soda or anything already sugar-free; and an unrecognised name is a no, because a
+// missing chip costs less than 走甜 on 焗豬扒飯.
+const NO_SUGAR = /無糖|走甜|走糖|冇糖|零糖|無加糖|不加糖|零系|\bno (added )?sugar\b|sugar[- ]?free|unsweetened|\bzero\b|\bdiet\b/i;
+const BAKED =
+  /蛋糕|包|撻|餅|多士|酥|批|曲奇|雪糕|布甸|\b(cakes?|buns?|tarts?|cookies?|biscuits?|toast|pastry|pastries|croissants?|muffins?|bread|waffles?|pancakes?|ice[- ]?cream)\b/i;
+// Meat and seafood, so a drink in a dish's name (咖啡排骨, 奶茶雞翼) doesn't make it one. 牛奶, 牛油 and
+// 羊奶 are not meat.
+const SAVOURY =
+  /骨|雞|鴨|鵝|豬|牛(?![奶油])|羊(?!奶)|魚|蝦|蟹|鍋|\b(ribs?|chicken|wings?|pork|beef|lamb|mutton|fish|shrimps?|prawns?|crab|duck|goose|hot ?pot)\b/i;
+const SWEET_ZH =
+  /奶茶|檸檬?茶|茶走|啡|鴛鴦|好立克|華田|朱古力牛?奶|[熱凍]朱古力|豆漿|豆奶|奶昔|沙冰|檸檬?水|檸蜜|蜜糖水|薑茶|拿鐵|糖水|紅豆沙|綠豆沙|芝麻糊|[合核]桃露|杏仁[露糊茶]|豆腐?花|西米露|楊枝甘露|喳咋|龜苓膏|仙草|薑汁撞奶|湯[圓丸]|紅豆冰|菠蘿冰/;
+const SWEET_EN =
+  /\b(milk tea|lemon tea|coffee|latte|cappuccino|mocha|americano|macchiato|flat white|frapp\w*|yuen ?yeung|yuan ?yang|horlicks|ovaltine|hot chocolate|iced chocolate|chocolate milk|soya? ?milk|bubble tea|boba|milkshake|smoothie|lemonade|lemon water|honey lemon|lemon honey|ginger tea|sweet soup|tong ?sui|red bean soup|mung bean soup|green bean soup|black sesame soup|sesame paste|walnut (soup|paste)|almond (soup|tea|paste)|tofu pudding|douhua|tofu fa|sago|mango pomelo|herbal jelly|grass jelly|ginger milk curd|glutinous rice balls?|tangyuan|red bean ice|pineapple ice)\b/i;
+// Any other tea is a cup of tea (綠茶, 菊花茶, green tea), unless it's an egg, a restaurant or a meal.
+const TEA = /茶|\btea\b/i;
+const TEA_NOT_DRINK =
+  /茶(葉|餐|記|樓|點|粿|果|香|燻|熏|油|碗蒸|樹|泡飯)|飲茶|早茶|下午茶|\btea[- ]?(eggs?|smoked|leaf|leaves|set|house|restaurant)\b|\b(afternoon|high) tea\b/i;
+
+export function isSweetDrinkOrDessert(item: { name?: string; nameZh?: string }): boolean {
+  const text = `${item.name ?? ""} ${item.nameZh ?? ""}`;
+  if (NO_SUGAR.test(text) || BAKED.test(text) || SAVOURY.test(text) || isRiceDish(item)) return false;
+  return SWEET_ZH.test(text) || SWEET_EN.test(text) || (TEA.test(text) && !TEA_NOT_DRINK.test(text));
+}
+
 /**
- * The tweaks worth offering on an item, in display order. The sugar ones only where there is sugar
- * to take out: not when the estimate says none, and not on a packaged product scanned by barcode,
- * which can't be made less sweet. 少底 only on a rice dish. A tweak already ticked always stays, so
- * it can be unticked.
+ * The tweaks worth offering on an item, in display order. The sugar ones only on a drink or sweet
+ * dessert with sugar to take out: not when the estimate says none, and not on a packaged product
+ * scanned by barcode, which can't be made less sweet. 少底 only on a rice dish. A tweak already ticked
+ * always stays, so it can be unticked.
  */
 export function availableCustomizations(
   item: TweakableItem & {
@@ -111,7 +128,7 @@ export function availableCustomizations(
   },
 ): MealCustomization[] {
   const active = item.customizations ?? [];
-  const sugarOffered = item.source !== "barcode" && item.addedSugar !== 0;
+  const sugarOffered = item.source !== "barcode" && item.addedSugar !== 0 && isSweetDrinkOrDessert(item);
   const riceOffered = isRiceDish(item);
   return ALL_CUSTOMIZATIONS.filter(
     (key) => active.includes(key) || (SUGAR_TWEAKS.includes(key) ? sugarOffered : riceOffered),
