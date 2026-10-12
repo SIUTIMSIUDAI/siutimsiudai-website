@@ -1,8 +1,11 @@
 import {
   ALL_CUSTOMIZATIONS,
   availableCustomizations,
+  customizationLabelKey,
   effectiveMacros,
+  isNoodleDish,
   isRiceDish,
+  isSavouryDish,
   isSweetDrinkOrDessert,
   sumEntryMacros,
   toggledCustomizations,
@@ -26,29 +29,19 @@ describe("effectiveMacros", () => {
     expect(m.fiber).toBe(8); // fibre is untouched by 少甜
   });
 
-  it("applies 少底 (less rice): -140 kcal, -30 carbs, -3 protein, -1 fat", () => {
-    const m = effectiveMacros(BASE, ["less_rice"]);
-    expect(m.calories).toBe(660);
-    expect(m.carbs).toBe(70);
-    expect(m.protein).toBe(27);
-    expect(m.fat).toBe(24);
-    expect(m.fiber).toBe(8); // fibre is untouched by 少底
-  });
-
-  it("stacks both tweaks", () => {
+  it("stacks a sugar tweak and 少底, each worked out from the untweaked item", () => {
+    // No name, so 少底 is a quarter smaller portion; 少甜 with no estimate is the typical 11.25 g.
     const m = effectiveMacros(BASE, ["less_sugar", "less_rice"]);
-    expect(m.calories).toBe(800 - 45 - 140);
-    expect(m.carbs).toBe(100 - 11 - 30);
+    expect(m.calories).toBe(800 - 45 - 200);
+    expect(m.carbs).toBe(Math.round(100 - 11.25 - 25));
   });
 
-  it("never returns a negative field (small item, big tweak)", () => {
+  it("never returns a negative field (small item, stacked tweaks)", () => {
     const tiny: MacroNutrients = { calories: 20, protein: 1, carbs: 4, fat: 0, fiber: 0 };
-    const m = effectiveMacros(tiny, ["less_rice"]);
+    const m = effectiveMacros(tiny, ["no_sugar", "less_rice"]);
     expect(m.calories).toBe(0);
     expect(m.carbs).toBe(0);
-    expect(m.protein).toBe(0);
-    expect(m.fat).toBe(0);
-    expect(m.fiber).toBe(0);
+    for (const v of Object.values(m)) expect(v).toBeGreaterThanOrEqual(0);
   });
 
   it("treats a missing fiber field as 0 g (entry logged before fibre tracking)", () => {
@@ -106,11 +99,52 @@ describe("sugar tweaks with the item's own added sugar", () => {
     );
   });
 
-  it("leaves 少底 as it was, alongside a sugar tweak", () => {
-    const meal = { calories: 700, protein: 25, carbs: 95, fat: 20, fiber: 3, addedSugar: 10 };
+  it("applies 少底 and a sugar tweak side by side on an older entry that has both ticked", () => {
+    const meal = { name: "Sweet and sour pork rice", nameZh: "咕嚕肉飯", calories: 700, protein: 25, carbs: 95, fat: 20, fiber: 3, addedSugar: 10 };
     const m = effectiveMacros(meal, ["less_rice", "no_sugar"]);
-    expect(m.calories).toBe(700 - 140 - 40);
-    expect(m.carbs).toBe(95 - 30 - 10);
+    // 少底: 40% of 95 g carbs = 38 g of rice carbs; 走甜: 10 g sugar.
+    expect(m.carbs).toBe(95 - 38 - 10);
+    expect(m.calories).toBe(Math.round(700 - (38 * 140) / 30 - 40));
+  });
+});
+
+// Owner, 2026-10-12: 少底 on every savoury dish, scaled with the dish. On a rice or noodle dish it takes
+// about half the base (40% of the dish's carbs, with the bit of protein and fat rice carries, the shape
+// of the old fixed 140 kcal / 30 g allowance); the meat and veg are untouched. With no base to cut,
+// it's a quarter smaller portion of everything.
+describe("少底 scales with the dish", () => {
+  const PLATE: MacroNutrients = { calories: 800, protein: 30, carbs: 100, fat: 25, fiber: 8 };
+
+  it("takes about half the rice off a rice dish, from its carbs", () => {
+    const m = effectiveMacros({ ...PLATE, name: "Baked pork chop rice", nameZh: "焗豬扒飯" }, ["less_rice"]);
+    expect(m.carbs).toBe(60); // 40 g of rice carbs off
+    expect(m.calories).toBe(Math.round(800 - (40 * 140) / 30));
+    expect(m.protein).toBe(26); // rice carries a little protein...
+    expect(m.fat).toBe(24); // ...and fat
+    expect(m.fiber).toBe(8); // fibre untouched, as before
+  });
+
+  it("does the same with noodles", () => {
+    const m = effectiveMacros({ ...PLATE, name: "Wonton noodles", nameZh: "雲吞麵" }, ["less_rice"]);
+    expect(m.carbs).toBe(60);
+    expect(m.calories).toBe(Math.round(800 - (40 * 140) / 30));
+  });
+
+  it("matches the figures the owner approved: 焗豬扒飯 about -195 kcal, 雲吞麵 about -100", () => {
+    const porkChopRice = { name: "Baked Pork Chop Rice", nameZh: "焗豬扒飯", calories: 850, protein: 32, carbs: 105, fat: 30, fiber: 3 };
+    const wontonNoodles = { name: "Wonton Noodles", nameZh: "雲吞麵", calories: 430, protein: 20, carbs: 55, fat: 14, fiber: 2 };
+    expect(850 - effectiveMacros(porkChopRice, ["less_rice"]).calories).toBe(196);
+    expect(430 - effectiveMacros(wontonNoodles, ["less_rice"]).calories).toBe(103);
+  });
+
+  it("makes any other savoury dish a quarter smaller", () => {
+    const m = effectiveMacros({ ...PLATE, name: "Poached chicken", nameZh: "白切雞" }, ["less_rice"]);
+    expect(m).toEqual({ calories: 600, protein: 23, carbs: 75, fat: 19, fiber: 6 });
+  });
+
+  it("counts a 200 kcal plate of 燒賣 as -50", () => {
+    const siuMai = { name: "Siu mai", nameZh: "燒賣", calories: 200, protein: 10, carbs: 16, fat: 11, fiber: 1 };
+    expect(effectiveMacros(siuMai, ["less_rice"]).calories).toBe(150);
   });
 });
 
@@ -146,7 +180,39 @@ describe("availableCustomizations", () => {
   // used to fall back to "a typical sweet drink" and put sugar chips on every savoury dish.
   it("never offers sugar tweaks on savoury food, even with no estimate", () => {
     expect(availableCustomizations({ ...PORK_CHOP_RICE, source: "manual" })).toEqual(["less_rice"]);
-    expect(availableCustomizations({ name: "Wonton noodles", nameZh: "雲吞麵", source: "manual" })).toEqual([]);
+    expect(availableCustomizations({ name: "Wonton noodles", nameZh: "雲吞麵", source: "manual" })).toEqual([
+      "less_rice",
+    ]);
+  });
+
+  // Owner, 2026-10-12: every savoury dish gets 少底, not only rice dishes.
+  it("offers 少底 on every savoury dish", () => {
+    for (const [name, nameZh] of [
+      ["Siu mai", "燒賣"],
+      ["Poached chicken", "白切雞"],
+      ["Curry fish balls", "咖喱魚蛋"],
+      ["Ham sandwich", "火腿三文治"],
+      ["Pork chop bun", "豬扒包"],
+    ]) {
+      expect(availableCustomizations({ name, nameZh, source: "manual" })).toEqual(["less_rice"]);
+    }
+  });
+
+  it("but not on drinks, sweets or fruit", () => {
+    for (const [name, nameZh] of [
+      ["Coke", "可樂"],
+      ["Water", "清水"],
+      ["Unsweetened soy milk", "無糖豆漿"],
+      ["Egg tart", "蛋撻"],
+      ["Mixed berries", "雜莓"],
+      ["Cereal", "麥片"],
+    ]) {
+      expect(availableCustomizations({ name, nameZh, source: "manual" })).toEqual([]);
+    }
+  });
+
+  it("nor on a packaged item scanned by barcode", () => {
+    expect(availableCustomizations({ name: "Instant noodles", nameZh: "出前一丁", source: "barcode" })).toEqual([]);
   });
 
   it("nor on a savoury dish whose sauce has sugar in it", () => {
@@ -292,6 +358,112 @@ describe("isSweetDrinkOrDessert", () => {
   });
 });
 
+describe("isNoodleDish", () => {
+  it("knows noodles, rice noodles and pasta", () => {
+    for (const [name, nameZh] of [
+      ["Wonton noodles", "雲吞麵"],
+      ["Beef brisket noodles", "牛腩麵"],
+      ["Dry-fried beef ho fun", "乾炒牛河"],
+      ["Singapore fried vermicelli", "星洲炒米"],
+      ["Fried rice vermicelli", "炒米粉"],
+      ["Mixian", "米線"],
+      ["Spaghetti bolognese", "肉醬意粉"],
+      ["Macaroni soup with ham", "火腿通粉"],
+      ["Udon", "烏冬"],
+    ]) {
+      expect(isNoodleDish({ name, nameZh })).toBe(true);
+    }
+  });
+
+  it("knows them in either language alone", () => {
+    expect(isNoodleDish({ name: "星洲炒米", nameZh: "星洲炒米" })).toBe(true);
+    expect(isNoodleDish({ name: "Spaghetti carbonara", nameZh: "" })).toBe(true);
+  });
+
+  it("isn't fooled by bread, bean paste or a rice dish", () => {
+    expect(isNoodleDish({ name: "Bread", nameZh: "麵包" })).toBe(false);
+    expect(isNoodleDish({ name: "Steamed fish with bean paste", nameZh: "麵豉蒸魚" })).toBe(false);
+    expect(isNoodleDish({ name: "Baked pork chop rice", nameZh: "焗豬扒飯" })).toBe(false);
+  });
+});
+
+describe("isSavouryDish", () => {
+  const yes = (name: string, nameZh: string) => expect(isSavouryDish({ name, nameZh })).toBe(true);
+  const no = (name: string, nameZh: string) => expect(isSavouryDish({ name, nameZh })).toBe(false);
+
+  it("counts rice and noodle dishes, meat, seafood and dim sum", () => {
+    yes("Baked pork chop rice", "焗豬扒飯");
+    yes("Wonton noodles", "雲吞麵");
+    yes("Poached chicken", "白切雞");
+    yes("Shrimp dumplings", "蝦餃");
+    yes("Siu mai", "燒賣");
+    yes("Char siu bao", "叉燒包");
+    yes("Century egg and pork congee", "皮蛋瘦肉粥");
+  });
+
+  it("counts a savoury dish with a drink or fruit in its name", () => {
+    yes("Coffee pork ribs", "咖啡排骨");
+    yes("Sweet and sour pork with pineapple", "菠蘿咕嚕肉");
+    yes("菠蘿咕嚕肉", "菠蘿咕嚕肉"); // Chinese only: 肉 beats 菠蘿
+    yes("Yuenyeung fried rice", "鴛鴦炒飯");
+    yes("Pineapple fried rice", "菠蘿炒飯"); // the rice base beats 菠蘿
+  });
+
+  it("keeps a dessert a dessert, even with 肉 in it", () => {
+    no("Longan sweet soup", "龍眼肉糖水");
+  });
+
+  it("counts an unrecognised dish as savoury", () => {
+    yes("Scrambled eggs with tomato", "番茄炒蛋");
+  });
+
+  it("leaves out drinks, sweet or not", () => {
+    no("Hong Kong milk tea", "港式奶茶");
+    no("Unsweetened soy milk", "無糖豆漿");
+    no("Coke", "可樂");
+    no("Orange juice", "橙汁");
+    no("Water", "清水");
+    no("Beer", "啤酒");
+    no("Green tea, unsweetened", "無糖綠茶");
+    no("Sugar-free tofu pudding", "無糖豆腐花");
+    // Typed in Chinese only, a sugar-free dessert is known only by its dessert name.
+    no("無糖豆腐花", "無糖豆腐花");
+    no("無糖紅豆沙", "無糖紅豆沙");
+  });
+
+  it("leaves out desserts, sweet bakes, cereal and fruit", () => {
+    no("Red bean soup", "紅豆沙");
+    no("Pineapple bun", "菠蘿包");
+    no("Cocktail bun", "雞尾包");
+    no("Egg waffle", "雞蛋仔");
+    no("Egg tart", "蛋撻");
+    no("Hong Kong-style French toast", "西多士");
+    no("Cereal", "麥片");
+    no("Mixed berries", "雜莓");
+    no("Banana", "香蕉");
+    no("Croissant", "牛角包");
+    no("Cinnamon roll", "肉桂卷");
+  });
+
+  it("still counts a tea egg or a tea set meal, which aren't drinks", () => {
+    yes("Tea egg", "茶葉蛋");
+    yes("Cha chaan teng set", "茶餐廳常餐");
+  });
+});
+
+describe("customizationLabelKey", () => {
+  it("names 少底 by what it takes off, so English never says rice on noodles", () => {
+    expect(customizationLabelKey("less_rice", { name: "Baked pork chop rice", nameZh: "焗豬扒飯" })).toBe("custom.lessRice");
+    expect(customizationLabelKey("less_rice", { name: "Wonton noodles", nameZh: "雲吞麵" })).toBe("custom.lessNoodles");
+    expect(customizationLabelKey("less_rice", { name: "Poached chicken", nameZh: "白切雞" })).toBe("custom.smallerPortion");
+  });
+
+  it("keeps the sugar labels as they are", () => {
+    expect(customizationLabelKey("less_sugar", {})).toBe("custom.lessSugar");
+    expect(customizationLabelKey("no_sugar", {})).toBe("custom.noSugar");
+  });
+});
+
 describe("toggledCustomizations", () => {
   it("ticks and unticks a tweak", () => {
     expect(toggledCustomizations([], "less_rice")).toEqual(["less_rice"]);
@@ -308,7 +480,12 @@ describe("toggledCustomizations", () => {
   });
 });
 
-type Entry = MacroNutrients & { customizations?: MealCustomization[]; addedSugar?: number };
+type Entry = MacroNutrients & {
+  customizations?: MealCustomization[];
+  addedSugar?: number;
+  name?: string;
+  nameZh?: string;
+};
 
 describe("sumEntryMacros", () => {
   it("sums base macros when there are no customizations", () => {
@@ -326,16 +503,17 @@ describe("sumEntryMacros", () => {
   });
 
   it("applies 少甜/少底 deltas before summing (never below zero per entry)", () => {
-    // less_sugar removes 45 kcal / 11 carbs; less_rice removes 140 kcal / 3 protein / 30 carbs / 1 fat.
+    // 少底 on a rice dish takes 40% of its carbs (36 g here: 168 kcal, 3.6 g protein, 1.2 g fat);
+    // 少甜 with no estimate takes 11.25 g sugar (45 kcal).
     const entries: Entry[] = [
-      { calories: 600, protein: 12, carbs: 90, fat: 10, fiber: 4, customizations: ["less_rice"] },
+      { name: "Char siu rice", nameZh: "叉燒飯", calories: 600, protein: 12, carbs: 90, fat: 10, fiber: 4, customizations: ["less_rice"] },
       { calories: 200, protein: 2, carbs: 30, fat: 3, fiber: 1, customizations: ["less_sugar"] },
     ];
-    // entry 1 -> 460/9/60/9 ; entry 2 -> 155/2/19/3 ; fibre untouched by both tweaks (4 + 1)
+    // entry 1 -> 432/8/54/9 ; entry 2 -> 155/2/19/3 ; fibre untouched by both tweaks (4 + 1)
     expect(sumEntryMacros(entries)).toEqual({
-      calories: 615,
-      protein: 11,
-      carbs: 79,
+      calories: 587,
+      protein: 10,
+      carbs: 73,
       fat: 12,
       fiber: 5,
     });

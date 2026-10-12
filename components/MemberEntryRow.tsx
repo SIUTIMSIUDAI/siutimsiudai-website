@@ -4,8 +4,8 @@ import { ScalableText } from "./ScalableText";
 import { colors } from "@/constants/theme";
 import { useLocale } from "@/hooks/useLocale";
 import { formatCalories, shortTime } from "@/utils/formatters";
-import { effectiveMacros } from "@/utils/customizations";
-import { FoodEntry, LogSource, MealCustomization } from "@/types";
+import { customizationLabelKey, effectiveMacros } from "@/utils/customizations";
+import { FoodEntry, LogSource } from "@/types";
 
 // The read-only twin of FoodEntryRow: same visual language, but no delete button and no
 // customization toggles (a manager views, never edits). Effective calories come from the shared
@@ -16,12 +16,6 @@ const SOURCE_ICON: Record<LogSource, keyof typeof Ionicons.glyphMap> = {
   barcode: "barcode-outline",
   label: "document-text-outline",
   manual: "create-outline",
-};
-
-const CUSTOM_LABEL: Record<MealCustomization, string> = {
-  less_sugar: "custom.lessSugar",
-  no_sugar: "custom.noSugar",
-  less_rice: "custom.lessRice",
 };
 
 export function MemberEntryRow({ entry }: { entry: FoodEntry }) {
@@ -41,7 +35,9 @@ export function MemberEntryRow({ entry }: { entry: FoodEntry }) {
         </ScalableText>
         <ScalableText className="text-xs text-ink-muted">
           {t(`mealType.${entry.mealType}`)} · {shortTime(entry.loggedAt, locale)}
-          {active.length > 0 ? ` · ${active.map((c) => t(CUSTOM_LABEL[c])).join(" · ")}` : ""}
+          {active.length > 0
+            ? ` · ${active.map((c) => t(customizationLabelKey(c, entry))).join(" · ")}`
+            : ""}
         </ScalableText>
       </View>
       <View className="items-end">

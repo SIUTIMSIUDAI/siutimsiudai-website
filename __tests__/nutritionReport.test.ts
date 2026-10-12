@@ -81,8 +81,8 @@ describe("dayNutrients", () => {
         userId: "u1",
         logDate: "2026-09-30",
         entries: [
-          // 少底 takes 140 kcal, 3 g protein, 30 g carbs and 1 g fat off the base.
-          entry({ calories: 600, protein: 30, carbs: 80, fat: 18, fiber: 4, customizations: ["less_rice"] }),
+          // 少底 on a rice dish takes 40% of its carbs (32 g), about 149 kcal, 3 g protein and 1 g fat.
+          entry({ name: "Char siu rice", nameZh: "叉燒飯", calories: 600, protein: 30, carbs: 80, fat: 18, fiber: 4, customizations: ["less_rice"] }),
           entry({ id: "e2", calories: 200, protein: 10, carbs: 20, fat: 8, fiber: 3, micros: { vitaminD: 2.5, calcium: 300 } }),
         ],
       },
@@ -90,7 +90,7 @@ describe("dayNutrients", () => {
     expect(dayNutrients(logs, "2026-09-30")).toEqual({
       dateKey: "2026-09-30",
       logged: true,
-      values: { ...ZERO, calories: 660, protein: 37, carbs: 70, fat: 25, fiber: 7, vitaminD: 2.5, calcium: 300 },
+      values: { ...ZERO, calories: 651, protein: 37, carbs: 68, fat: 25, fiber: 7, vitaminD: 2.5, calcium: 300 },
     });
   });
 

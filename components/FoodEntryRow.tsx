@@ -5,7 +5,11 @@ import { colors } from "@/constants/theme";
 import { useLocale } from "@/hooks/useLocale";
 import { formatCalories, shortTime } from "@/utils/formatters";
 import { formatAmountLabel } from "@/utils/manualAmount";
-import { availableCustomizations, effectiveMacros } from "@/utils/customizations";
+import {
+  availableCustomizations,
+  customizationLabelKey,
+  effectiveMacros,
+} from "@/utils/customizations";
 import { tick } from "@/utils/haptics";
 import { FoodEntry, LogSource, MealCustomization } from "@/types";
 
@@ -25,11 +29,6 @@ const SOURCE_ICON: Record<LogSource, keyof typeof Ionicons.glyphMap> = {
   manual: "create-outline",
 };
 
-const CUSTOM_LABEL: Record<MealCustomization, string> = {
-  less_sugar: "custom.lessSugar",
-  no_sugar: "custom.noSugar",
-  less_rice: "custom.lessRice",
-};
 
 export function FoodEntryRow({ entry, onEdit, onRemove, onToggleCustomization }: Props) {
   const { t, tl, locale } = useLocale();
@@ -89,12 +88,12 @@ export function FoodEntryRow({ entry, onEdit, onRemove, onToggleCustomization }:
       </View>
 
       {/* Order tweaks: tick 少甜 / 走甜 / 少底 like a waiter marking a notepad. Sugar ones on drinks and
-          sweet desserts, 少底 on rice dishes. The chips carry no figure (the owner found it cluttered);
-          ticking one lowers this item's kcal above by the realistic amount. */}
+          sweet desserts, 少底 on savoury dishes. The chips carry no figure (the owner found it
+          cluttered); ticking one lowers this item's kcal above by the realistic amount. */}
       <View className="flex-row flex-wrap gap-2" style={{ paddingLeft: 52 }}>
         {availableCustomizations(entry).map((key) => {
           const on = active.includes(key);
-          const label = t(CUSTOM_LABEL[key]);
+          const label = t(customizationLabelKey(key, entry));
           return (
             <Pressable
               key={key}
