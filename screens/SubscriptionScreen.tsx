@@ -51,8 +51,8 @@ interface Plan {
 
 /**
  * Full-bleed, high-converting tier comparison. Three cards laid out casual-to-premium:
- * a plain Free card, a Milk Tea Amber Pro card, and a radiant Egg-Tart Gold Max card
- * ribboned as best value for the family.
+ * a plain Free card, a Milk Tea Amber Pro card ribboned as the plan most people pick, and a
+ * radiant Egg-Tart Gold Max card.
  *
  * The CTA has three modes, and keeping them apart is the point:
  *  - live: a real StoreKit purchase through RevenueCat.
@@ -175,6 +175,9 @@ export function SubscriptionScreen() {
       accentColor: colors.brand,
       iconBg: "#F5EBE0",
       cardClass: "border-2 border-brand bg-surface",
+      // Owner's choice, 2026-10-18 (was 最抵之選 on the Max card). A factual claim about what
+      // subscribers pick, so it should stay true as real subscriptions come in.
+      ribbon: tl("Most popular", "最多人揀"),
       successTitle: tl("Welcome, regular!", "歡迎熟客！"),
       successBody: tl(
         "Pro is on. Unlimited logging and the full macro drawer are yours.",
@@ -212,7 +215,6 @@ export function SubscriptionScreen() {
       accentColor: colors.accentDark,
       iconBg: "#FBEAC4",
       cardClass: "border-2 border-accent bg-[#FCF3DD]",
-      ribbon: tl("Best value", "最抵之選"),
       successTitle: tl("You're the boss now", "你係老細"),
       successBody: tl(
         "Max is on. Sync the whole household and push carts straight to the e-grocers.",
@@ -445,9 +447,9 @@ export function SubscriptionScreen() {
               {plan.ribbon ? (
                 <View
                   className="absolute -top-3 right-4 rounded-full border border-white px-3 py-1"
-                  style={{ backgroundColor: colors.accent }}
+                  style={{ backgroundColor: plan.ctaBg }}
                 >
-                  <ScalableText className="text-xs font-bold" style={{ color: colors.ink }}>
+                  <ScalableText className="text-xs font-bold" style={{ color: colors.white }}>
                     {plan.ribbon}
                   </ScalableText>
                 </View>
