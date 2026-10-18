@@ -8,7 +8,11 @@ import { ScalableText } from "@/components/ScalableText";
 import { LegalLinks } from "@/components/LegalLinks";
 import { colors } from "@/constants/theme";
 import { useLocale } from "@/hooks/useLocale";
-import { SubscriptionTier, useSubscriptionStore } from "@/stores/useSubscriptionStore";
+import {
+  MAX_WEEKLY_FREE_AI_LOGS,
+  SubscriptionTier,
+  useSubscriptionStore,
+} from "@/stores/useSubscriptionStore";
 import { resolvePaywallCta } from "@/utils/paywallCta";
 import { purchaseSuccessBody, trialCta, trialPriceLine } from "@/utils/freeTrial";
 import {
@@ -120,7 +124,10 @@ export function SubscriptionScreen() {
       pitch: tl("Clock your daily calories, no strings attached.", "日日記低卡路里，唔使畀一蚊。"),
       features: [
         tl("Total daily calorie count", "每日總卡路里"),
-        tl("5 AI snap-logs a week", "每星期 5 次 AI 影相入數"),
+        tl(
+          `${MAX_WEEKLY_FREE_AI_LOGS} AI snap-logs a week`,
+          `每星期 ${MAX_WEEKLY_FREE_AI_LOGS} 次 AI 影相入數`,
+        ),
         tl("Standard local metrics", "本地標準計法"),
         tl("Personal grocery checklist", "個人購物清單"),
       ],

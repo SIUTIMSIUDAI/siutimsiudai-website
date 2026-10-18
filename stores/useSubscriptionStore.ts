@@ -5,10 +5,12 @@ import { persistStorage } from "./persistStorage";
 // The three tiers the whole app gates on. Ranked free < pro < max in useFeatureAccess.
 export type SubscriptionTier = "free" | "pro" | "max";
 
-// A casual eater gets five AI-assisted logs a week before the paywall taps them on the
-// shoulder. Exported as a constant so gating logic can reference it without a store read,
-// and mirrored into state below so the store stays the single source of truth.
-export const MAX_WEEKLY_FREE_AI_LOGS = 5;
+// A casual eater gets two AI photo logs a week before the paywall taps them on the shoulder
+// (owner's call, 2026-10-18; it was five). Only photos count: typing, voice and barcode never do
+// (utils/logMetering.ts). Exported as a constant so gating logic and the copy that states the
+// number can reference it without a store read, and mirrored into state below so the store stays
+// the single source of truth.
+export const MAX_WEEKLY_FREE_AI_LOGS = 2;
 
 // One weekly cycle in milliseconds. The rolling allotment resets exactly seven days after the
 // first log of a cycle, not on a fixed calendar weekday, so the clock starts when the user

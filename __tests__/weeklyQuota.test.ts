@@ -14,8 +14,9 @@ const NOW = Date.parse("2026-07-05T09:00:00.000Z");
 const DAY = 24 * 60 * 60 * 1000;
 
 describe("quota constants", () => {
-  it("caps the free tier at 5 AI logs", () => {
-    expect(MAX_WEEKLY_FREE_AI_LOGS).toBe(5);
+  // Owner, 2026-10-18: free users get 2 AI photo logs a week (was 5); Pro and Max are unlimited.
+  it("caps the free tier at 2 AI photo logs a week", () => {
+    expect(MAX_WEEKLY_FREE_AI_LOGS).toBe(2);
   });
 
   it("runs a seven-day cycle", () => {
@@ -83,23 +84,30 @@ describe("free-tier remaining logs over a cycle", () => {
   const remaining = (count: number, reset: string | null, nowMs: number) =>
     Math.max(0, MAX_WEEKLY_FREE_AI_LOGS - effectiveWeeklyCount(count, reset, nowMs));
 
-  it("starts at 5 before any log", () => {
-    expect(remaining(0, null, NOW)).toBe(5);
+  it("starts at 2 before any log", () => {
+    expect(remaining(0, null, NOW)).toBe(2);
   });
 
   it("counts down as logs are spent within the week", () => {
     const reset = nextQuotaReset(NOW);
-    expect(remaining(1, reset, NOW + DAY)).toBe(4);
-    expect(remaining(5, reset, NOW + DAY)).toBe(0);
+    expect(remaining(1, reset, NOW + DAY)).toBe(1);
+    expect(remaining(2, reset, NOW + DAY)).toBe(0);
   });
 
   it("stays at 0 anywhere inside the same locked week", () => {
     const reset = nextQuotaReset(NOW);
-    expect(remaining(5, reset, NOW + 6 * DAY)).toBe(0);
+    expect(remaining(2, reset, NOW + 6 * DAY)).toBe(0);
   });
 
-  it("restores the full 5 once the seven-day cycle rolls over", () => {
+  // Someone who had already used 3 of the old 5 this week is simply out until their reset: never a
+  // negative count, and nothing they logged is touched.
+  it("reads 0, not a negative, for a free user already past the new limit", () => {
     const reset = nextQuotaReset(NOW);
-    expect(remaining(5, reset, NOW + 7 * DAY)).toBe(5);
+    expect(remaining(3, reset, NOW + DAY)).toBe(0);
+  });
+
+  it("restores the full 2 once the seven-day cycle rolls over", () => {
+    const reset = nextQuotaReset(NOW);
+    expect(remaining(2, reset, NOW + 7 * DAY)).toBe(2);
   });
 });
