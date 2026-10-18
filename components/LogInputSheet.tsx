@@ -25,6 +25,7 @@ import { formatCalories, todayKey } from "@/utils/formatters";
 import { parseMealText } from "@/utils/parseMeal";
 import { parseAmount } from "@/utils/manualAmount";
 import { isMeteredLogSource } from "@/utils/logMetering";
+import { photoButtons } from "@/utils/photoQuotaButtons";
 import { useNutritionStore } from "@/stores/nutritionStore";
 import { useSavedMealsStore } from "@/stores/savedMealsStore";
 import { useSubscriptionStore } from "@/stores/useSubscriptionStore";
@@ -687,6 +688,14 @@ export function LogInputSheet({ visible, date, onClose }: Props) {
     closeScanner();
   }
 
+  // The free weekly photo limit, shown on the photo buttons themselves (plain on Pro and Max).
+  const photoBtn = photoButtons(
+    aiAccess.remainingLogs,
+    loading,
+    { snap: t("log.snap"), upload: t("log.upload"), recognising: t("log.recognising") },
+    tl,
+  );
+
   return (
     <>
     <Modal visible={visible} transparent animationType="slide" onRequestClose={close}>
@@ -777,23 +786,6 @@ export function LogInputSheet({ visible, date, onClose }: Props) {
             </ScrollView>
           )}
 
-          {tab === "photo" && Number.isFinite(aiAccess.remainingLogs) && (
-            <View className="mb-1 flex-row items-center gap-1.5 px-1">
-              <Ionicons name="sparkles-outline" size={13} color={colors.inkFaint} />
-              <ScalableText className="text-xs text-ink-faint">
-                {aiAccess.remainingLogs > 0
-                  ? tl(
-                      `${aiAccess.remainingLogs} free photo scans left this week`,
-                      `今個星期仲有 ${aiAccess.remainingLogs} 次免費影相辨識`,
-                    )
-                  : tl(
-                      "Photo scans are used up this week. Typing, voice and barcode are still free.",
-                      "今個星期影相辨識用晒，打字、語音同掃碼照樣免費。",
-                    )}
-              </ScalableText>
-            </View>
-          )}
-
           <ScrollView
             keyboardShouldPersistTaps="handled"
             keyboardDismissMode="on-drag"
@@ -803,14 +795,14 @@ export function LogInputSheet({ visible, date, onClose }: Props) {
               <View className="gap-3">
                 <ScalableText className="text-sm text-ink-muted">{t("log.snapHint")}</ScalableText>
                 <Button
-                  label={loading ? t("log.recognising") : t("log.snap")}
-                  icon="camera"
+                  label={photoBtn.camera.label}
+                  icon={photoBtn.camera.icon}
                   loading={loading}
                   onPress={() => runPhoto("camera")}
                 />
                 <Button
-                  label={t("log.upload")}
-                  icon="images"
+                  label={photoBtn.upload.label}
+                  icon={photoBtn.upload.icon}
                   variant="secondary"
                   disabled={loading}
                   onPress={() => runPhoto("library")}

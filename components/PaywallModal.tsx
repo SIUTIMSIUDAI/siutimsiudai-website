@@ -80,7 +80,7 @@ export function PaywallModal({ visible, onClose }: Props) {
             className="min-h-[44px] w-full items-center justify-center py-1"
           >
             <ScalableText className="text-sm font-semibold text-ink-faint">
-              {tl("Maybe later, manual entry is free", "遲啲先，手動入數照樣免費")}
+              {tl("Maybe later, typing, voice and barcode stay free", "遲啲先，打字、語音同掃碼照樣免費")}
             </ScalableText>
           </Pressable>
         </View>
