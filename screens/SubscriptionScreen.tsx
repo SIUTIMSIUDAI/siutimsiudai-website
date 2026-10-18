@@ -122,13 +122,19 @@ export function SubscriptionScreen() {
       annualUnit: tl("/ forever", "/ 永遠"),
       annualSub: "",
       pitch: tl("Clock your daily calories, no strings attached.", "日日記低卡路里，唔使畀一蚊。"),
+      // Every feature line on these three cards must match what the app really does (gates live in
+      // hooks/useFeatureAccess.ts, plus isPaidTier for vitamins, history extras and family sync).
+      // Owner, 2026-10-18: the unbuilt household calendar and the untracked sugar/sodium claim are
+      // gone, and the free list says what is truly free.
       features: [
         tl("Total daily calorie count", "每日總卡路里"),
+        tl("Unlimited logging by typing, voice or barcode", "打字、語音、掃碼記錄唔限次"),
         tl(
           `${MAX_WEEKLY_FREE_AI_LOGS} AI snap-logs a week`,
           `每星期 ${MAX_WEEKLY_FREE_AI_LOGS} 次 AI 影相入數`,
         ),
-        tl("Standard local metrics", "本地標準計法"),
+        tl("Fridge scan into your pantry", "影雪櫃自動記存貨"),
+        tl("1-tap 少甜 / 走甜 / 少底 on your meals", "記低嘅餐一撳少甜、走甜、少底"),
         tl("Personal grocery checklist", "個人購物清單"),
       ],
       cta: tl("Switch to Free", "轉返做街坊"),
@@ -155,10 +161,12 @@ export function SubscriptionScreen() {
       annualSub: tl("Just HK$41 / month, billed yearly", "折合每月 HK$41，全年結算"),
       pitch: tl("Cheaper than one lunch set a month.", "平過每個月一個午餐常餐。"),
       features: [
-        tl("Unlimited AI logging", "無限 AI 入數"),
-        tl("Full macro drawer: sugar, sodium, carbs", "完整營養抽屜：糖、鈉、碳水"),
+        tl("Unlimited AI photo logging", "無限次 AI 影相入數"),
+        tl("Full nutrients: macros, fibre, vitamins & minerals", "完整營養：三大營養素、纖維、維他命同礦物質"),
+        tl("Look back at past days: meals, macros & nutrient report", "睇返過往每日食咗乜、營養分佈同營養報告"),
+        tl("Add a meal you forgot to a past day", "補記之前漏咗嘅餐"),
         tl("1-tap 少甜少底 recipe tweaks", "一撳 少甜少底 改食譜"),
-        tl("AI cookbook URL scraper", "AI 食譜連結擷取"),
+        tl("AI recipes from a link, a photo or your pantry", "AI 由連結、相片或者存貨變出食譜"),
         tl("Scan receipts into your pantry", "掃描收據，直接入存貨"),
         tl("Wet-market unit converter (斤 / 兩)", "街市單位換算（斤 / 兩）"),
       ],
@@ -190,8 +198,10 @@ export function SubscriptionScreen() {
       ),
       features: [
         tl("Everything in Pro", "Pro 全部功能"),
-        tl("Real-time bilingual family & helper sync", "即時雙語家庭同工人同步"),
-        tl("Multi-user household calendar", "多人家庭日曆"),
+        tl(
+          "Bilingual family & helper sync: invite members, see what each one eats",
+          "雙語家庭同工人同步：邀請成員，睇到每位食咗乜",
+        ),
         tl(
           "Shop what you're missing at HKTVmall, Wellcome or ParknShop",
           "爭咩即刻去 HKTVmall、惠康、百佳買",
