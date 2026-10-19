@@ -7,11 +7,12 @@ import { TRACKED_MICRO_KEYS, type MicroTotals } from "@/utils/micros";
 // (services/recipeNutritionService.ts) and is saved on the recipe with a fingerprint (`basis`).
 
 // One serving's amount, rounded the same way for the fingerprint and the request: whole at 10 and
-// above, one decimal below. The epsilon keeps float noise from the store's round2 scaling (3.7499…)
-// on the right side of a half, so rescaling a recipe never looks like an ingredient change.
+// above, one decimal below. Rescaling keeps each serving the same, so the fingerprint holds; on the
+// rare occasion the store's 2-decimal rescaling nudges an amount across a rounding edge, the cost is
+// one extra estimate, never a wrong number.
 function perServing(quantity: number, servings: number): number {
   const per = quantity / Math.max(1, servings);
-  return per >= 10 ? Math.round(per + 1e-9) : Math.round(per * 10 + 1e-9) / 10;
+  return per >= 10 ? Math.round(per) : Math.round(per * 10) / 10;
 }
 
 /**
@@ -22,7 +23,6 @@ function perServing(quantity: number, servings: number): number {
 export function nutritionBasis(r: Pick<Recipe, "servings" | "ingredients">): string {
   return r.ingredients
     .map((i) => `${i.name.trim().toLowerCase()}|${perServing(i.quantity, r.servings)}|${i.unit}`)
-    .sort()
     .join(";");
 }
 

@@ -93,6 +93,17 @@ describe("useRecipeNutrition", () => {
     expect(estimate).not.toHaveBeenCalled();
   });
 
+  it("never shows numbers saved for different ingredients, and estimates the dish as it is now", async () => {
+    // As after a healthy swap: an estimate is saved, but for the old ingredient list.
+    const r = { ...recipe("r-stale", 500), nutrition: nutritionFor(recipe("r-stale")) };
+    useRecipeStore.setState({ recipes: [r], seeded: true });
+    const { out } = await mount("r-stale");
+    expect(out.current?.status).toBe("estimating");
+    expect(out.current?.nutrition).toBeNull();
+    expect(estimate).toHaveBeenCalledTimes(1);
+    await settle(0, { ok: false });
+  });
+
   it("estimates a dish once, saves it on the recipe, then shows it", async () => {
     useRecipeStore.setState({ recipes: [recipe("r-new")], seeded: true });
     const { out } = await mount("r-new");
