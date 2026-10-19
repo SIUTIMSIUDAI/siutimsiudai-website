@@ -68,3 +68,17 @@ describe("featureMeetsTier — max tier", () => {
     expect(featureMeetsTier("max", "grocery_export")).toBe(true);
   });
 });
+
+// Recipe nutrition per serving (owner, 2026-10-19): calories are free, the breakdown is Pro and Max,
+// the same split as the food diary. The card's calorie part rides on total_calories.
+describe("featureMeetsTier — recipe nutrition breakdown", () => {
+  it("keeps the breakdown off Free while its calories stay free", () => {
+    expect(featureMeetsTier("free", "recipe_nutrition")).toBe(false);
+    expect(featureMeetsTier("free", "total_calories")).toBe(true);
+  });
+
+  it("opens the breakdown on Pro and Max", () => {
+    expect(featureMeetsTier("pro", "recipe_nutrition")).toBe(true);
+    expect(featureMeetsTier("max", "recipe_nutrition")).toBe(true);
+  });
+});

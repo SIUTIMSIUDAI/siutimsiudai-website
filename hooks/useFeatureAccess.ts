@@ -27,6 +27,7 @@ export type Feature =
   | "photo_recipe"
   | "meal_history"
   | "backfill_log"
+  | "recipe_nutrition"
   // Max — the Household Executive suite
   | "family_sync"
   | "household_calendar"
@@ -54,6 +55,9 @@ const FEATURE_MIN_TIER: Record<Feature, SubscriptionTier> = {
   // Adding a forgotten meal to a past day. Pro, because it lives beside the past-day meal list that
   // only Pro can see, so nobody adds a meal they then cannot see or fix.
   backfill_log: "pro",
+  // A recipe's per-serving macros and vitamins (owner, 2026-10-19). Its calories stay free, as in
+  // the food diary, so the recipe card shows Free the calorie part and locks the rest.
+  recipe_nutrition: "pro",
   family_sync: "max",
   household_calendar: "max",
   grocery_export: "max",
