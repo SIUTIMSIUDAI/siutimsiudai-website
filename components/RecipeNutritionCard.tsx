@@ -41,7 +41,7 @@ export function RecipeNutritionCard({ recipe }: Props) {
   return (
     <View className="gap-3 rounded-2xl border border-[#E4DCCB] bg-surface p-4">
       {status === "ready" && nutrition ? (
-        <ServingNutrition nutrition={nutrition} />
+        <ServingNutrition nutrition={nutrition} healthy={!!recipe.healthyApplied} />
       ) : status === "failed" ? (
         <View className="gap-2">
           <ScalableText className="text-sm text-ink-muted">
@@ -68,7 +68,7 @@ export function RecipeNutritionCard({ recipe }: Props) {
   );
 }
 
-function ServingNutrition({ nutrition }: { nutrition: RecipeNutrition }) {
+function ServingNutrition({ nutrition, healthy }: { nutrition: RecipeNutrition; healthy: boolean }) {
   const { t, tl } = useLocale();
   const { hasAccess, triggerPaywall } = useFeatureAccess("recipe_nutrition");
   const today = todayKey();
@@ -100,9 +100,22 @@ function ServingNutrition({ nutrition }: { nutrition: RecipeNutrition }) {
       </View>
 
       <View className="gap-1">
-        <View className="flex-row items-baseline gap-1.5">
+        <View className="flex-row flex-wrap items-baseline gap-1.5">
           <ScalableText className="text-3xl font-extrabold text-ink">{kcal}</ScalableText>
           <ScalableText className="text-sm font-semibold text-ink-muted">{tl("kcal per serving", "kcal 每份")}</ScalableText>
+          {/* While 整健康啲 is on, these are the lighter ingredients' numbers; say so beside them
+              (owner, 2026-10-19), in the words the 健康版 button and banner already use. */}
+          {healthy ? (
+            <View
+              className="ml-1 flex-row items-center gap-1 self-center rounded-full px-2 py-0.5"
+              style={{ backgroundColor: FITS_TINT }}
+            >
+              <Ionicons name="leaf" size={12} color={colors.jade} />
+              <ScalableText className="text-xs font-bold" style={{ color: colors.jade }}>
+                {tl("Healthy mode", "健康版")}
+              </ScalableText>
+            </View>
+          ) : null}
         </View>
         <ScalableText className="text-sm text-ink-muted">
           {v.fits
