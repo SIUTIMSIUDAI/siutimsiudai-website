@@ -106,8 +106,10 @@ export function formatShare(pct: number): string {
   return pct > 0 && pct < 1 ? "<1%" : `${Math.round(pct)}%`;
 }
 
-/** One decimal below 10 and whole above, except micrograms, which are always one decimal. */
+/**
+ * Whole at 10 and above; below 10, one decimal only when it says something, so zero reads "0g" and
+ * a whole amount "8g" (owner, 2026-10-19), while a trace still reads "0.5g".
+ */
 export function formatAmount(value: number, unit: "g" | "mg" | "mcg"): string {
-  if (unit === "mcg") return `${value.toFixed(1)}mcg`;
-  return `${value < 10 ? value.toFixed(1) : Math.round(value)}${unit}`;
+  return `${value >= 10 ? Math.round(value) : Number(value.toFixed(1))}${unit}`;
 }

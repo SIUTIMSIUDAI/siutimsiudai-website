@@ -150,12 +150,17 @@ describe("shares and number formats", () => {
     expect(formatShare(42.2)).toBe("42%");
   });
 
-  it("formats amounts: one decimal below 10, whole above, micrograms always one decimal", () => {
+  // Owner, 2026-10-19: zero reads "0g", not "0.0g". Same for any whole amount below 10 ("8g").
+  it("formats amounts without a pointless .0: one decimal below 10 only when it says something", () => {
+    expect(formatAmount(0, "g")).toBe("0g");
+    expect(formatAmount(8, "g")).toBe("8g");
+    expect(formatAmount(1, "g")).toBe("1g");
     expect(formatAmount(0.5, "g")).toBe("0.5g");
+    expect(formatAmount(2.4, "mg")).toBe("2.4mg");
     expect(formatAmount(38.4, "g")).toBe("38g");
     expect(formatAmount(450, "mg")).toBe("450mg");
-    expect(formatAmount(2, "mg")).toBe("2.0mg");
     expect(formatAmount(0.3, "mcg")).toBe("0.3mcg");
-    expect(formatAmount(12, "mcg")).toBe("12.0mcg");
+    expect(formatAmount(12, "mcg")).toBe("12mcg");
+    expect(formatAmount(9.96, "g")).toBe("10g");
   });
 });
