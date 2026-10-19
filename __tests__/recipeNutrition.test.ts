@@ -71,6 +71,11 @@ describe("isNutritionFresh", () => {
     expect(isNutritionFresh({ ...SOY_CHICKEN, nutrition: estimate(nutritionBasis(SOY_CHICKEN)) })).toBe(true);
   });
 
+  it("is stale when it was made with the old one-dish request, so every dish is estimated again", () => {
+    // The basis every estimate carried before the itemised request (2026-10-19).
+    expect(isNutritionFresh({ ...SOY_CHICKEN, nutrition: estimate("chicken|197|g;dark soy sauce|3.8|ml;ginger|0.8|piece") })).toBe(false);
+  });
+
   it("is stale with no estimate, or one made from different ingredients", () => {
     expect(isNutritionFresh({ ...SOY_CHICKEN, nutrition: null })).toBe(false);
     expect(isNutritionFresh({ ...SOY_CHICKEN })).toBe(false);
@@ -79,9 +84,12 @@ describe("isNutritionFresh", () => {
 });
 
 describe("oneServingRequest", () => {
-  it("asks the estimator about exactly one serving, ingredient by ingredient", () => {
+  // Owner, 2026-10-19: the traditional 豉油雞 came back at 280 kcal, below its skinless-breast
+  // version (300). Asked about "one serving of <dish>", the estimator's rule 1 treats it as one dish
+  // and its rule 3 gives a typical serving, ignoring the amounts. So each ingredient is its own entry.
+  it("asks for every ingredient as its own entry, at exactly one serving's amount", () => {
     expect(oneServingRequest(SOY_CHICKEN)).toBe(
-      "One serving (1/4 of the recipe) of Soy Sauce Braised Chicken (豉油雞), made from: chicken 197 g, dark soy sauce 3.8 ml, ginger 0.8 piece",
+      "Estimate each ingredient below as its own entry, for exactly the amount stated (raw, as used in cooking). Together they make one serving of Soy Sauce Braised Chicken (豉油雞): chicken 197 g; dark soy sauce 3.8 ml; ginger 0.8 piece",
     );
   });
 });

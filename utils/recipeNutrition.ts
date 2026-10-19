@@ -15,15 +15,20 @@ function perServing(quantity: number, servings: number): number {
   return per >= 10 ? Math.round(per) : Math.round(per * 10) / 10;
 }
 
+// Bumped whenever the request below changes enough that saved estimates should be redone. v2: each
+// ingredient is its own entry (2026-10-19); estimates from the one-dish request carry no version.
+const REQUEST_VERSION = "v2";
+
 /**
  * Fingerprint of the one-serving ingredient list. Identical for any serving count of the same dish,
- * different once an ingredient or its amount per serving changes. Chinese names are left out, so
- * translating a recipe never triggers a new estimate.
+ * different once an ingredient or its amount per serving changes, or the request version. Chinese
+ * names are left out, so translating a recipe never triggers a new estimate.
  */
 export function nutritionBasis(r: Pick<Recipe, "servings" | "ingredients">): string {
-  return r.ingredients
+  const list = r.ingredients
     .map((i) => `${i.name.trim().toLowerCase()}|${perServing(i.quantity, r.servings)}|${i.unit}`)
     .join(";");
+  return `${REQUEST_VERSION}:${list}`;
 }
 
 /** True when the saved estimate was made from this exact one-serving ingredient list. */
@@ -31,12 +36,20 @@ export function isNutritionFresh(r: Pick<Recipe, "servings" | "ingredients" | "n
   return !!r.nutrition && r.nutrition.basis === nutritionBasis(r);
 }
 
-/** What the meal estimator is asked: one serving, ingredient by ingredient, with amounts. */
+/**
+ * What the meal estimator is asked. Each ingredient is its own entry at one serving's amount: asked
+ * about "one serving of <dish>", the estimator files it as a single dish (its rule 1) and answers
+ * with a typical serving (rule 3), ignoring the amounts. That put the traditional 豉油雞 (skin-on
+ * chicken, rock sugar) below its skinless-breast version (owner's phone, 2026-10-19).
+ */
 export function oneServingRequest(r: Pick<Recipe, "title" | "titleZh" | "servings" | "ingredients">): string {
   const items = r.ingredients
     .map((i) => `${i.name.trim()} ${perServing(i.quantity, r.servings)} ${i.unit}`)
-    .join(", ");
-  return `One serving (1/${r.servings} of the recipe) of ${r.title} (${r.titleZh}), made from: ${items}`;
+    .join("; ");
+  return (
+    "Estimate each ingredient below as its own entry, for exactly the amount stated (raw, as used in " +
+    `cooking). Together they make one serving of ${r.title} (${r.titleZh}): ${items}`
+  );
 }
 
 /**
