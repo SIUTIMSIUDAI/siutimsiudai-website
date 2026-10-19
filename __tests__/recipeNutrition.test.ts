@@ -76,6 +76,10 @@ describe("isNutritionFresh", () => {
     expect(isNutritionFresh({ ...SOY_CHICKEN, nutrition: estimate("chicken|197|g;dark soy sauce|3.8|ml;ginger|0.8|piece") })).toBe(false);
   });
 
+  it("is stale when it was made with the v2 request (cooked values, bone counted), so it runs again", () => {
+    expect(isNutritionFresh({ ...SOY_CHICKEN, nutrition: estimate("v2:chicken|197|g;dark soy sauce|3.8|ml;ginger|0.8|piece") })).toBe(false);
+  });
+
   it("is stale with no estimate, or one made from different ingredients", () => {
     expect(isNutritionFresh({ ...SOY_CHICKEN, nutrition: null })).toBe(false);
     expect(isNutritionFresh({ ...SOY_CHICKEN })).toBe(false);
@@ -87,9 +91,11 @@ describe("oneServingRequest", () => {
   // Owner, 2026-10-19: the traditional 豉油雞 came back at 280 kcal, below its skinless-breast
   // version (300). Asked about "one serving of <dish>", the estimator's rule 1 treats it as one dish
   // and its rule 3 gives a typical serving, ignoring the amounts. So each ingredient is its own entry.
+  // Then (v3) the numbers matched cooked meat for raw weights (62 g protein from 197 g of raw breast)
+  // and counted a whole chicken's bone as meat, so the request says raw values and edible part.
   it("asks for every ingredient as its own entry, at exactly one serving's amount", () => {
     expect(oneServingRequest(SOY_CHICKEN)).toBe(
-      "Estimate each ingredient below as its own entry, for exactly the amount stated (raw, as used in cooking). Together they make one serving of Soy Sauce Braised Chicken (豉油雞): chicken 197 g; dark soy sauce 3.8 ml; ginger 0.8 piece",
+      "Estimate each ingredient below as its own entry, for exactly the amount stated. Amounts are raw, before cooking: use raw nutrition values, and where a weight includes bone, count only the edible part. Together they make one serving of Soy Sauce Braised Chicken (豉油雞): chicken 197 g; dark soy sauce 3.8 ml; ginger 0.8 piece",
     );
   });
 });

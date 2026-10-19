@@ -17,7 +17,8 @@ function perServing(quantity: number, servings: number): number {
 
 // Bumped whenever the request below changes enough that saved estimates should be redone. v2: each
 // ingredient is its own entry (2026-10-19); estimates from the one-dish request carry no version.
-const REQUEST_VERSION = "v2";
+// v3: raw values and edible part only (2026-10-19).
+const REQUEST_VERSION = "v3";
 
 /**
  * Fingerprint of the one-serving ingredient list. Identical for any serving count of the same dish,
@@ -41,14 +42,19 @@ export function isNutritionFresh(r: Pick<Recipe, "servings" | "ingredients" | "n
  * about "one serving of <dish>", the estimator files it as a single dish (its rule 1) and answers
  * with a typical serving (rule 3), ignoring the amounts. That put the traditional 豉油雞 (skin-on
  * chicken, rock sugar) below its skinless-breast version (owner's phone, 2026-10-19).
+ *
+ * Recipe amounts are raw weights, and a whole chicken's includes its bone. Told only "(raw, as used
+ * in cooking)", the estimator still used cooked-meat figures (62 g protein from 197 g of raw breast)
+ * and counted the bone as meat, so both are spelt out.
  */
 export function oneServingRequest(r: Pick<Recipe, "title" | "titleZh" | "servings" | "ingredients">): string {
   const items = r.ingredients
     .map((i) => `${i.name.trim()} ${perServing(i.quantity, r.servings)} ${i.unit}`)
     .join("; ");
   return (
-    "Estimate each ingredient below as its own entry, for exactly the amount stated (raw, as used in " +
-    `cooking). Together they make one serving of ${r.title} (${r.titleZh}): ${items}`
+    "Estimate each ingredient below as its own entry, for exactly the amount stated. Amounts are raw, " +
+    "before cooking: use raw nutrition values, and where a weight includes bone, count only the " +
+    `edible part. Together they make one serving of ${r.title} (${r.titleZh}): ${items}`
   );
 }
 
