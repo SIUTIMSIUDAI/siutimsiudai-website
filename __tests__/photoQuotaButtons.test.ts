@@ -25,12 +25,13 @@ describe("photoButtons", () => {
   it("says it in English too", () => {
     const en = { snap: "Snap your dish", upload: "Upload a photo", recognising: "Recognising…" };
     expect(photoButtons(2, false, en, EN).camera.label).toBe("Snap your dish · 2 left this week");
-    expect(photoButtons(0, false, en, EN).camera.label).toBe("Free scans used up · Go Pro");
+    expect(photoButtons(0, false, en, EN).camera.label).toBe("Used up this week · Go Pro / Max");
   });
 
-  it("locks both buttons once the week's free scans are used up", () => {
+  // Owner, 2026-10-19: say why it's locked AND name both paid plans, so the button doesn't hide Max.
+  it("locks both buttons once the week's free scans are used up, offering both paid plans", () => {
     expect(photoButtons(0, false, LABELS, ZH)).toEqual({
-      camera: { label: "本週免費次數用晒 · 升級 Pro", icon: "lock-closed" },
+      camera: { label: "本週次數用晒 · 升級 Pro／Max", icon: "lock-closed" },
       upload: { label: "揀返張相入數", icon: "lock-closed" },
     });
   });

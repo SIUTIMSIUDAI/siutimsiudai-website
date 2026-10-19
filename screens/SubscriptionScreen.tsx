@@ -14,6 +14,7 @@ import {
   useSubscriptionStore,
 } from "@/stores/useSubscriptionStore";
 import { resolvePaywallCta } from "@/utils/paywallCta";
+import { FAMILY_MAX_MEMBERS } from "@/utils/familyInvite";
 import { purchaseSuccessBody, trialCta, trialPriceLine } from "@/utils/freeTrial";
 import {
   configureRevenueCat,
@@ -199,15 +200,27 @@ export function SubscriptionScreen() {
         "Bilingual helper sync and direct e-grocer pipelines.",
         "雙語工人同步，直駁網上超市。",
       ),
+      // Each Max line is backed by real code (owner, 2026-10-19): the invite cap is FAMILY_MAX_MEMBERS
+      // minus the manager's own seat (createFamilyInvite + the accept_invite seat cap), add/remove is
+      // removeMember / revokeInvite, the member view is FamilyMemberLogScreen, and the language line
+      // is the per-phone locale with each meal shown in the viewer's language (MemberEntryRow).
+      // Members keep their own plan: Max is not shared, so never say they "use one Max account".
       features: [
         tl("Everything in Pro", "Pro 全部功能"),
         tl(
-          "Bilingual family & helper sync: invite members, see what each one eats",
-          "雙語家庭同工人同步：邀請成員，睇到每位食咗乜",
+          `Invite up to ${FAMILY_MAX_MEMBERS - 1} family members or helpers; add or remove any time`,
+          `邀請最多 ${FAMILY_MAX_MEMBERS - 1} 位屋企人或工人，隨時加減成員`,
         ),
+        tl("See what each member eats, with nutrients, day by day", "睇到每位成員每日食咗乜同營養"),
+        tl("In English or Chinese, so your helper can use it too", "中英雙語，工人姐姐用英文都得"),
+        // What the tap really does (components/CartExportSheet.tsx, utils/cartExport.ts): lists the
+        // recipe's missing ingredients, copies them, opens the store (HKTVmall on a search for the
+        // whole list; Wellcome and PARKnSHOP on their storefront, as their search can't combine
+        // terms), then a checklist searches that store for one ingredient per tap. It never adds to
+        // a cart, orders or arranges delivery, so never say 落單, 加入購物車 or 送貨 here.
         tl(
-          "Shop what you're missing at HKTVmall, Wellcome or ParknShop",
-          "爭咩即刻去 HKTVmall、惠康、百佳買",
+          "Search HKTVmall, Wellcome or ParknShop for what you're missing, one tap per item",
+          "爭咩材料，逐樣一撳去 HKTVmall、惠康、百佳搵",
         ),
       ],
       cta: tl("Run the household", "話事人上場"),
@@ -217,8 +230,8 @@ export function SubscriptionScreen() {
       cardClass: "border-2 border-accent bg-[#FCF3DD]",
       successTitle: tl("You're the boss now", "你係老細"),
       successBody: tl(
-        "Max is on. Sync the whole household and push carts straight to the e-grocers.",
-        "Max 已開通，全家同步，直接送貨籃畀網上超市。",
+        "Max is on. Sync the whole household and search the e-grocers for what you're missing.",
+        "Max 已開通，全家同步，爭咩材料一撳去網上超市搵。",
       ),
     },
   ];

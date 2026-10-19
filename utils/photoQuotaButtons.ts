@@ -34,7 +34,10 @@ export function photoButtons(
   } else if (!Number.isFinite(remaining)) {
     camera = { label: labels.snap, icon: "camera" };
   } else if (usedUp) {
-    camera = { label: tl("Free scans used up · Go Pro", "本週免費次數用晒 · 升級 Pro"), icon: "lock-closed" };
+    camera = {
+      label: tl("Used up this week · Go Pro / Max", "本週次數用晒 · 升級 Pro／Max"),
+      icon: "lock-closed",
+    };
   } else {
     camera = {
       label: `${labels.snap} · ${tl(`${remaining} left this week`, `本週剩 ${remaining} 次`)}`,
