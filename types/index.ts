@@ -191,11 +191,28 @@ export interface Recipe {
   // Set once a URL-imported recipe has had its English title/ingredients/steps rendered into
   // Traditional Chinese by translationService, so the lazy translation runs at most once.
   zhTranslated?: boolean;
+  // One serving's estimated nutrition, filled in the first time the recipe is opened.
+  nutrition?: RecipeNutrition | null;
 }
 
 export interface RecipeHealthySnapshot {
   ingredients: RecipeIngredient[];
   steps: RecipeStep[];
+  // The estimate for the original ingredients, so undoing the swaps brings it back without a call.
+  nutrition?: RecipeNutrition | null;
+}
+
+/**
+ * One serving's estimated nutrition, saved on the recipe (see utils/recipeNutrition.ts). `basis`
+ * fingerprints the one-serving ingredient list it was estimated from: a changed list is estimated
+ * again, a rescaled one (same serving, more servings) is not.
+ */
+export interface RecipeNutrition {
+  perServing: MacroNutrients;
+  // The five vitamins and minerals the diary tracks, or null when the estimator returned none.
+  micros: { iron: number; calcium: number; potassium: number; vitaminC: number; vitaminD: number } | null;
+  basis: string;
+  estimatedAt: string; // ISO
 }
 
 export interface PantryItem {

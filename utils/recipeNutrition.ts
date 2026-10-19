@@ -1,0 +1,113 @@
+import type { EntryMicronutrients, MacroNutrients, Recipe } from "@/types";
+import { TRACKED_MICRO_KEYS, type MicroTotals } from "@/utils/micros";
+
+// The recipe card answers two questions about ONE serving: does it fit what's left of today's
+// calories, and what does it give you? Everything the card shows is computed here, pure, so the
+// numbers a cook reads are unit-tested. The estimate itself comes from the meal estimator
+// (services/recipeNutritionService.ts) and is saved on the recipe with a fingerprint (`basis`).
+
+// One serving's amount, rounded the same way for the fingerprint and the request: whole at 10 and
+// above, one decimal below. The epsilon keeps float noise from the store's round2 scaling (3.7499…)
+// on the right side of a half, so rescaling a recipe never looks like an ingredient change.
+function perServing(quantity: number, servings: number): number {
+  const per = quantity / Math.max(1, servings);
+  return per >= 10 ? Math.round(per + 1e-9) : Math.round(per * 10 + 1e-9) / 10;
+}
+
+/**
+ * Fingerprint of the one-serving ingredient list. Identical for any serving count of the same dish,
+ * different once an ingredient or its amount per serving changes. Chinese names are left out, so
+ * translating a recipe never triggers a new estimate.
+ */
+export function nutritionBasis(r: Pick<Recipe, "servings" | "ingredients">): string {
+  return r.ingredients
+    .map((i) => `${i.name.trim().toLowerCase()}|${perServing(i.quantity, r.servings)}|${i.unit}`)
+    .sort()
+    .join(";");
+}
+
+/** True when the saved estimate was made from this exact one-serving ingredient list. */
+export function isNutritionFresh(r: Pick<Recipe, "servings" | "ingredients" | "nutrition">): boolean {
+  return !!r.nutrition && r.nutrition.basis === nutritionBasis(r);
+}
+
+/** What the meal estimator is asked: one serving, ingredient by ingredient, with amounts. */
+export function oneServingRequest(r: Pick<Recipe, "title" | "titleZh" | "servings" | "ingredients">): string {
+  const items = r.ingredients
+    .map((i) => `${i.name.trim()} ${perServing(i.quantity, r.servings)} ${i.unit}`)
+    .join(", ");
+  return `One serving (1/${r.servings} of the recipe) of ${r.title} (${r.titleZh}), made from: ${items}`;
+}
+
+/**
+ * Add the estimator's items into one serving. Null when there is nothing usable (no items, or no
+ * calories at all): that is a failed estimate, never a 0 kcal dish. `micros` is null when no item
+ * carried any, so the card hides the vitamins rather than showing invented zeros.
+ */
+export function sumServing(
+  items: Array<MacroNutrients & { micros?: EntryMicronutrients }>,
+): { perServing: MacroNutrients; micros: MicroTotals | null } | null {
+  if (items.length === 0) return null;
+  const totals: MacroNutrients = { calories: 0, protein: 0, carbs: 0, fat: 0, fiber: 0 };
+  for (const i of items) {
+    totals.calories += i.calories;
+    totals.protein += i.protein;
+    totals.carbs += i.carbs;
+    totals.fat += i.fat;
+    totals.fiber += i.fiber;
+  }
+  if (!(totals.calories > 0)) return null;
+  const withMicros = items.filter((i) => i.micros);
+  if (withMicros.length === 0) return { perServing: totals, micros: null };
+  const micros = {} as MicroTotals;
+  for (const k of TRACKED_MICRO_KEYS) micros[k] = withMicros.reduce((s, i) => s + (i.micros?.[k] ?? 0), 0);
+  return { perServing: totals, micros };
+}
+
+export interface ServingVerdict {
+  /** Today's eaten calories plus this serving stay at or under the daily target. */
+  fits: boolean;
+  /** Calories left today before this serving (negative once already over). */
+  left: number;
+  /** Calories left after eating it. */
+  after: number;
+  /** How far over the daily target eating it would go (0 when it fits). */
+  over: number;
+  /** The bar: today's eaten calories, then this serving, as shares of the target (they never overflow). */
+  eatenShare: number;
+  dishShare: number;
+}
+
+const clamp = (n: number, min: number, max: number) => Math.min(max, Math.max(min, n));
+
+/** Whether one serving fits what's left of today's calories, with the numbers the card shows. */
+export function servingVerdict(kcal: number, eatenToday: number, dailyTarget: number): ServingVerdict {
+  if (!(dailyTarget > 0)) return { fits: true, left: 0, after: 0, over: 0, eatenShare: 0, dishShare: 0 };
+  const left = dailyTarget - eatenToday;
+  const over = Math.max(0, eatenToday + kcal - dailyTarget);
+  const eatenShare = clamp(eatenToday / dailyTarget, 0, 1);
+  return {
+    fits: over === 0,
+    left,
+    after: left - kcal,
+    over,
+    eatenShare,
+    dishShare: clamp(kcal / dailyTarget, 0, 1 - eatenShare),
+  };
+}
+
+/** A nutrient's share of its daily target, in percent, or null when there is no target to compare. */
+export function shareOfTarget(amount: number, target: number | null | undefined): number | null {
+  return target != null && target > 0 ? (amount / target) * 100 : null;
+}
+
+/** Whole percents, with "<1%" for a trace so a real amount never reads as nothing. */
+export function formatShare(pct: number): string {
+  return pct > 0 && pct < 1 ? "<1%" : `${Math.round(pct)}%`;
+}
+
+/** One decimal below 10 and whole above, except micrograms, which are always one decimal. */
+export function formatAmount(value: number, unit: "g" | "mg" | "mcg"): string {
+  if (unit === "mcg") return `${value.toFixed(1)}mcg`;
+  return `${value < 10 ? value.toFixed(1) : Math.round(value)}${unit}`;
+}
