@@ -11,6 +11,7 @@ import { IngredientRow } from "@/components/IngredientRow";
 import { SubstitutionSheet } from "@/components/SubstitutionSheet";
 import { CartExportButton } from "@/components/CartExportButton";
 import { CartExportSheet } from "@/components/CartExportSheet";
+import { RecipeNutritionCard } from "@/components/RecipeNutritionCard";
 import { MissingIngredientsCallout } from "@/components/MissingIngredientsCallout";
 import { PlanPickerSheet } from "@/components/PlanPickerSheet";
 import { ConfirmDialog } from "@/components/ConfirmDialog";
@@ -150,6 +151,9 @@ export default function RecipeDetailScreen() {
             </View>
           </View>
         </View>
+
+        {/* One serving: does it fit today, and what does it give you (calories free, the rest Pro). */}
+        <RecipeNutritionCard recipe={recipe} />
 
         <View className="gap-4 rounded-2xl border border-[#E4DCCB] bg-surface p-4">
           <View className="flex-row items-center justify-between">
