@@ -1,6 +1,14 @@
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
-import { HealthySwap, Recipe, RecipeIngredient, RecipeSourceType, StructuredRecipe, Substitution } from "@/types";
+import {
+  HealthySwap,
+  Recipe,
+  RecipeIngredient,
+  RecipeNutrition,
+  RecipeSourceType,
+  StructuredRecipe,
+  Substitution,
+} from "@/types";
 import { SAMPLE_RECIPES } from "@/constants/sampleRecipes";
 import { translationService } from "@/services/translationService";
 import { newId } from "@/utils/id";
@@ -35,6 +43,8 @@ interface RecipeState {
   applyHealthySwaps: (recipeId: string, swaps: HealthySwap[]) => void;
   revertHealthySwaps: (recipeId: string) => void;
   translateRecipeToZh: (id: string) => Promise<void>;
+  /** Save one serving's estimated nutrition on a recipe (see utils/recipeNutrition.ts). */
+  setRecipeNutrition: (recipeId: string, nutrition: RecipeNutrition) => void;
 
   getRecipe: (id: string) => Recipe | undefined;
 }
@@ -146,10 +156,12 @@ export const useRecipeStore = create<RecipeState>()(
         set((state) => ({
           recipes: state.recipes.map((r) => {
             if (r.id !== recipeId || swaps.length === 0) return r;
+            // The snapshot also keeps the original's nutrition estimate, so undoing the swaps brings
+            // it back instead of asking the estimator about the original dish all over again.
             const snapshot =
               r.healthyApplied && r.healthySnapshot
                 ? r.healthySnapshot
-                : { ingredients: r.ingredients, steps: r.steps };
+                : { ingredients: r.ingredients, steps: r.steps, nutrition: r.nutrition ?? null };
             const byId = new Map(swaps.map((s) => [s.ingredientId, s]));
             const ingredients: RecipeIngredient[] = r.ingredients.map((ing) => {
               const s = byId.get(ing.id);
@@ -183,6 +195,7 @@ export const useRecipeStore = create<RecipeState>()(
               ...r,
               ingredients: r.healthySnapshot.ingredients,
               steps: r.healthySnapshot.steps,
+              nutrition: r.healthySnapshot.nutrition ?? null,
               healthyApplied: false,
               healthySnapshot: null,
             };
@@ -239,6 +252,11 @@ export const useRecipeStore = create<RecipeState>()(
           }),
         }));
       },
+
+      setRecipeNutrition: (recipeId, nutrition) =>
+        set((state) => ({
+          recipes: state.recipes.map((r) => (r.id === recipeId ? { ...r, nutrition } : r)),
+        })),
 
       getRecipe: (id) => get().recipes.find((r) => r.id === id),
     }),
