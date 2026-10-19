@@ -28,7 +28,9 @@ export interface RetailerConfig {
   // assumed, because the two engines behave in opposite ways:
   //
   //   HKTVmall  `keyword=雞蛋 老抽` -> 200, title "雞蛋 老抽 | HKTVmall", both products on the page.
-  //             It ORs the terms and ranks, so one URL can carry the entire missing list.
+  //             Its WEBSITE ORs the terms and ranks. But the HKTVmall APP, which is what our
+  //             universal link actually opens, answers 「系統異常 沒有搜尋結果」 to "Egg Soy sauce"
+  //             (owner's phone, 2026-10-19). So it is false too: one ingredient per search.
   //   Wellcome  the same trick fails, and fails quietly: the page still returns 200, but it reads
   //             「很抱歉，沒有找到 "雞蛋 老抽" 商品，為您推薦其他的商品：」 and then fills the screen
   //             with unrelated recommendations. It matches the whole string as one phrase.
@@ -49,8 +51,8 @@ export interface RetailerConfig {
   appSearchTemplate?: string;
 }
 
-// Fixed display order for the store picker: HKTVmall first, since it is the only one that can search
-// the whole missing list at once.
+// Fixed display order for the store picker. All three are now shopped the same way, one ingredient
+// per search from the checklist.
 export const RETAILER_ORDER: GroceryRetailer[] = ["hktvmall", "wellcome", "parknshop"];
 
 export const RETAILERS: Record<GroceryRetailer, RetailerConfig> = {
@@ -68,7 +70,8 @@ export const RETAILERS: Record<GroceryRetailer, RetailerConfig> = {
     // HK Shopping Platform"). `?q=` never returned results, which is exactly why this button used to
     // dump people on an unrelated category page.
     webSearchTemplate: "https://www.hktvmall.com/hktv/en/search_a/?keyword={q}",
-    supportsMultiTermSearch: true, // verified: one URL can carry the whole missing list
+    // The website combines terms, but the app our link opens errors on them (系統異常, 2026-10-19).
+    supportsMultiTermSearch: false,
     homeUrl: "https://www.hktvmall.com/", // covered by { "/": "*" }, so it opens the app
     // No appSearchTemplate, and none is wanted. HKTVmall's apple-app-site-association declares
     // { "/": "*" } for com.hktv.ios.hktvmall, so the app claims EVERY path on this domain and iOS

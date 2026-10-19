@@ -1,5 +1,5 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
-import { ActivityIndicator, Modal, Pressable, ScrollView, View } from "react-native";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { ActivityIndicator, AppState, Modal, Pressable, ScrollView, View } from "react-native";
 import * as Clipboard from "expo-clipboard";
 import * as Linking from "expo-linking";
 import { Ionicons } from "@expo/vector-icons";
@@ -17,6 +17,7 @@ import {
 } from "@/utils/cartExport";
 import { openStoreUrl } from "@/utils/storeLauncher";
 import { RETAILER_ORDER, RETAILERS } from "@/constants/retailers";
+import { canonicalizeIngredient } from "@/constants/ingredientDictionary";
 import { tapLight } from "@/utils/haptics";
 import { GroceryRetailer, Recipe } from "@/types";
 
@@ -33,14 +34,16 @@ interface Props {
  * pick one. Step 2 is the shopping run itself: the recipe's still-missing ingredients (pantry-aware)
  * as a checklist, in that store's language, one tap per ingredient.
  *
- * Step 2 exists because of a limit in the stores, not in us. Only HKTVmall's search engine ORs
- * several terms, so only it can be handed the whole list in one URL; Wellcome matches a joined
- * string as a single phrase and returns nothing. Picking one ingredient to search and dropping the
- * rest is the behaviour this replaces. So the store opens once, and the checklist carries the
- * remaining ingredients one deliberate tap at a time, ticking off what is already in the basket.
+ * Step 2 exists because of a limit in the stores, not in us. None of them can be handed the whole
+ * list in one search: Wellcome matches a joined string as a single phrase, and the HKTVmall app our
+ * link opens answers 系統異常 to one (2026-10-19). So the store opens once, and the checklist carries
+ * the ingredients one deliberate tap at a time.
  *
- * Tapping a store therefore no longer closes the sheet. Leaving for a store and coming back to a
- * list that remembers where you were is the whole point.
+ * Owner, 2026-10-19: search one item, pick it in the store, come back, and it's ticked for you. The
+ * app can't see the store's cart, so the signal is the round trip itself: a search remembers its
+ * ingredient (markSearching), and when the app comes back from the background it is ticked
+ * (completePending) with a line saying so and how to untick. Coming back to a list that remembers
+ * where you were is the whole point, so tapping a store never closes the sheet.
  */
 export function CartExportSheet({ visible, recipe, onClose }: Props) {
   const { tl } = useLocale();
@@ -54,8 +57,13 @@ export function CartExportSheet({ visible, recipe, onClose }: Props) {
   const isChecked = useCartRunStore((s) => s.isChecked);
   const reconcile = useCartRunStore((s) => s.reconcile);
   const clearRun = useCartRunStore((s) => s.clearRun);
+  const markSearching = useCartRunStore((s) => s.markSearching);
+  const clearPending = useCartRunStore((s) => s.clearPending);
+  const completePending = useCartRunStore((s) => s.completePending);
 
   const run = runs[recipe.id];
+  // The ingredient just ticked on coming back from the store, named in a line with how to untick it.
+  const [autoTicked, setAutoTicked] = useState<string | null>(null);
   const [exporting, setExporting] = useState<GroceryRetailer | null>(null);
   // Set when a store genuinely would not open, so the sheet can say so instead of looking broken.
   const [failedStore, setFailedStore] = useState<GroceryRetailer | null>(null);
@@ -65,17 +73,53 @@ export function CartExportSheet({ visible, recipe, onClose }: Props) {
 
   const names = useMemo(() => missing.map((m) => m.name), [missing]);
 
+  // Back from the store: tick the ingredient they went for and say so, in the store's language.
+  const tickOnReturn = useCallback(() => {
+    const key = completePending(recipe.id);
+    if (!key) return;
+    const item = missing.find((m) => canonicalizeIngredient(m.name) === key);
+    const retailerId = useCartRunStore.getState().runs[recipe.id]?.retailer;
+    if (item && retailerId) setAutoTicked(searchTermFor(item, RETAILERS[retailerId].searchLanguage));
+  }, [completePending, recipe.id, missing]);
+
   useEffect(() => {
     if (!visible) return;
-    // A fresh open should not inherit the last run's "couldn't open" error.
-    setFailedStore(null);
     // Yesterday's ticks must not survive a pantry change. If the fridge gained soy sauce overnight
     // it is no longer on this list, so its tick would inflate "3 of 4" on a list of three.
     reconcile(recipe.id, names);
+  }, [visible, recipe.id, names, reconcile]);
+
+  // Once per open, never on a list change, so a pantry update can't wipe the notice they came back to.
+  useEffect(() => {
+    if (!visible) return;
+    // A fresh open should not inherit the last run's "couldn't open" error or tick notice.
+    setFailedStore(null);
+    setAutoTicked(null);
+    // A search still pending here means the OS closed us while they were at the store, so they
+    // have come back by definition: tick it now.
+    tickOnReturn();
     // Reopen straight onto the run if one is already going, so leaving for the store and coming
     // back lands you back on your list rather than on the store picker you already answered.
     setOnRun(!!useCartRunStore.getState().runs[recipe.id]);
-  }, [visible, recipe.id, names, reconcile]);
+    // tickOnReturn is deliberately left out: it changes with the list, and this must run per open.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [visible, recipe.id]);
+
+  // Only a real trip counts: the app went to the background while a search was pending and is now
+  // active again. A notification shade or a system prompt (inactive, never background) ticks nothing.
+  const leftForStore = useRef(false);
+  useEffect(() => {
+    if (!visible) return;
+    const sub = AppState.addEventListener("change", (next) => {
+      if (next === "background") {
+        if (useCartRunStore.getState().runs[recipe.id]?.pendingKey) leftForStore.current = true;
+      } else if (next === "active" && leftForStore.current) {
+        leftForStore.current = false;
+        tickOnReturn();
+      }
+    });
+    return () => sub.remove();
+  }, [visible, recipe.id, tickOnReturn]);
 
   const openUrls = useCallback(async (urls: { deepLinkUrl: string; webUrl: string }) => {
     const outcome = await openStoreUrl(urls, Linking);
@@ -110,10 +154,17 @@ export function CartExportSheet({ visible, recipe, onClose }: Props) {
 
   const handleSearchItem = async (item: (typeof missing)[number], retailer: GroceryRetailer) => {
     setExporting(retailer);
+    setAutoTicked(null);
+    // Remember what they went for BEFORE leaving, so the tick lands even if they come back before
+    // the open call has returned.
+    markSearching(recipe.id, item.name);
     try {
       const urls = buildItemSearchUrl(RETAILERS[retailer], item);
       const outcome = await openUrls(urls);
-      if (outcome === "failed") setFailedStore(retailer);
+      if (outcome === "failed") {
+        clearPending(recipe.id);
+        setFailedStore(retailer);
+      }
     } finally {
       setExporting(null);
     }
@@ -182,8 +233,8 @@ export function CartExportSheet({ visible, recipe, onClose }: Props) {
                       `入咗 ${doneCount} / ${missing.length} 樣。成張單搵晒喇，加咗入車就剔走佢。`,
                     )
                   : tl(
-                      `${doneCount} of ${missing.length} in the basket. Work through them one at a time.`,
-                      `入咗 ${doneCount} / ${missing.length} 樣。逐樣慢慢搞掂佢。`,
+                      `${doneCount} of ${missing.length} ticked. Search one at a time: add it to your cart in the store, come back, and we'll tick it.`,
+                      `剔咗 ${doneCount} / ${missing.length} 樣。逐樣搵：喺間鋪加咗入車，返嚟就自動幫你剔。`,
                     )
                 : tl(
                     `${missing.length} still short. Pick a store to send the list.`,
@@ -205,6 +256,23 @@ export function CartExportSheet({ visible, recipe, onClose }: Props) {
               </View>
             ) : showRun ? (
               <View className="gap-3">
+                {/* We tick on the round trip, not on the store's cart, which we can't see. So say
+                    what we ticked and how to take it back, right where they land. */}
+                {autoTicked && (
+                  <View
+                    accessibilityLiveRegion="polite"
+                    className="flex-row items-start gap-2 rounded-2xl bg-surface-sunken p-3"
+                  >
+                    <Ionicons name="checkmark-circle" size={16} color={colors.jade} />
+                    <ScalableText className="flex-1 text-sm text-ink">
+                      {tl(
+                        `Ticked ${autoTicked}. Didn't get it? Tap its box to untick.`,
+                        `已幫你剔咗${autoTicked}。未買到？撳返個格就取消。`,
+                      )}
+                    </ScalableText>
+                  </View>
+                )}
+
                 <View>
                   {missing.map((item) => {
                     const term = searchTermFor(item, runRetailer.searchLanguage);
@@ -223,6 +291,8 @@ export function CartExportSheet({ visible, recipe, onClose }: Props) {
                           onPress={() => {
                             tapLight();
                             toggleItem(recipe.id, item.name);
+                            // They've acted on the ticks themselves, so the "we ticked X" line is spent.
+                            setAutoTicked(null);
                           }}
                           className="h-11 w-11 items-center justify-center active:opacity-70"
                         >
@@ -400,8 +470,8 @@ export function CartExportSheet({ visible, recipe, onClose }: Props) {
                   <Ionicons name="clipboard-outline" size={14} color={colors.inkFaint} />
                   <ScalableText className="flex-1 text-xs text-ink-faint">
                     {tl(
-                      "We'll copy the full list and open the store, then tick items off here as you shop.",
-                      "我哋會複製成張清單再打開間鋪，之後喺呢度逐樣剔走。",
+                      "We'll copy the full list and open the store. Then search here one item at a time, and we'll tick each one when you come back.",
+                      "我哋會複製成張清單再打開間鋪。之後喺呢度逐樣搵，每次返嚟就自動幫你剔。",
                     )}
                   </ScalableText>
                 </View>

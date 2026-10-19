@@ -20,6 +20,9 @@ import { persistStorage } from "./persistStorage";
 export interface CartRun {
   retailer: GroceryRetailer;
   checkedKeys: string[];
+  // The ingredient the shopper last went to the store to search for (canonical key), ticked when they
+  // come back. Saved with the run, so it still ticks if the OS closed us while they shopped.
+  pendingKey?: string;
 }
 
 interface CartRunState {
@@ -42,6 +45,16 @@ interface CartRunState {
   reconcile: (recipeId: string, ingredientNames: string[]) => void;
   /** Finish the run and forget it, so the next visit starts clean. */
   clearRun: (recipeId: string) => void;
+  /** Remember the ingredient the shopper is leaving for the store to search for. */
+  markSearching: (recipeId: string, ingredientName: string) => void;
+  /** Forget it again, e.g. because the store never opened. */
+  clearPending: (recipeId: string) => void;
+  /**
+   * The shopper is back from the store: tick the ingredient they went for (never untick it) and forget
+   * it. Returns its canonical key, or null when nothing was pending. The app can't see the store's
+   * cart, so coming back is the signal (owner, 2026-10-19); unticking stays one tap away.
+   */
+  completePending: (recipeId: string) => string | null;
 }
 
 export const useCartRunStore = create<CartRunState>()(
@@ -98,6 +111,32 @@ export const useCartRunStore = create<CartRunState>()(
           delete runs[recipeId];
           return { runs };
         }),
+
+      markSearching: (recipeId, ingredientName) =>
+        set((s) => {
+          const run = s.runs[recipeId];
+          if (!run) return s;
+          const pendingKey = canonicalizeIngredient(ingredientName);
+          return { runs: { ...s.runs, [recipeId]: { ...run, pendingKey } } };
+        }),
+
+      clearPending: (recipeId) =>
+        set((s) => {
+          const run = s.runs[recipeId];
+          if (!run?.pendingKey) return s;
+          const { pendingKey: _forgotten, ...rest } = run;
+          return { runs: { ...s.runs, [recipeId]: rest } };
+        }),
+
+      completePending: (recipeId) => {
+        const run = get().runs[recipeId];
+        const key = run?.pendingKey;
+        if (!run || !key) return null;
+        const { pendingKey: _done, ...rest } = run;
+        const checkedKeys = rest.checkedKeys.includes(key) ? rest.checkedKeys : [...rest.checkedKeys, key];
+        set((s) => ({ runs: { ...s.runs, [recipeId]: { ...rest, checkedKeys } } }));
+        return key;
+      },
     }),
     {
       name: "siutimsiudai-cart-run",

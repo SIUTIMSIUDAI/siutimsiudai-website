@@ -47,6 +47,12 @@ const MISSING: GroceryListItem[] = [
   gli({ name: "Shaoxing wine", nameZh: "紹興酒", quantity: 15, unit: "ml" }),
 ];
 
+// A store whose search ORs several terms. None of the three does today: HKTVmall's website did, but
+// its app answers 系統異常 to "Egg Soy sauce" opened through our link (owner's phone, 2026-10-19), so
+// it searches one item at a time like the others. The combining path stays tested for any store that
+// can, using HKTVmall's real URL shape.
+const COMBINING = { ...RETAILERS.hktvmall, supportsMultiTermSearch: true };
+
 describe("searchTermFor — the language rule", () => {
   it("hands HKTVmall (en) the English name", () => {
     expect(searchTermFor(MISSING[0], "en")).toBe("Chicken");
@@ -120,9 +126,7 @@ describe("searchQueryFor — how many ingredients one URL may carry", () => {
   it("gives a store that ORs terms the WHOLE missing list, not just the first line", () => {
     // This is the bug the shopping run exists to fix: four missing ingredients used to produce a
     // search for one of them, and the other three were silently dropped.
-    expect(searchQueryFor(RETAILERS.hktvmall, MISSING)).toBe(
-      "Chicken Dark soy sauce Ginger Shaoxing wine",
-    );
+    expect(searchQueryFor(COMBINING, MISSING)).toBe("Chicken Dark soy sauce Ginger Shaoxing wine");
   });
 
   it("gives a store that cannot combine exactly one term", () => {
@@ -140,7 +144,7 @@ describe("searchQueryFor — how many ingredients one URL may carry", () => {
 
 describe("buildSearchUrl — encoded, per-store language, per-store term count", () => {
   it("builds HKTVmall's real search URL: search_a/ + keyword=, never search?q=", () => {
-    const { webUrl, deepLinkUrl } = buildSearchUrl(RETAILERS.hktvmall, MISSING);
+    const { webUrl, deepLinkUrl } = buildSearchUrl(COMBINING, MISSING);
     // Path and parameter both come from HKTVmall's own header form. `search?q=` is what shipped
     // before and it silently redirected to an unrelated category page instead of searching.
     expect(webUrl).toBe(
@@ -215,9 +219,7 @@ describe("buildItemSearchUrl — one checklist row, one search", () => {
 
 describe("buildStoreEntryUrl — where tapping the store row itself lands", () => {
   it("sends a combining store straight to results for the entire list", () => {
-    expect(buildStoreEntryUrl(RETAILERS.hktvmall, MISSING).webUrl).toBe(
-      buildSearchUrl(RETAILERS.hktvmall, MISSING).webUrl,
-    );
+    expect(buildStoreEntryUrl(COMBINING, MISSING).webUrl).toBe(buildSearchUrl(COMBINING, MISSING).webUrl);
   });
 
   it("sends a non-combining store to its storefront, not a search for one arbitrary item", () => {
@@ -238,7 +240,7 @@ describe("buildStoreEntryUrl — where tapping the store row itself lands", () =
   });
 
   it("falls back to the storefront for a combining store when nothing is missing", () => {
-    expect(buildStoreEntryUrl(RETAILERS.hktvmall, []).webUrl).toBe("https://www.hktvmall.com/");
+    expect(buildStoreEntryUrl(COMBINING, []).webUrl).toBe("https://www.hktvmall.com/");
   });
 
   it("mirrors the web URL as the deep link, so the launcher skips the canOpenURL probe", () => {
@@ -249,12 +251,25 @@ describe("buildStoreEntryUrl — where tapping the store row itself lands", () =
   });
 });
 
+describe("HKTVmall searches one item at a time, like Wellcome and PARKnSHOP", () => {
+  it("no longer combines terms, because its app errors on a combined search", () => {
+    expect(RETAILERS.hktvmall.supportsMultiTermSearch).toBe(false);
+    expect(searchQueryFor(RETAILERS.hktvmall, MISSING)).toBe("Chicken");
+  });
+
+  it("opens its storefront from the store row, and searches each item from the checklist", () => {
+    expect(buildStoreEntryUrl(RETAILERS.hktvmall, MISSING).webUrl).toBe("https://www.hktvmall.com/");
+    expect(buildItemSearchUrl(RETAILERS.hktvmall, MISSING[1]).webUrl).toBe(
+      `https://www.hktvmall.com/hktv/en/search_a/?keyword=${encodeURIComponent("Dark soy sauce")}`,
+    );
+  });
+});
+
 describe("cartExportService.buildExport — language-correct clipboard + URLs", () => {
-  it("gives HKTVmall an English clipboard list and a search for the whole list", () => {
+  it("gives HKTVmall an English clipboard list and its storefront, like the other two", () => {
     const p = cartExportService.buildExport("hktvmall", MISSING);
     expect(p.clipboardText.split("\n")[0]).toBe("Chicken 400g");
-    expect(p.webUrl).toContain("search_a");
-    expect(p.webUrl).toContain(encodeURIComponent("Shaoxing wine")); // the LAST item, not just the first
+    expect(p.webUrl).toBe("https://www.hktvmall.com/");
     expect(p.retailer).toBe("hktvmall");
   });
 

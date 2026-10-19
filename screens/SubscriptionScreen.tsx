@@ -214,10 +214,10 @@ export function SubscriptionScreen() {
         tl("See what each member eats, with nutrients, day by day", "睇到每位成員每日食咗乜同營養"),
         tl("In English or Chinese, so your helper can use it too", "中英雙語，工人姐姐用英文都得"),
         // What the tap really does (components/CartExportSheet.tsx, utils/cartExport.ts): lists the
-        // recipe's missing ingredients, copies them, opens the store (HKTVmall on a search for the
-        // whole list; Wellcome and PARKnSHOP on their storefront, as their search can't combine
-        // terms), then a checklist searches that store for one ingredient per tap. It never adds to
-        // a cart, orders or arranges delivery, so never say 落單, 加入購物車 or 送貨 here.
+        // recipe's missing ingredients, copies them, opens the store's storefront (none of the three
+        // can search a combined list), then a checklist searches that store for one ingredient per
+        // tap and ticks it when the shopper comes back. It never adds to a cart, orders or arranges
+        // delivery, so never say 落單, 加入購物車 or 送貨 here.
         tl(
           "Search HKTVmall, Wellcome or ParknShop for what you're missing, one tap per item",
           "爭咩材料，逐樣一撳去 HKTVmall、惠康、百佳搵",
