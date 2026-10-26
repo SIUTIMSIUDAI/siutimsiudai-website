@@ -23,6 +23,7 @@ import { useFamilyPlanStore } from "@/stores/familyPlanStore";
 import { useNutritionStore } from "@/stores/nutritionStore";
 import { usePantryStore } from "@/stores/pantryStore";
 import type { GroceryListItem } from "@/types";
+import { shoppingSnapshot } from "@/utils/helperPlan";
 import type { PlanDish, PlanMember, PlanResult } from "@/types/familyPlan";
 import { addDays, weekStartOf } from "@/utils/dateRange";
 import { todayKey } from "@/utils/formatters";
@@ -55,6 +56,7 @@ export function FamilyPlanScreen() {
   const run = useFamilyPlanStore((s) => s.run);
   const setPortion = useFamilyPlanStore((s) => s.setPortion);
   const rememberLogged = useFamilyPlanStore((s) => s.rememberLogged);
+  const publishShoppingIfChanged = useFamilyPlanStore((s) => s.publishShoppingIfChanged);
   const addEntry = useNutritionStore((s) => s.addEntry);
   const pantry = usePantryStore((s) => s.items);
 
@@ -85,6 +87,30 @@ export function FamilyPlanScreen() {
     const hasThisWeek = snapshot.plans.some((p) => p.weekStart === thisWeek);
     setWeek(!hasThisWeek && endOfWeek ? nextWeek : thisWeek);
   }, [snapshot, week, today, thisWeek, nextWeek]);
+
+  // A helper opening the plan gets helper mode: her language, and nobody's nutrition.
+  useEffect(() => {
+    if (snapshot?.me.isHelper) router.replace("/helper");
+  }, [snapshot?.me.isHelper]);
+
+  // The planner's phone publishes each week's shopping list for the helper, because the pantry it
+  // subtracts lives here. Only when the family has a helper, a moment after the list settles, and only
+  // when it changed (the store keeps track).
+  const hasHelper = !!snapshot?.members.some((m) => m.isHelper);
+  useEffect(() => {
+    if (!snapshot || !hasHelper || !(snapshot.role === "manager" || snapshot.role === null)) return;
+    const timer = setTimeout(() => {
+      for (const p of snapshot.plans) {
+        const from = p.weekStart > today ? p.weekStart : today;
+        const list = weeklyShoppingList(
+          { dishes: p.dishes, members: snapshot.members, portions: p.portions, slots: snapshot.slots, fromDate: from },
+          pantry,
+        );
+        void publishShoppingIfChanged(p.id, shoppingSnapshot(list, from, new Date().toISOString()));
+      }
+    }, 1500);
+    return () => clearTimeout(timer);
+  }, [snapshot, hasHelper, pantry, today, publishShoppingIfChanged]);
 
   const selected = week ?? thisWeek;
   const plan = snapshot?.plans.find((p) => p.weekStart === selected) ?? null;
@@ -178,8 +204,13 @@ export function FamilyPlanScreen() {
       }
       if (planner) {
         for (const m of members) {
+          if (m.userId === myUserId) continue;
           const size = c.sizes[m.userId];
-          if (m.userId !== myUserId && size && size !== m.defaultSize) jobs.push(planService.setMemberSize(m.userId, size));
+          if (size && size !== m.defaultSize) jobs.push(planService.setMemberSize(m.userId, size));
+          const helper = c.helpers[m.userId];
+          if (helper && (helper.isHelper !== m.isHelper || helper.language !== m.helperLanguage)) {
+            jobs.push(planService.setMemberHelper(m.userId, helper.isHelper, helper.language));
+          }
         }
       }
       const failed = (await Promise.all(jobs)).find((r) => !r.ok);

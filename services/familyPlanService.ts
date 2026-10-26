@@ -1,6 +1,8 @@
 import { isSupabaseConfigured, supabase } from "./supabase";
 import {
   DEMO_FAMILY_EXCLUSIONS,
+  DEMO_HELPER_ID,
+  DEMO_HELPER_ME,
   DEMO_ME,
   DEMO_MEMBERS,
   DEMO_MY_USER_ID,
@@ -8,21 +10,33 @@ import {
   demoPool,
   demoWeekPlan,
 } from "@/constants/demoFamilyPlan";
-import { DEFAULT_PLAN_SLOTS, PORTION_SIZES, REGEN_LIMIT_PER_WEEK } from "@/constants/portionSizes";
+import { DEFAULT_PLAN_SLOTS, REGEN_LIMIT_PER_WEEK } from "@/constants/portionSizes";
 import type { MealType, PantryItem } from "@/types";
 import type {
   FamilyLogEntry,
   FamilyPlanSnapshot,
+  HelperLanguage,
+  HelperSnapshot,
   InboxEntry,
   MyPlanSettings,
   PlanFailReason,
+  PlanMember,
   PlanResult,
   PortionChoice,
   PortionSize,
+  ShoppingSnapshot,
+  TranslatedLanguage,
   WeekPlan,
 } from "@/types/familyPlan";
 import { addDays, weekStartOf } from "@/utils/dateRange";
-import { planFromRows, rosterFromRows } from "@/utils/familyPlanRows";
+import {
+  helperDishesFromRows,
+  myPlanSettingsFromRow,
+  planFromRows,
+  portionsFromRows,
+  rosterFromRows,
+  shoppingSnapshotFrom,
+} from "@/utils/familyPlanRows";
 import { daysToPlan, inboxEntryFrom, normaliseSlots } from "@/utils/weekPlan";
 
 /**
@@ -47,19 +61,26 @@ async function currentUserId(): Promise<string | null> {
 // --- Demo family ---------------------------------------------------------------------------------
 
 interface DemoState {
+  /** Whose phone the demo is: Ka Yan the planner, or Maria the helper. */
+  viewer: "planner" | "helper";
   slots: MealType[];
   me: MyPlanSettings;
-  members: typeof DEMO_MEMBERS;
+  helperMe: MyPlanSettings;
+  members: PlanMember[];
   plans: WeekPlan[];
+  shopping: Record<string, ShoppingSnapshot>;
   // How far each slot has been swapped through the demo library, so a swap always changes the dish.
   turns: Record<string, number>;
 }
 
 const freshDemo = (): DemoState => ({
+  viewer: "planner",
   slots: [...DEFAULT_PLAN_SLOTS],
   me: { ...DEMO_ME, exclusions: [...DEMO_ME.exclusions] },
+  helperMe: { ...DEMO_HELPER_ME, exclusions: [...DEMO_HELPER_ME.exclusions] },
   members: DEMO_MEMBERS.map((m) => ({ ...m })),
   plans: [],
+  shopping: {},
   turns: {},
 });
 
@@ -69,6 +90,14 @@ let demo = freshDemo();
 export function resetDemoFamilyPlan(): void {
   demo = freshDemo();
 }
+
+/** Look at the demo family from the planner's phone or from Maria's (helper mode). Previews and tests. */
+export function setDemoViewer(viewer: DemoState["viewer"]): void {
+  demo.viewer = viewer;
+}
+
+const demoMe = () => (demo.viewer === "helper" ? demo.helperMe : demo.me);
+const demoMyId = () => (demo.viewer === "helper" ? DEMO_HELPER_ID : DEMO_MY_USER_ID);
 
 const clone = <T>(v: T): T => JSON.parse(JSON.stringify(v));
 const demoExclusions = () => [...DEMO_FAMILY_EXCLUSIONS, ...demo.me.exclusions];
@@ -94,26 +123,25 @@ function demoNextDish(plan: WeekPlan, date: string, slot: MealType) {
 
 // --- Reading the plan ----------------------------------------------------------------------------
 
-/** The plan screen's data: roster, slots, this week's and next week's plans, and my own settings. */
-export async function getFamilyPlan(today: string): Promise<PlanResult<FamilyPlanSnapshot>> {
-  if (!live()) {
-    return {
-      ok: true,
-      value: clone({
-        role: "manager" as const,
-        groupId: "demo-group",
-        slots: demo.slots,
-        members: demo.members,
-        plans: demo.plans,
-        me: demo.me,
-        myUserId: DEMO_MY_USER_ID,
-      }),
-    };
-  }
+type Rows = Array<Record<string, unknown>>;
+
+interface FamilyBase {
+  uid: string;
+  groupId: string;
+  role: "manager" | "dependent";
+  members: PlanMember[];
+  slots: MealType[];
+  me: MyPlanSettings;
+  planRows: Rows;
+  portionRows: Rows;
+}
+
+// What both views of the plan read: who's in the family, the slots, my own settings, this week's and
+// next week's plans and their portions. "none" when the caller isn't in a family yet.
+async function loadFamily(today: string): Promise<PlanResult<FamilyBase | "none">> {
   const db = supabase!;
   const uid = await currentUserId();
   if (!uid) return fail("unavailable");
-
   const [{ data: rosterRows, error: rosterErr }, { data: memberships, error: memberErr }] = await Promise.all([
     db.rpc("family_plan_roster"),
     db.from("family_members").select("group_id, role").eq("user_id", uid),
@@ -121,21 +149,7 @@ export async function getFamilyPlan(today: string): Promise<PlanResult<FamilyPla
   if (rosterErr || memberErr) return fail("unavailable");
   const mine = (memberships ?? []) as Array<{ group_id: string; role: string }>;
   const membership = mine.find((m) => m.role === "manager") ?? mine[0];
-  if (!membership) {
-    // A Max user planning before anyone has joined: a family of one, made when they first save.
-    return {
-      ok: true,
-      value: {
-        role: null,
-        groupId: null,
-        slots: [...DEFAULT_PLAN_SLOTS],
-        members: [{ userId: uid, role: "manager", displayName: null, defaultSize: "medium" }],
-        plans: [],
-        me: { defaultSize: "medium", exclusions: [] },
-        myUserId: uid,
-      },
-    };
-  }
+  if (!membership) return { ok: true, value: "none" };
 
   const groupId = membership.group_id;
   const thisWeek = weekStartOf(today);
@@ -143,49 +157,159 @@ export async function getFamilyPlan(today: string): Promise<PlanResult<FamilyPla
     db.from("family_plan_settings").select("slots").eq("group_id", groupId).maybeSingle(),
     db
       .from("family_week_plans")
-      .select("id, week_start, generated_at, regen_used")
+      .select("id, week_start, generated_at, regen_used, shopping, shopping_at")
       .eq("group_id", groupId)
       .in("week_start", [thisWeek, addDays(thisWeek, 7)]),
-    db.from("family_member_settings").select("default_size, exclusions").eq("group_id", groupId).eq("user_id", uid).maybeSingle(),
+    db
+      .from("family_member_settings")
+      .select("default_size, exclusions, is_helper, helper_language, log_private")
+      .eq("group_id", groupId)
+      .eq("user_id", uid)
+      .maybeSingle(),
   ]);
   if (settingsRes.error || plansRes.error || meRes.error) return fail("unavailable");
-
-  const planRows = (plansRes.data ?? []) as Array<Record<string, unknown>>;
-  const planIds = planRows.map((p) => String(p.id));
-  let dishRows: Array<Record<string, unknown>> = [];
-  let portionRows: Array<Record<string, unknown>> = [];
-  if (planIds.length > 0) {
-    const [dishesRes, portionsRes] = await Promise.all([
-      db.from("family_plan_dishes").select("id, plan_id, plan_date, slot, recipe, locked, logged_at").in("plan_id", planIds),
-      db.from("family_plan_portions").select("plan_id, plan_date, slot, user_id, choice").in("plan_id", planIds),
-    ]);
-    if (dishesRes.error || portionsRes.error) return fail("unavailable");
-    dishRows = dishesRes.data ?? [];
+  const planRows = (plansRes.data ?? []) as Rows;
+  let portionRows: Rows = [];
+  if (planRows.length > 0) {
+    const portionsRes = await db
+      .from("family_plan_portions")
+      .select("plan_id, plan_date, slot, user_id, choice")
+      .in("plan_id", planRows.map((p) => String(p.id)));
+    if (portionsRes.error) return fail("unavailable");
     portionRows = portionsRes.data ?? [];
   }
-
-  const members = rosterFromRows((rosterRows ?? []) as Array<Record<string, unknown>>);
-  const me = (meRes.data ?? {}) as { default_size?: unknown; exclusions?: unknown };
+  const members = rosterFromRows((rosterRows ?? []) as Rows);
   const slots = normaliseSlots(settingsRes.data?.slots);
   return {
     ok: true,
     value: {
-      role: members.find((m) => m.userId === uid)?.role ?? (membership.role === "manager" ? "manager" : "dependent"),
+      uid,
       groupId,
-      slots: slots.length > 0 ? slots : [...DEFAULT_PLAN_SLOTS],
+      role: members.find((m) => m.userId === uid)?.role ?? (membership.role === "manager" ? "manager" : "dependent"),
       members,
-      plans: planRows.map((p) =>
+      slots: slots.length > 0 ? slots : [...DEFAULT_PLAN_SLOTS],
+      me: myPlanSettingsFromRow(meRes.data),
+      planRows,
+      portionRows,
+    },
+  };
+}
+
+/** The plan screen's data: roster, slots, this week's and next week's plans, and my own settings. */
+export async function getFamilyPlan(today: string): Promise<PlanResult<FamilyPlanSnapshot>> {
+  if (!live()) {
+    return {
+      ok: true,
+      value: clone({
+        role: demo.viewer === "helper" ? ("dependent" as const) : ("manager" as const),
+        groupId: "demo-group",
+        slots: demo.slots,
+        members: demo.members,
+        plans: demo.plans,
+        me: demoMe(),
+        myUserId: demoMyId(),
+      }),
+    };
+  }
+  const base = await loadFamily(today);
+  if (!base.ok) return base;
+  if (base.value === "none") {
+    // A Max user planning before anyone has joined: a family of one, made when they first save.
+    const uid = (await currentUserId()) ?? "";
+    return {
+      ok: true,
+      value: {
+        role: null,
+        groupId: null,
+        slots: [...DEFAULT_PLAN_SLOTS],
+        members: [
+          { userId: uid, role: "manager", displayName: null, defaultSize: "medium", isHelper: false, helperLanguage: "en", sharesLog: true },
+        ],
+        plans: [],
+        me: myPlanSettingsFromRow(null),
+        myUserId: uid,
+      },
+    };
+  }
+  const b = base.value;
+  let dishRows: Rows = [];
+  if (b.planRows.length > 0 && !b.me.isHelper) {
+    const dishesRes = await supabase!
+      .from("family_plan_dishes")
+      .select("id, plan_id, plan_date, slot, recipe, translations, locked, logged_at")
+      .in("plan_id", b.planRows.map((p) => String(p.id)));
+    if (dishesRes.error) return fail("unavailable");
+    dishRows = dishesRes.data ?? [];
+  }
+  return {
+    ok: true,
+    value: {
+      role: b.role,
+      groupId: b.groupId,
+      slots: b.slots,
+      members: b.members,
+      plans: b.planRows.map((p) =>
         planFromRows(
           p,
           dishRows.filter((d) => d.plan_id === p.id),
-          portionRows.filter((r) => r.plan_id === p.id),
+          b.portionRows.filter((r) => r.plan_id === p.id),
         ),
       ),
-      me: {
-        defaultSize: PORTION_SIZES.find((s) => s === me.default_size) ?? "medium",
-        exclusions: Array.isArray(me.exclusions) ? me.exclusions.filter((e): e is string => typeof e === "string") : [],
-      },
-      myUserId: uid,
+      me: b.me,
+      myUserId: b.uid,
+    },
+  };
+}
+
+/**
+ * Helper mode's data. Dishes come through helper_plan_dishes, which carries no nutrition at all, and
+ * the week's shopping list is the one the planner's phone last published.
+ */
+export async function getHelperPlan(today: string): Promise<PlanResult<HelperSnapshot>> {
+  if (!live()) {
+    return {
+      ok: true,
+      value: clone({
+        groupId: "demo-group",
+        myUserId: demoMyId(),
+        me: demoMe(),
+        members: demo.members,
+        slots: demo.slots,
+        plans: demo.plans.map((p) => ({
+          id: p.id,
+          weekStart: p.weekStart,
+          portions: p.portions,
+          dishes: p.dishes.map(({ perServing: _hidden, ...dish }) => dish),
+          shopping: demo.shopping[p.id] ?? null,
+        })),
+      }),
+    };
+  }
+  const base = await loadFamily(today);
+  if (!base.ok) return base;
+  if (base.value === "none") return fail("not_member");
+  const b = base.value;
+  let dishRows: Rows = [];
+  if (b.planRows.length > 0) {
+    const { data, error } = await supabase!.rpc("helper_plan_dishes", { p_plan_ids: b.planRows.map((p) => String(p.id)) });
+    if (error) return fail("unavailable");
+    dishRows = (data ?? []) as Rows;
+  }
+  return {
+    ok: true,
+    value: {
+      groupId: b.groupId,
+      myUserId: b.uid,
+      me: b.me,
+      members: b.members,
+      slots: b.slots,
+      plans: b.planRows.map((p) => ({
+        id: String(p.id),
+        weekStart: String(p.week_start),
+        portions: portionsFromRows(b.portionRows.filter((r) => r.plan_id === p.id)),
+        dishes: helperDishesFromRows(dishRows.filter((d) => d.plan_id === p.id)),
+        shopping: shoppingSnapshotFrom(p.shopping, p.shopping_at),
+      })),
     },
   };
 }
@@ -210,6 +334,7 @@ async function planErrorReason(error: unknown): Promise<PlanFailReason> {
       if (
         code === "max_required" ||
         code === "not_manager" ||
+        code === "not_member" ||
         code === "already_generated" ||
         code === "regen_limit" ||
         code === "locked"
@@ -343,11 +468,20 @@ export async function setPlanSlots(groupId: string, slots: MealType[]): Promise<
   return written(error);
 }
 
-/** My usual portion and the foods I don't eat. Only I can read or write these. */
+/**
+ * My usual portion, the foods I don't eat, my helper-mode language and whether my food diary is open
+ * to the planner. Only I can read or write these; whether I'm the helper is the planner's to set.
+ */
 export async function saveMySettings(groupId: string, settings: MyPlanSettings): Promise<PlanResult<true>> {
   if (!live()) {
-    demo.me = clone(settings);
-    demo.members = demo.members.map((m) => (m.userId === DEMO_MY_USER_ID ? { ...m, defaultSize: settings.defaultSize } : m));
+    const mine = { ...clone(settings), isHelper: demoMe().isHelper };
+    if (demo.viewer === "helper") demo.helperMe = mine;
+    else demo.me = mine;
+    demo.members = demo.members.map((m) =>
+      m.userId === demoMyId()
+        ? { ...m, defaultSize: settings.defaultSize, helperLanguage: settings.helperLanguage, sharesLog: settings.sharesLog }
+        : m,
+    );
     return ok;
   }
   const uid = await currentUserId();
@@ -357,8 +491,54 @@ export async function saveMySettings(groupId: string, settings: MyPlanSettings):
     user_id: uid,
     default_size: settings.defaultSize,
     exclusions: settings.exclusions,
+    helper_language: settings.helperLanguage,
+    log_private: !settings.sharesLog,
     updated_at: new Date().toISOString(),
   });
+  return written(error);
+}
+
+/**
+ * The planner marks a member as the family's helper (or not) and sets her helper-mode language.
+ * Marking her makes her food diary private; un-marking never reopens it (only she can).
+ */
+export async function setMemberHelper(userId: string, isHelper: boolean, language: HelperLanguage): Promise<PlanResult<true>> {
+  if (!live()) {
+    demo.members = demo.members.map((m) =>
+      m.userId === userId ? { ...m, isHelper, helperLanguage: language, sharesLog: isHelper ? false : m.sharesLog } : m,
+    );
+    if (userId === DEMO_HELPER_ID) demo.helperMe = { ...demo.helperMe, isHelper, helperLanguage: language };
+    return ok;
+  }
+  const { data, error } = await supabase!.rpc("set_member_helper", {
+    p_user_id: userId,
+    p_is_helper: isHelper,
+    p_language: language,
+  });
+  return error || data !== true ? fail("unavailable") : ok;
+}
+
+/** Put a plan's dishes into a helper's language with the AI, cached on each dish. */
+export async function translatePlan(planId: string, language: TranslatedLanguage): Promise<PlanResult<string>> {
+  // The demo dishes carry their Filipino and Indonesian words already.
+  if (!live()) return { ok: true, value: planId };
+  return invokePlanWeek({ mode: "translate", planId, language });
+}
+
+/**
+ * Publish the week's shopping list for helper mode. It is worked out on the planner's phone because the
+ * pantry it subtracts lives there.
+ */
+export async function publishShopping(planId: string, snapshot: ShoppingSnapshot): Promise<PlanResult<true>> {
+  if (!live()) {
+    demo.shopping[planId] = clone(snapshot);
+    return ok;
+  }
+  const { updatedAt, ...shopping } = snapshot;
+  const { error } = await supabase!
+    .from("family_week_plans")
+    .update({ shopping, shopping_at: updatedAt })
+    .eq("id", planId);
   return written(error);
 }
 
@@ -399,6 +579,15 @@ export async function logFamilyMeal(
   if (d.reason === "already_logged") return fail("already_logged");
   if (d.reason === "not_manager") return fail("not_manager");
   return fail("unknown");
+}
+
+/** Whether the planner may see this member's food diary: false once they keep it private (a helper). */
+export async function memberSharesDiary(userId: string): Promise<boolean> {
+  if (!live()) return demo.members.find((m) => m.userId === userId)?.sharesLog ?? true;
+  const { data, error } = await supabase!.rpc("family_plan_roster");
+  // Can't tell: the log screen behaves as it always has, and the database decides what it can read.
+  if (error) return true;
+  return rosterFromRows((data ?? []) as Rows).find((m) => m.userId === userId)?.sharesLog ?? true;
 }
 
 // --- The 食咗 inbox ------------------------------------------------------------------------------

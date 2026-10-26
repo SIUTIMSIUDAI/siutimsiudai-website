@@ -543,6 +543,72 @@
     "openDish": "打開食譜",
     "changePortion": "改份量",
     "listSep": "、",
-    "removeExclusion": "移除{{food}}"
+    "removeExclusion": "移除{{food}}",
+    "helperToggle": "係我哋姐姐",
+    "helperLanguage": "姐姐用嘅語言",
+    "helperHint": "佢會用自己嘅語言睇要煮乜、煮幾多，睇唔到任何人嘅卡路里、體重或目標；佢自己嘅飲食記錄亦會保密，除非佢自己分享。",
+    "helperTag": "姐姐",
+    "logPrivate": "呢位成員嘅飲食記錄係私人嘅，只有佢自己可以分享畀你。"
+  },
+  "helper": {
+    "title": "煮飯安排",
+    "today": "今日",
+    "thisWeek": "本週",
+    "nextWeek": "下週",
+    "noPlan": "仲未有本週餐單。僱主整好之後就會喺度見到。",
+    "nothingToday": "今日冇安排。",
+    "cookFor": "煮 {{n}} 人份",
+    "minutes": "{{count}} 分鐘",
+    "whoEats": "邊個食",
+    "notEating": "唔食",
+    "ingredients": "材料",
+    "steps": "做法",
+    "shopping": "買餸清單",
+    "shoppingFrom": "由{{date}}起嘅餐。{{time}} 更新。",
+    "shoppingNone": "仲未有清單。僱主打開本週餐單之後就會出現。",
+    "shoppingEmpty": "唔使買嘢，屋企齊晒料。",
+    "translating": "翻譯緊食譜…",
+    "translateFailed": "暫時翻譯唔到，部分食譜會用英文顯示。",
+    "settingsTitle": "我嘅設定",
+    "language": "語言",
+    "shareLog": "畀僱主睇我嘅飲食記錄",
+    "shareLogHint": "你只會見到要煮乜同煮幾多。你自己嘅飲食記錄係私人嘅，除非你自己開啟，否則一直關閉。只有你可以改。",
+    "save": "儲存",
+    "close": "閂咗佢",
+    "back": "返回",
+    "retry": "再試一次",
+    "errUnavailable": "暫時載入唔到餐單，請檢查網絡再試。",
+    "errSave": "暫時儲存唔到，請檢查網絡再試。",
+    "openDish": "打開食譜",
+    "you": "你",
+    "familyMember": "家人",
+    "size": {
+      "small": "細份",
+      "medium": "中份",
+      "large": "大份"
+    },
+    "meal": {
+      "breakfast": "早餐",
+      "lunch": "午餐",
+      "dinner": "晚餐",
+      "snack": "小食"
+    },
+    "category": {
+      "meat": "肉類",
+      "seafood": "海鮮",
+      "produce": "蔬菜水果",
+      "eggs_dairy_soy": "蛋奶豆",
+      "dry_goods": "乾貨調味",
+      "other": "其他"
+    },
+    "weekday": {
+      "0": "週日",
+      "1": "週一",
+      "2": "週二",
+      "3": "週三",
+      "4": "週四",
+      "5": "週五",
+      "6": "週六"
+    }
   }
 }

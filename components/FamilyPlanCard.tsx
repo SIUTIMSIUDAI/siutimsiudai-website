@@ -5,13 +5,15 @@ import { ScalableText } from "./ScalableText";
 import { colors } from "@/constants/theme";
 import { useLocale } from "@/hooks/useLocale";
 import { useFeatureAccess } from "@/hooks/useFeatureAccess";
+import { useFamilyPlanStore } from "@/stores/familyPlanStore";
 
 // The way into the weekly family meal plan, on the Recipes tab. Everyone sees it; without Max it
-// carries the Max badge and the plan screen shows its locked preview (a family member on a Max
-// family gets the real plan there whatever their own plan).
+// carries the Max badge and the plan screen shows its locked preview. A member of a Max family gets
+// the real plan whatever their own plan, so once the app knows they're one, the badge goes.
 export function FamilyPlanCard() {
   const { t } = useLocale();
   const { hasAccess } = useFeatureAccess("family_meal_plan");
+  const familyMember = useFamilyPlanStore((s) => s.snapshot?.role === "dependent" || !!s.helper);
 
   return (
     <Pressable
@@ -26,7 +28,7 @@ export function FamilyPlanCard() {
       <View className="flex-1 gap-0.5">
         <View className="flex-row items-center gap-2">
           <ScalableText className="text-base font-bold text-ink">{t("familyPlan.cardTitle")}</ScalableText>
-          {!hasAccess && (
+          {!hasAccess && !familyMember && (
             <View className="rounded-full bg-brand px-2 py-0.5">
               <ScalableText className="text-xs font-bold text-white">Max</ScalableText>
             </View>

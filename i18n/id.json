@@ -1,0 +1,63 @@
+{
+  "helper": {
+    "title": "Rencana masak",
+    "today": "Hari ini",
+    "thisWeek": "Minggu ini",
+    "nextWeek": "Minggu depan",
+    "noPlan": "Belum ada rencana untuk minggu ini. Rencana akan muncul di sini setelah majikan Anda membuatnya.",
+    "nothingToday": "Tidak ada rencana untuk hari ini.",
+    "cookFor": "Masak {{n}} porsi",
+    "minutes": "{{count}} menit",
+    "whoEats": "Siapa yang makan",
+    "notEating": "Tidak makan",
+    "ingredients": "Bahan-bahan",
+    "steps": "Langkah-langkah",
+    "shopping": "Daftar belanja",
+    "shoppingFrom": "Untuk masakan mulai {{date}}. Diperbarui {{time}}.",
+    "shoppingNone": "Belum ada daftar. Daftar akan muncul setelah majikan Anda membuka rencana minggu ini.",
+    "shoppingEmpty": "Tidak ada yang perlu dibeli. Semua bahan sudah ada di dapur.",
+    "translating": "Sedang menerjemahkan resep…",
+    "translateFailed": "Belum bisa diterjemahkan sekarang, jadi beberapa resep masih dalam bahasa Inggris.",
+    "settingsTitle": "Pengaturan saya",
+    "language": "Bahasa",
+    "shareLog": "Izinkan majikan saya melihat catatan makan saya",
+    "shareLogHint": "Anda hanya melihat apa yang dimasak dan berapa banyak. Catatan makan Anda bersifat pribadi dan tetap mati kecuali Anda menyalakannya. Hanya Anda yang bisa mengubahnya.",
+    "save": "Simpan",
+    "close": "Tutup",
+    "back": "Kembali",
+    "retry": "Coba lagi",
+    "errUnavailable": "Rencana tidak bisa dimuat. Periksa koneksi Anda dan coba lagi.",
+    "errSave": "Tidak bisa disimpan. Periksa koneksi Anda dan coba lagi.",
+    "openDish": "Membuka resep",
+    "you": "Anda",
+    "familyMember": "Anggota keluarga",
+    "size": {
+      "small": "Kecil",
+      "medium": "Sedang",
+      "large": "Besar"
+    },
+    "meal": {
+      "breakfast": "Sarapan",
+      "lunch": "Makan siang",
+      "dinner": "Makan malam",
+      "snack": "Camilan"
+    },
+    "category": {
+      "meat": "Daging",
+      "seafood": "Makanan laut",
+      "produce": "Sayur dan buah",
+      "eggs_dairy_soy": "Telur, susu, dan kedelai",
+      "dry_goods": "Bahan kering dan bumbu",
+      "other": "Lainnya"
+    },
+    "weekday": {
+      "0": "Min",
+      "1": "Sen",
+      "2": "Sel",
+      "3": "Rab",
+      "4": "Kam",
+      "5": "Jum",
+      "6": "Sab"
+    }
+  }
+}

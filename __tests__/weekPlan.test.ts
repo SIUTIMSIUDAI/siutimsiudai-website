@@ -51,13 +51,15 @@ const dish = (
   perServing: { calories: 520, protein: 32, carbs: 62, fat: 14, fiber: 1 },
   locked: false,
   loggedAt: null,
+  translations: {},
 });
 
 // Three members on three different sizes: 中 + 大 + 細 = 3 standard servings.
+const family = { isHelper: false, helperLanguage: "en" as const, sharesLog: false };
 const MEMBERS: PlanMember[] = [
-  { userId: "me", role: "manager", displayName: "Ka Yan", defaultSize: "medium" },
-  { userId: "dad", role: "dependent", displayName: "Chi Keung", defaultSize: "large" },
-  { userId: "teen", role: "dependent", displayName: "Hoi Ching", defaultSize: "small" },
+  { userId: "me", role: "manager", displayName: "Ka Yan", defaultSize: "medium", ...family },
+  { userId: "dad", role: "dependent", displayName: "Chi Keung", defaultSize: "large", ...family },
+  { userId: "teen", role: "dependent", displayName: "Hoi Ching", defaultSize: "small", ...family },
 ];
 
 const SOY_CHICKEN = dish(

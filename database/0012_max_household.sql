@@ -16,6 +16,17 @@
 --     own their diaries: sync_daily_log replaces a whole day from the phone, so a row written straight
 --     into someone else's log would be erased at their next sync).
 --
+-- Helper mode (姐姐煮飯模式): the planner can mark a member as the family's helper, with a language
+-- (en / fil / id). Her privacy is enforced here, not just in the app:
+--   - She reads dishes only through helper_plan_dishes, which strips every number about nutrition, so
+--     she never sees anyone's calories. The plain dish read excludes her.
+--   - Her own food diary is private: once she is a helper, the planner's access to it (0002's
+--     manager_* policies, narrowed below) needs log_private to be off, and only she can turn it off.
+--     Un-marking her as helper does not reopen it.
+--   - She can't make herself a helper or not (column grants); only the planner's RPC sets is_helper.
+-- Her profile (name, photo, calorie target) stays readable by the planner under 0002's
+-- manager_read_profiles; the app never shows the target.
+--
 -- Leaving a family removes that member's settings, portions and unread inbox rows with them, via the
 -- foreign keys to family_members.
 --
@@ -27,6 +38,12 @@ create table family_member_settings (
   user_id uuid not null,
   default_size text not null default 'medium' check (default_size in ('small', 'medium', 'large')),
   exclusions text[] not null default '{}' check (cardinality(exclusions) <= 40),
+  -- Set by the planner (set_member_helper), never by the member.
+  is_helper boolean not null default false,
+  helper_language text not null default 'en' check (helper_language in ('en', 'fil', 'id')),
+  -- The member's own food diary is hidden from the planner. Turned on when she becomes the helper;
+  -- only she can turn it off ("let my employer see my food diary").
+  log_private boolean not null default false,
   updated_at timestamptz not null default now(),
   primary key (group_id, user_id),
   foreign key (group_id, user_id) references family_members (group_id, user_id) on delete cascade
@@ -49,6 +66,10 @@ create table family_week_plans (
   generated_by uuid references profiles (id) on delete set null,
   -- Dish swaps and day regenerations used, against plan-week's REGEN_LIMIT.
   regen_used integer not null default 0 check (regen_used >= 0),
+  -- The week's shopping list as the planner's phone last worked it out (the pantry lives there),
+  -- published for helper mode: { fromDate, groups: [{ category, lines: [{ name, nameZh, quantity, unit }] }] }.
+  shopping jsonb,
+  shopping_at timestamptz,
   -- One full generation per family per week: the unique key is the rate limit.
   unique (group_id, week_start)
 );
@@ -61,6 +82,9 @@ create table family_plan_dishes (
   slot text not null check (slot in ('breakfast', 'lunch', 'dinner', 'snack')),
   -- One standard serving: { title, titleZh, totalMinutes, ingredients, steps, perServing }.
   recipe jsonb not null,
+  -- AI translations for helper mode: { fil: { title, ingredients[], steps[] }, id: {...} }.
+  -- Emptied whenever the recipe changes.
+  translations jsonb not null default '{}'::jsonb,
   locked boolean not null default false,
   logged_at timestamptz,
   created_at timestamptz not null default now(),
@@ -99,6 +123,31 @@ create table family_log_inbox (
 );
 create index family_log_inbox_pending_idx on family_log_inbox (user_id) where imported_at is null;
 
+-- Helper predicates -----------------------------------------------------------------------------
+-- SECURITY DEFINER for the same reason as 0002's: they read tables whose own policies would recurse.
+
+-- True when the caller is the helper of this family.
+create or replace function public.is_family_helper(gid uuid)
+returns boolean language sql stable security definer set search_path = '' as $$
+  select exists (
+    select 1 from public.family_member_settings s
+    where s.group_id = gid and s.user_id = auth.uid() and s.is_helper
+  );
+$$;
+
+-- True when the caller manages this member AND the member hasn't made their food diary private. This
+-- replaces is_family_manager_of in the two food-log policies below (profiles keep the 0002 rule).
+create or replace function public.is_family_log_reader_of(member uuid)
+returns boolean language sql stable security definer set search_path = '' as $$
+  select public.is_family_manager_of(member)
+    and not exists (
+      select 1
+      from public.family_member_settings s
+      join public.family_members m on m.group_id = s.group_id and m.user_id = s.user_id
+      where s.user_id = member and s.log_private
+    );
+$$;
+
 -- Row level security ------------------------------------------------------------------------------
 alter table family_member_settings enable row level security;
 alter table family_plan_settings enable row level security;
@@ -124,9 +173,14 @@ create policy plan_settings_owner_update on family_plan_settings
 
 create policy week_plans_read on family_week_plans
   for select using (public.is_family_group_member(group_id));
+-- The planner's phone publishes the week's shopping list for helper mode (column grant below).
+create policy week_plans_owner_update on family_week_plans
+  for update using (public.is_family_group_owner(group_id))
+  with check (public.is_family_group_owner(group_id));
 
+-- A helper reads dishes through helper_plan_dishes only, which carries no nutrition.
 create policy plan_dishes_read on family_plan_dishes
-  for select using (public.is_family_group_member(group_id));
+  for select using (public.is_family_group_member(group_id) and not public.is_family_helper(group_id));
 create policy plan_dishes_owner_update on family_plan_dishes
   for update using (public.is_family_group_owner(group_id))
   with check (public.is_family_group_owner(group_id));
@@ -163,9 +217,16 @@ create policy inbox_own_delete on family_log_inbox
 -- imported but not edit it. Plans and dishes are otherwise written by plan-week alone.
 revoke all on table family_member_settings, family_plan_settings, family_week_plans, family_plan_dishes,
   family_plan_portions, family_log_inbox from public, anon, authenticated;
-grant select, insert, update, delete on table family_member_settings to authenticated;
+-- A member writes their own settings but never is_helper, and can't delete the row (that would clear
+-- is_helper and log_private behind the planner's and their own back).
+grant select on table family_member_settings to authenticated;
+grant insert (group_id, user_id, default_size, exclusions, helper_language, log_private, updated_at)
+  on table family_member_settings to authenticated;
+grant update (default_size, exclusions, helper_language, log_private, updated_at)
+  on table family_member_settings to authenticated;
 grant select, insert, update on table family_plan_settings to authenticated;
 grant select on table family_week_plans to authenticated;
+grant update (shopping, shopping_at) on table family_week_plans to authenticated;
 grant select on table family_plan_dishes to authenticated;
 grant update (locked) on table family_plan_dishes to authenticated;
 grant select, insert, update, delete on table family_plan_portions to authenticated;
@@ -175,11 +236,20 @@ grant all on table family_member_settings, family_plan_settings, family_week_pla
   family_plan_portions, family_log_inbox to service_role;
 
 -- RPC: the roster the plan screen shows ----------------------------------------------------------
--- Names and usual sizes for everyone in the caller's family. SECURITY DEFINER because a dependent
--- can't read the other members' profiles; this hands over the display name and nothing else from
--- them (no weight, goals, targets or exclusions).
+-- Names, usual sizes and who the helper is, for everyone in the caller's family. SECURITY DEFINER
+-- because a dependent can't read the other members' profiles; this hands over the display name and
+-- nothing else from them (no weight, goals, targets or exclusions). shares_log tells the planner
+-- whether a member's food diary is open to them.
 create or replace function public.family_plan_roster()
-returns table (user_id uuid, role public.family_role, display_name text, default_size text)
+returns table (
+  user_id uuid,
+  role public.family_role,
+  display_name text,
+  default_size text,
+  is_helper boolean,
+  helper_language text,
+  shares_log boolean
+)
 language sql stable security definer set search_path = '' as $$
   with mine as (
     select m.group_id from public.family_members m
@@ -187,7 +257,8 @@ language sql stable security definer set search_path = '' as $$
     order by (m.role = 'manager') desc
     limit 1
   )
-  select fm.user_id, fm.role, p.display_name, coalesce(s.default_size, 'medium')
+  select fm.user_id, fm.role, p.display_name, coalesce(s.default_size, 'medium'),
+    coalesce(s.is_helper, false), coalesce(s.helper_language, 'en'), not coalesce(s.log_private, false)
   from mine
   join public.family_members fm on fm.group_id = mine.group_id
   left join public.profiles p on p.id = fm.user_id
@@ -300,6 +371,84 @@ begin
 end;
 $$;
 
+-- RPC: helper mode's dishes, with no nutrition -------------------------------------------------------
+create or replace function public.helper_plan_dishes(p_plan_ids uuid[])
+returns table (
+  id uuid,
+  plan_id uuid,
+  plan_date date,
+  slot text,
+  recipe jsonb,
+  translations jsonb,
+  locked boolean,
+  logged_at timestamptz
+)
+language sql stable security definer set search_path = '' as $$
+  select d.id, d.plan_id, d.plan_date, d.slot, d.recipe - 'perServing', d.translations, d.locked, d.logged_at
+  from public.family_plan_dishes d
+  where d.plan_id = any(p_plan_ids) and public.is_family_group_member(d.group_id);
+$$;
+
+-- RPC: the planner marks a member as the helper (or not) and sets her language ------------------
+-- Marking her makes her food diary private. Un-marking leaves it as she set it: the planner can never
+-- reopen it, only she can.
+create or replace function public.set_member_helper(p_user_id uuid, p_is_helper boolean, p_language text)
+returns boolean language plpgsql security definer set search_path = '' as $$
+declare
+  v_group uuid;
+begin
+  if p_language not in ('en', 'fil', 'id') then
+    return false;
+  end if;
+  select g.id into v_group
+  from public.family_groups g
+  join public.family_members m on m.group_id = g.id and m.user_id = p_user_id and m.role = 'dependent'
+  where g.owner_id = auth.uid();
+  if v_group is null then
+    return false;
+  end if;
+  insert into public.family_member_settings (group_id, user_id, is_helper, helper_language, log_private)
+  values (v_group, p_user_id, p_is_helper, p_language, p_is_helper)
+  on conflict (group_id, user_id) do update
+    set is_helper = excluded.is_helper,
+        helper_language = excluded.helper_language,
+        log_private = public.family_member_settings.log_private or excluded.is_helper,
+        updated_at = now();
+  return true;
+end;
+$$;
+
+-- RPC for plan-week only: add one language's translation to a dish without losing another ---------
+create or replace function public.merge_dish_translation(p_dish_id uuid, p_language text, p_translation jsonb)
+returns void language sql security definer set search_path = '' as $$
+  update public.family_plan_dishes
+  set translations = translations || jsonb_build_object(p_language, p_translation)
+  where id = p_dish_id and p_language in ('fil', 'id');
+$$;
+
+-- The planner's access to food logs, narrowed for members who keep theirs private ---------------
+drop policy manager_manage_daily_logs on daily_logs;
+create policy manager_manage_daily_logs on daily_logs
+  for all
+  using (public.is_family_log_reader_of(user_id))
+  with check (public.is_family_log_reader_of(user_id));
+
+drop policy manager_manage_food_entries on food_entries;
+create policy manager_manage_food_entries on food_entries
+  for all
+  using (
+    exists (
+      select 1 from daily_logs d
+      where d.id = food_entries.daily_log_id and public.is_family_log_reader_of(d.user_id)
+    )
+  )
+  with check (
+    exists (
+      select 1 from daily_logs d
+      where d.id = food_entries.daily_log_id and public.is_family_log_reader_of(d.user_id)
+    )
+  );
+
 -- RPC for plan-week only: count one swap or day regeneration, or return null at the limit --------
 -- Atomic, so two quick taps can't both slip under the limit.
 create or replace function public.bump_plan_regen(p_plan_id uuid, p_limit integer)
@@ -309,6 +458,16 @@ returns integer language sql security definer set search_path = '' as $$
   returning regen_used;
 $$;
 
+revoke all on function public.is_family_helper(uuid) from public, anon;
+revoke all on function public.is_family_log_reader_of(uuid) from public, anon;
+revoke all on function public.helper_plan_dishes(uuid[]) from public, anon;
+revoke all on function public.set_member_helper(uuid, boolean, text) from public, anon;
+revoke all on function public.merge_dish_translation(uuid, text, jsonb) from public, anon, authenticated;
+grant execute on function public.is_family_helper(uuid) to authenticated;
+grant execute on function public.is_family_log_reader_of(uuid) to authenticated;
+grant execute on function public.helper_plan_dishes(uuid[]) to authenticated;
+grant execute on function public.set_member_helper(uuid, boolean, text) to authenticated;
+grant execute on function public.merge_dish_translation(uuid, text, jsonb) to service_role;
 revoke all on function public.family_plan_roster() from public, anon;
 revoke all on function public.set_member_default_size(uuid, text) from public, anon;
 revoke all on function public.log_family_meal(uuid, jsonb) from public, anon;

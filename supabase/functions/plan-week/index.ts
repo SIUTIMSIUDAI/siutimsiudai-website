@@ -12,6 +12,9 @@
 //   - { mode: "regenerate_day", planId, date, pantry } replaces a day's dishes, keeping locked ones
 //     and any already logged with 食咗.
 //   - { mode: "swap", planId, dishId, pantry } replaces one dish.
+//   - { mode: "translate", planId, language } puts the plan's dishes into the helper's language (fil
+//     or id) for helper mode, cached on each dish. Any member of the family may ask for their own
+//     language; the Max checked is the family's (its owner's), so a helper on Free still gets it.
 // Swaps and day regenerations share REGEN_LIMIT per plan week, counted only once one succeeds
 // (filling a day the first generation left empty is free). Every AI call also counts against the
 // caller's daily allowance (../_shared/aiQuota.ts).
@@ -46,6 +49,15 @@ import {
   planSlots,
   targetWeek,
 } from "./plan.ts";
+import {
+  TRANSLATE_BATCH,
+  TRANSLATE_SYSTEM_PROMPT,
+  batches,
+  dishToTranslate,
+  pickTranslations,
+  translateLanguage,
+  translatePrompt,
+} from "./translate.ts";
 
 const MODEL = Deno.env.get("VERTEX_MODEL") || "gemini-2.5-flash";
 // A full bilingual dish is about 1,000 to 1,300 output tokens; 4,096 per dish is generate-recipe's budget.
@@ -268,9 +280,64 @@ async function swap(admin: Admin, uid: string, body: Record<string, unknown>): P
   if (!fresh) throw new Error("upstream_failed no_dishes");
   if (!(await countRegen(admin, plan.id))) return json({ error: "regen_limit" }, 429);
 
-  // Same row, new recipe: the slot's portions carry over on their own (they're keyed by slot).
-  const { error } = await admin.from("family_plan_dishes").update({ recipe: recipeJson(fresh) }).eq("id", dish.id);
+  // Same row, new recipe: the slot's portions carry over on their own (they're keyed by slot), and the
+  // old dish's translations go, to be redone for the new one when helper mode next opens.
+  const { error } = await admin
+    .from("family_plan_dishes")
+    .update({ recipe: recipeJson(fresh), translations: {} })
+    .eq("id", dish.id);
   if (error) throw new Error(`insert_failed ${error.message}`);
+  return json({ ok: true, planId: plan.id }, 200);
+}
+
+// Helper mode in the member's language. The caller must belong to the plan's family, and the family's
+// owner must hold Max (checked with RevenueCat, failing closed). Only dishes without this language are
+// sent, in small batches side by side; a batch that comes back wrong is skipped, and those dishes stay
+// in English until the next try.
+async function translate(admin: Admin, uid: string, rcSecret: string, body: Record<string, unknown>): Promise<Response> {
+  const language = translateLanguage(body.language);
+  if (!language || typeof body.planId !== "string") return json({ error: "bad_request" }, 400);
+  const { data: plan } = await admin.from("family_week_plans").select("id, group_id").eq("id", body.planId).maybeSingle();
+  if (!plan) return json({ error: "bad_request" }, 400);
+  const [{ data: member }, { data: group }] = await Promise.all([
+    admin.from("family_members").select("user_id").eq("group_id", plan.group_id).eq("user_id", uid).maybeSingle(),
+    admin.from("family_groups").select("owner_id").eq("id", plan.group_id).maybeSingle(),
+  ]);
+  if (!member || !group) return json({ error: "not_member" }, 403);
+  const maxState = await hasActiveMax(group.owner_id, rcSecret);
+  if (maxState === "error") return json({ error: "verification_failed" }, 502);
+  if (maxState === false) return json({ error: "max_required" }, 403);
+
+  const { data: rows } = await admin.from("family_plan_dishes").select("id, recipe, translations").eq("plan_id", plan.id);
+  const todo = ((rows ?? []) as Array<{ id: string; recipe: unknown; translations: Record<string, unknown> | null }>)
+    .filter((r) => !r.translations?.[language])
+    .map(dishToTranslate)
+    .filter((d): d is NonNullable<ReturnType<typeof dishToTranslate>> => d !== null);
+  if (todo.length === 0) return json({ ok: true, planId: plan.id }, 200);
+
+  const groups = batches(todo, TRANSLATE_BATCH);
+  const refused = await chargeAi(uid, groups.length);
+  if (refused) return refused;
+  const results = await Promise.allSettled(
+    groups.map(async (group) => {
+      const text = await vertexGenerateContent(MODEL, {
+        system: TRANSLATE_SYSTEM_PROMPT,
+        parts: [{ text: translatePrompt(group, language) }],
+        maxOutputTokens: 1024 * group.length,
+      });
+      return pickTranslations(extractJson(text), group);
+    }),
+  );
+  let saved = 0;
+  for (const r of results) {
+    if (r.status !== "fulfilled") continue;
+    for (const [dishId, t] of r.value) {
+      const { error } = await admin.rpc("merge_dish_translation", { p_dish_id: dishId, p_language: language, p_translation: t });
+      if (!error) saved += 1;
+    }
+  }
+  console.log(JSON.stringify({ fn: "plan-week", mode: "translate", calls: groups.length, dishes: todo.length, saved }));
+  if (saved === 0) throw new Error("upstream_failed no_translations");
   return json({ ok: true, planId: plan.id }, 200);
 }
 
@@ -285,9 +352,6 @@ Deno.serve(async (req: Request) => {
   const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
   const rcSecret = Deno.env.get("REVENUECAT_SECRET_KEY");
   if (!url || !serviceKey || !rcSecret) return json({ error: "not_configured" }, 500);
-  const maxState = await hasActiveMax(auth.userId, rcSecret);
-  if (maxState === "error") return json({ error: "verification_failed" }, 502);
-  if (maxState === false) return json({ error: "max_required" }, 403);
 
   let body: Record<string, unknown>;
   try {
@@ -296,8 +360,20 @@ Deno.serve(async (req: Request) => {
   } catch {
     return json({ error: "bad_request" }, 400);
   }
-
   const admin = createClient(url, serviceKey, { auth: { persistSession: false } });
+
+  // Translating checks the family's Max (its owner's) itself; everything else is the planner's own.
+  if (body.mode === "translate") {
+    try {
+      return await translate(admin, auth.userId, rcSecret, body);
+    } catch (err) {
+      return proxyError(err);
+    }
+  }
+  const maxState = await hasActiveMax(auth.userId, rcSecret);
+  if (maxState === "error") return json({ error: "verification_failed" }, 502);
+  if (maxState === false) return json({ error: "max_required" }, 403);
+
   try {
     if (body.mode === "setup") {
       const group = await ensureOwnGroup(admin, auth.userId);

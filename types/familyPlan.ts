@@ -8,6 +8,17 @@ import type { CanonicalUnit, MacroNutrients, MealType } from "./index";
 
 export type PortionSize = "small" | "medium" | "large";
 
+/** The languages helper mode speaks. Dish text is translated by AI into fil and id. */
+export type HelperLanguage = "en" | "fil" | "id";
+export type TranslatedLanguage = Exclude<HelperLanguage, "en">;
+
+/** One dish's words in a helper's language, in the dish's own ingredient and step order. */
+export interface DishTranslation {
+  title: string;
+  ingredients: string[];
+  steps: string[];
+}
+
 /** A member's choice for one dish: a size, or 唔食呢餐 ("skip"). */
 export type PortionChoice = PortionSize | "skip";
 
@@ -53,7 +64,12 @@ export interface PlanDish {
   locked: boolean;
   /** When 食咗 was logged for the family, or null. */
   loggedAt: string | null;
+  /** AI translations for helper mode, cached per language; dropped when the dish changes. */
+  translations: Partial<Record<TranslatedLanguage, DishTranslation>>;
 }
+
+/** A dish as helper mode receives it: what to cook, never its nutrition. */
+export type HelperDish = Omit<PlanDish, "perServing">;
 
 export interface PlanMember {
   userId: string;
@@ -61,6 +77,12 @@ export interface PlanMember {
   displayName: string | null;
   /** Used for every dish the member hasn't set a different portion for. */
   defaultSize: PortionSize;
+  /** The family's helper: helper mode shows her what to cook and how much, never anyone's nutrition. */
+  isHelper: boolean;
+  /** The language helper mode uses for her. */
+  helperLanguage: HelperLanguage;
+  /** Whether she lets the planner see her food diary. Only she can turn it on. */
+  sharesLog: boolean;
 }
 
 export interface WeekPlan {
@@ -83,6 +105,36 @@ export interface MyPlanSettings {
   defaultSize: PortionSize;
   /** Foods they don't eat or are allergic to, in their own words. */
   exclusions: string[];
+  /** Set by the planner, never by the member. */
+  isHelper: boolean;
+  helperLanguage: HelperLanguage;
+  /** A helper's food diary is private unless she turns this on. */
+  sharesLog: boolean;
+}
+
+/** The planner's latest shopping list, published for helper mode (the pantry lives on the planner's phone). */
+export interface ShoppingSnapshot {
+  /** When the planner's phone last worked it out (ISO). */
+  updatedAt: string;
+  /** The first day it shops for. */
+  fromDate: string;
+  groups: Array<{
+    category: IngredientCategory;
+    lines: Array<{ name: string; nameZh: string; quantity: number; unit: CanonicalUnit }>;
+  }>;
+}
+
+/** Everything helper mode renders. No nutrition anywhere. */
+export interface HelperSnapshot {
+  groupId: string;
+  myUserId: string;
+  me: MyPlanSettings;
+  members: PlanMember[];
+  slots: MealType[];
+  plans: Array<Omit<WeekPlan, "dishes" | "regenUsed" | "generatedAt"> & {
+    dishes: HelperDish[];
+    shopping: ShoppingSnapshot | null;
+  }>;
 }
 
 /** Everything the plan screen renders, fetched in one go. */
@@ -121,6 +173,7 @@ export interface InboxEntry {
 export type PlanFailReason =
   | "max_required"
   | "not_manager"
+  | "not_member"
   | "already_generated"
   | "regen_limit"
   | "locked"

@@ -543,6 +543,72 @@
     "openDish": "Opens the recipe",
     "changePortion": "Changes the portion",
     "listSep": ", ",
-    "removeExclusion": "Remove {{food}}"
+    "removeExclusion": "Remove {{food}}",
+    "helperToggle": "Our helper",
+    "helperLanguage": "Helper mode language",
+    "helperHint": "They see what to cook and how much, in their language. They never see anyone's calories, weight or goals, and their own food diary stays private unless they share it.",
+    "helperTag": "Helper",
+    "logPrivate": "This member's food diary is private. Only they can share it with you."
+  },
+  "helper": {
+    "title": "Cooking plan",
+    "today": "Today",
+    "thisWeek": "This week",
+    "nextWeek": "Next week",
+    "noPlan": "No plan for this week yet. It shows here once your employer makes one.",
+    "nothingToday": "Nothing planned for today.",
+    "cookFor": "Cook {{n}} servings",
+    "minutes": "{{count}} min",
+    "whoEats": "Who's eating",
+    "notEating": "Not eating",
+    "ingredients": "Ingredients",
+    "steps": "Steps",
+    "shopping": "Shopping list",
+    "shoppingFrom": "For meals from {{date}}. Updated {{time}}.",
+    "shoppingNone": "No list yet. It appears once your employer opens this week's plan.",
+    "shoppingEmpty": "Nothing to buy. The kitchen has everything.",
+    "translating": "Translating the recipes…",
+    "translateFailed": "Couldn't translate right now, so some recipes are in English.",
+    "settingsTitle": "My settings",
+    "language": "Language",
+    "shareLog": "Let my employer see my food diary",
+    "shareLogHint": "You only see what to cook and how much. Your own food diary is private, and stays off unless you turn this on. Only you can change it.",
+    "save": "Save",
+    "close": "Close",
+    "back": "Back",
+    "retry": "Try again",
+    "errUnavailable": "Couldn't load the plan. Check your connection and try again.",
+    "errSave": "Couldn't save. Check your connection and try again.",
+    "openDish": "Opens the recipe",
+    "you": "You",
+    "familyMember": "Family member",
+    "size": {
+      "small": "Small",
+      "medium": "Medium",
+      "large": "Large"
+    },
+    "meal": {
+      "breakfast": "Breakfast",
+      "lunch": "Lunch",
+      "dinner": "Dinner",
+      "snack": "Snack"
+    },
+    "category": {
+      "meat": "Meat",
+      "seafood": "Seafood",
+      "produce": "Vegetables and fruit",
+      "eggs_dairy_soy": "Eggs, dairy and soy",
+      "dry_goods": "Dry goods and seasoning",
+      "other": "Other"
+    },
+    "weekday": {
+      "0": "Sun",
+      "1": "Mon",
+      "2": "Tue",
+      "3": "Wed",
+      "4": "Thu",
+      "5": "Fri",
+      "6": "Sat"
+    }
   }
 }

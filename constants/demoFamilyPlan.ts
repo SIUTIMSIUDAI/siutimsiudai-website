@@ -8,21 +8,35 @@ import type {
   PlanStep,
   WeekPlan,
 } from "@/types/familyPlan";
+import { DEMO_DISH_WORDS, DEMO_INGREDIENT_WORDS } from "./demoFamilyPlanTranslations";
 
 // The family plan's demo stand-in, reachable only when Supabase is unconfigured (web preview, tests;
-// see services/familyPlanService.ts). Never a fallback for a live failure. Three members on three
-// sizes, and a library of everyday Hong Kong home dishes, one standard adult serving each, with
-// estimated nutrition.
+// see services/familyPlanService.ts). Never a fallback for a live failure. Three family members on
+// three sizes plus Maria, the family's helper, and a library of everyday Hong Kong home dishes, one
+// standard adult serving each, with estimated nutrition and demo Filipino and Indonesian words.
 
 export const DEMO_MY_USER_ID = "demo-me";
+export const DEMO_HELPER_ID = "demo-maria";
+
+// Family members' diaries are open to the planner, as family linking has always worked; only the
+// helper's is private.
+const family = { isHelper: false, helperLanguage: "en" as const, sharesLog: true };
 
 export const DEMO_MEMBERS: PlanMember[] = [
-  { userId: DEMO_MY_USER_ID, role: "manager", displayName: "Ka Yan", defaultSize: "medium" },
-  { userId: "demo-chi-keung", role: "dependent", displayName: "Chi Keung", defaultSize: "large" },
-  { userId: "demo-hoi-ching", role: "dependent", displayName: "Hoi Ching", defaultSize: "small" },
+  { userId: DEMO_MY_USER_ID, role: "manager", displayName: "Ka Yan", defaultSize: "medium", ...family },
+  { userId: "demo-chi-keung", role: "dependent", displayName: "Chi Keung", defaultSize: "large", ...family },
+  { userId: "demo-hoi-ching", role: "dependent", displayName: "Hoi Ching", defaultSize: "small", ...family },
+  { userId: DEMO_HELPER_ID, role: "dependent", displayName: "Maria", defaultSize: "medium", isHelper: true, helperLanguage: "fil", sharesLog: false },
 ];
 
-export const DEMO_ME: MyPlanSettings = { defaultSize: "medium", exclusions: [] };
+export const DEMO_ME: MyPlanSettings = { defaultSize: "medium", exclusions: [], ...family };
+export const DEMO_HELPER_ME: MyPlanSettings = {
+  defaultSize: "medium",
+  exclusions: [],
+  isHelper: true,
+  helperLanguage: "fil",
+  sharesLog: false,
+};
 
 /** What the rest of the demo family listed. Shown to nobody; the demo planner just avoids it. */
 export const DEMO_FAMILY_EXCLUSIONS = ["beef"];
@@ -533,6 +547,20 @@ export function demoPool(slot: MealType, exclusions: string[]): DemoDish[] {
   return DEMO_DISHES.filter((d) => d.kind === kindOf(slot) && allowed(d, exclusions));
 }
 
+// The demo words for a dish, lined up with its ingredients and steps; a language with any gap is left
+// out so the preview shows what the app really does then (English).
+function demoTranslations(d: DemoDish): PlanDish["translations"] {
+  const out: PlanDish["translations"] = {};
+  for (const lang of ["fil", "id"] as const) {
+    const words = DEMO_DISH_WORDS[d.title]?.[lang];
+    const ingredients = d.ingredients.map((i) => DEMO_INGREDIENT_WORDS[i.name]?.[lang]);
+    if (words && words.steps.length === d.steps.length && ingredients.every((w): w is string => !!w)) {
+      out[lang] = { title: words.title, ingredients, steps: [...words.steps] };
+    }
+  }
+  return out;
+}
+
 /** A demo dish for one slot, picked by `index` from its pool (wrapping round). */
 export function demoDish(planId: string, date: string, slot: MealType, index: number, exclusions: string[]): PlanDish {
   const pool = demoPool(slot, exclusions);
@@ -550,6 +578,7 @@ export function demoDish(planId: string, date: string, slot: MealType, index: nu
     perServing: { ...d.perServing },
     locked: false,
     loggedAt: null,
+    translations: demoTranslations(d),
   };
 }
 

@@ -130,6 +130,10 @@ function RootLayout() {
           <Stack.Screen name="subscription" options={{ presentation: "modal" }} />
           <Stack.Screen name="family/invite" />
           <Stack.Screen name="family/plan" />
+          {/* Helper mode (姐姐煮飯模式): the plan in the helper's own language. */}
+          <Stack.Screen name="helper/index" />
+          <Stack.Screen name="helper/dish/[id]" />
+          <Stack.Screen name="helper/shopping" />
           <Stack.Screen name="family/[memberId]" />
           <Stack.Screen name="invite/[token]" />
           <Stack.Screen name="pantry-scan" />

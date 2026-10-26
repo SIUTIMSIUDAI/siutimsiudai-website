@@ -6,7 +6,8 @@ import { colors } from "@/constants/theme";
 import { PLAN_SLOTS, PORTION_SIZES } from "@/constants/portionSizes";
 import { useLocale } from "@/hooks/useLocale";
 import type { MealType } from "@/types";
-import type { FamilyPlanSnapshot, MyPlanSettings, PortionSize } from "@/types/familyPlan";
+import type { FamilyPlanSnapshot, HelperLanguage, MyPlanSettings, PortionSize } from "@/types/familyPlan";
+import { HELPER_LANGUAGE_NAMES } from "@/components/helper/helperText";
 import { PlanSheet } from "./PlanSheet";
 import { choiceLabel, memberName } from "./labels";
 
@@ -15,6 +16,8 @@ export interface PlanSettingsChanges {
   me: MyPlanSettings;
   /** Other members' usual sizes, as the planner set them. */
   sizes: Record<string, PortionSize>;
+  /** Who is the family's helper, and in which language helper mode speaks to her. */
+  helpers: Record<string, { isHelper: boolean; language: HelperLanguage }>;
 }
 
 interface Props {
@@ -27,6 +30,7 @@ interface Props {
 }
 
 const MAX_EXCLUSIONS = 40;
+const HELPER_LANGUAGES: HelperLanguage[] = ["en", "fil", "id"];
 const MAX_TERM = 40;
 
 function Chip({ label, selected, onPress }: { label: string; selected: boolean; onPress: () => void }) {
@@ -59,6 +63,7 @@ export function PlanSettingsSheet({ visible, snapshot, busy, error, onSave, onCl
   const [mySize, setMySize] = useState<PortionSize>(snapshot.me.defaultSize);
   const [exclusions, setExclusions] = useState<string[]>(snapshot.me.exclusions);
   const [sizes, setSizes] = useState<Record<string, PortionSize>>({});
+  const [helpers, setHelpers] = useState<PlanSettingsChanges["helpers"]>({});
   const [draft, setDraft] = useState("");
 
   // Start from what's saved every time the sheet opens.
@@ -68,6 +73,7 @@ export function PlanSettingsSheet({ visible, snapshot, busy, error, onSave, onCl
     setMySize(snapshot.me.defaultSize);
     setExclusions(snapshot.me.exclusions);
     setSizes(Object.fromEntries(snapshot.members.map((m) => [m.userId, m.defaultSize])));
+    setHelpers(Object.fromEntries(snapshot.members.map((m) => [m.userId, { isHelper: m.isHelper, language: m.helperLanguage }])));
     setDraft("");
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [visible]);
@@ -98,7 +104,7 @@ export function PlanSettingsSheet({ visible, snapshot, busy, error, onSave, onCl
             accessibilityRole="button"
             accessibilityLabel={t("common.save")}
             disabled={busy}
-            onPress={() => onSave({ slots, me: { defaultSize: mySize, exclusions }, sizes })}
+            onPress={() => onSave({ slots, me: { ...snapshot.me, defaultSize: mySize, exclusions }, sizes, helpers })}
             className="min-h-[48px] flex-row items-center justify-center gap-2 rounded-2xl bg-brand active:opacity-80"
           >
             {busy && <ActivityIndicator size="small" color={colors.white} />}
@@ -176,21 +182,39 @@ export function PlanSettingsSheet({ visible, snapshot, busy, error, onSave, onCl
         {planner && others.length > 0 && (
           <View className="gap-3">
             <ScalableText className="text-sm font-semibold text-ink">{t("familyPlan.membersLabel")}</ScalableText>
-            {others.map((m) => (
-              <View key={m.userId} className="gap-1.5">
-                <ScalableText className="text-sm text-ink-muted">{memberName(t, m, snapshot.myUserId)}</ScalableText>
-                <View className="flex-row flex-wrap gap-2">
-                  {PORTION_SIZES.map((size) => (
-                    <Chip
-                      key={size}
-                      label={choiceLabel(t, size, true)}
-                      selected={(sizes[m.userId] ?? m.defaultSize) === size}
-                      onPress={() => setSizes({ ...sizes, [m.userId]: size })}
-                    />
-                  ))}
+            {others.map((m) => {
+              const helper = helpers[m.userId] ?? { isHelper: m.isHelper, language: m.helperLanguage };
+              const setHelper = (next: Partial<typeof helper>) => setHelpers({ ...helpers, [m.userId]: { ...helper, ...next } });
+              return (
+                <View key={m.userId} className="gap-1.5">
+                  <ScalableText className="text-sm text-ink-muted">{memberName(t, m, snapshot.myUserId)}</ScalableText>
+                  <View className="flex-row flex-wrap gap-2">
+                    {PORTION_SIZES.map((size) => (
+                      <Chip
+                        key={size}
+                        label={choiceLabel(t, size, true)}
+                        selected={(sizes[m.userId] ?? m.defaultSize) === size}
+                        onPress={() => setSizes({ ...sizes, [m.userId]: size })}
+                      />
+                    ))}
+                  </View>
+                  <View className="flex-row flex-wrap gap-2">
+                    <Chip label={t("familyPlan.helperToggle")} selected={helper.isHelper} onPress={() => setHelper({ isHelper: !helper.isHelper })} />
+                  </View>
+                  {helper.isHelper && (
+                    <View className="gap-1.5">
+                      <ScalableText className="text-xs text-ink-muted">{t("familyPlan.helperLanguage")}</ScalableText>
+                      <View className="flex-row flex-wrap gap-2">
+                        {HELPER_LANGUAGES.map((l) => (
+                          <Chip key={l} label={HELPER_LANGUAGE_NAMES[l]} selected={helper.language === l} onPress={() => setHelper({ language: l })} />
+                        ))}
+                      </View>
+                    </View>
+                  )}
                 </View>
-              </View>
-            ))}
+              );
+            })}
+            <ScalableText className="text-xs leading-5 text-ink-muted">{t("familyPlan.helperHint")}</ScalableText>
           </View>
         )}
       </View>

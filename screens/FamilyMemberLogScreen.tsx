@@ -9,6 +9,7 @@ import { SourcesLink } from "@/components/SourcesLink";
 import { colors, macroColors } from "@/constants/theme";
 import { useLocale } from "@/hooks/useLocale";
 import { getDependentDates, getDependentDay } from "@/services/familyLogService";
+import { memberSharesDiary } from "@/services/familyPlanService";
 import { sumEntryMacros } from "@/utils/customizations";
 import { sumMicroTotals, TRACKED_MICRO_KEYS, TRACKED_MICRO_META } from "@/utils/micros";
 import { formatCalories } from "@/utils/formatters";
@@ -24,8 +25,19 @@ interface Props {
 // the dependent's health profile (honesty rule: no invented numbers). Amounts are recomputed from
 // the entry list via the shared helpers, so they match the dependent's own screen.
 export function FamilyMemberLogScreen({ memberId, name }: Props) {
-  const { tl } = useLocale();
+  const { t, tl } = useLocale();
   const [dates, setDates] = useState<string[] | null>(null); // null = still loading the list
+  // A helper's diary is private unless she shares it (database/0012_max_household.sql), so say so
+  // rather than show what would look like an empty log.
+  const [diaryShared, setDiaryShared] = useState(true);
+
+  useEffect(() => {
+    let alive = true;
+    memberSharesDiary(memberId).then((shared) => alive && setDiaryShared(shared));
+    return () => {
+      alive = false;
+    };
+  }, [memberId]);
   const [index, setIndex] = useState(0);
   const [day, setDay] = useState<DailyLog | null>(null);
   const [dayLoading, setDayLoading] = useState(false);
@@ -85,7 +97,12 @@ export function FamilyMemberLogScreen({ memberId, name }: Props) {
         </ScalableText>
       </View>
 
-      {dates === null ? (
+      {!diaryShared ? (
+        <View className="flex-1 items-center justify-center gap-3 px-8">
+          <Ionicons name="lock-closed-outline" size={32} color={colors.inkFaint} />
+          <ScalableText className="text-center text-base text-ink-muted">{t("familyPlan.logPrivate")}</ScalableText>
+        </View>
+      ) : dates === null ? (
         <View className="flex-1 items-center justify-center">
           <ActivityIndicator color={colors.brand} />
         </View>

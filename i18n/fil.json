@@ -1,0 +1,63 @@
+{
+  "helper": {
+    "title": "Plano sa pagluluto",
+    "today": "Ngayon",
+    "thisWeek": "Ngayong linggo",
+    "nextWeek": "Susunod na linggo",
+    "noPlan": "Wala pang plano para sa linggong ito. Lalabas ito rito kapag gumawa na ang iyong amo.",
+    "nothingToday": "Walang nakaplano ngayong araw.",
+    "cookFor": "Magluto ng {{n}} serving",
+    "minutes": "{{count}} minuto",
+    "whoEats": "Sino ang kakain",
+    "notEating": "Hindi kakain",
+    "ingredients": "Mga sangkap",
+    "steps": "Mga hakbang",
+    "shopping": "Listahan ng bibilhin",
+    "shoppingFrom": "Para sa mga pagkain mula {{date}}. Na-update {{time}}.",
+    "shoppingNone": "Wala pang listahan. Lalabas ito kapag binuksan na ng iyong amo ang plano ngayong linggo.",
+    "shoppingEmpty": "Walang kailangang bilhin. Kumpleto na ang nasa kusina.",
+    "translating": "Isinasalin ang mga recipe…",
+    "translateFailed": "Hindi maisalin ngayon, kaya nasa Ingles ang ilang recipe.",
+    "settingsTitle": "Aking mga setting",
+    "language": "Wika",
+    "shareLog": "Ipakita sa aking amo ang aking food diary",
+    "shareLogHint": "Ang makikita mo lang ay kung ano ang lulutuin at gaano karami. Pribado ang iyong food diary, at naka-off ito maliban kung bubuksan mo. Ikaw lang ang makakapagbago nito.",
+    "save": "I-save",
+    "close": "Isara",
+    "back": "Bumalik",
+    "retry": "Subukan ulit",
+    "errUnavailable": "Hindi ma-load ang plano. Tingnan ang iyong koneksyon at subukan ulit.",
+    "errSave": "Hindi ma-save. Tingnan ang iyong koneksyon at subukan ulit.",
+    "openDish": "Bubuksan ang recipe",
+    "you": "Ikaw",
+    "familyMember": "Miyembro ng pamilya",
+    "size": {
+      "small": "Maliit",
+      "medium": "Katamtaman",
+      "large": "Malaki"
+    },
+    "meal": {
+      "breakfast": "Almusal",
+      "lunch": "Tanghalian",
+      "dinner": "Hapunan",
+      "snack": "Meryenda"
+    },
+    "category": {
+      "meat": "Karne",
+      "seafood": "Pagkaing-dagat",
+      "produce": "Gulay at prutas",
+      "eggs_dairy_soy": "Itlog, gatas at soya",
+      "dry_goods": "Tuyong paninda at pampalasa",
+      "other": "Iba pa"
+    },
+    "weekday": {
+      "0": "Lin",
+      "1": "Lun",
+      "2": "Mar",
+      "3": "Miy",
+      "4": "Huw",
+      "5": "Biy",
+      "6": "Sab"
+    }
+  }
+}

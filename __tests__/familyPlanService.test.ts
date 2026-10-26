@@ -1,14 +1,21 @@
 import {
   generateWeek,
   getFamilyPlan,
+  getHelperPlan,
   logFamilyMeal,
+  publishShopping,
   regenerateDay,
   resetDemoFamilyPlan,
+  saveMySettings,
+  setDemoViewer,
   setDishLocked,
+  setMemberHelper,
   setPortion,
   swapDish,
 } from "@/services/familyPlanService";
 import { REGEN_LIMIT_PER_WEEK } from "@/constants/portionSizes";
+import { DEMO_DISHES } from "@/constants/demoFamilyPlan";
+import { missingTranslations } from "@/utils/helperPlan";
 
 // Without Supabase (as in Jest and the web preview) the plan runs on an in-memory demo family. These
 // tests pin that the demo keeps the same rules as the live service, so previews show real behaviour.
@@ -34,10 +41,15 @@ async function planned() {
 beforeEach(() => resetDemoFamilyPlan());
 
 describe("the demo family", () => {
-  it("starts with three members on three sizes and nothing planned", async () => {
+  it("starts with three family members on three sizes, their helper, and nothing planned", async () => {
     const s = await snapshot();
     expect(s.role).toBe("manager");
-    expect(s.members.map((m) => m.defaultSize)).toEqual(["medium", "large", "small"]);
+    expect(s.members.map((m) => [m.displayName, m.defaultSize, m.isHelper])).toEqual([
+      ["Ka Yan", "medium", false],
+      ["Chi Keung", "large", false],
+      ["Hoi Ching", "small", false],
+      ["Maria", "medium", true],
+    ]);
     expect(s.slots).toEqual(["breakfast", "lunch", "dinner"]);
     expect(s.plans).toEqual([]);
   });
@@ -109,5 +121,55 @@ describe("changing the plan", () => {
     expect(await logFamilyMeal(plan.id, dish.id, [])).toEqual({ ok: true, value: 0 });
     expect((await snapshot()).plans[0].dishes[0].loggedAt).not.toBeNull();
     expect(await logFamilyMeal(plan.id, dish.id, [])).toEqual({ ok: false, reason: "already_logged" });
+  });
+});
+
+describe("helper mode on the demo family", () => {
+  afterEach(() => setDemoViewer("planner"));
+
+  it("has every demo dish in Filipino and Indonesian, lined up, so previews never fall back to English", async () => {
+    const plan = await planned();
+    expect(DEMO_DISHES.length).toBeGreaterThan(20);
+    expect(missingTranslations(plan.dishes, "fil")).toEqual([]);
+    expect(missingTranslations(plan.dishes, "id")).toEqual([]);
+  });
+
+  it("shows Maria the plan with no nutrition anywhere", async () => {
+    await planned();
+    setDemoViewer("helper");
+    const res = await getHelperPlan(TODAY);
+    if (!res.ok) throw new Error(res.reason);
+    expect(res.value.me).toMatchObject({ isHelper: true, helperLanguage: "fil", sharesLog: false });
+    expect(res.value.myUserId).toBe("demo-maria");
+    expect(res.value.plans[0].dishes.length).toBe(21);
+    expect(JSON.stringify(res.value.plans)).not.toMatch(/calories|protein|perServing/);
+  });
+
+  it("hands her the shopping list the planner's phone published", async () => {
+    const plan = await planned();
+    const list = {
+      updatedAt: "2026-10-28T09:30:00.000Z",
+      fromDate: NEXT_WEEK,
+      groups: [{ category: "meat" as const, lines: [{ name: "Chicken", nameZh: "雞肉", quantity: 780, unit: "g" as const }] }],
+    };
+    expect((await publishShopping(plan.id, list)).ok).toBe(true);
+    setDemoViewer("helper");
+    const res = await getHelperPlan(TODAY);
+    expect(res.ok && res.value.plans[0].shopping).toEqual(list);
+  });
+
+  it("lets the planner mark a helper, which makes her food diary private", async () => {
+    await setMemberHelper("demo-hoi-ching", true, "id");
+    const s = await snapshot();
+    expect(s.members.find((m) => m.userId === "demo-hoi-ching")).toMatchObject({ isHelper: true, helperLanguage: "id", sharesLog: false });
+  });
+
+  it("lets Maria choose her language and open her diary herself", async () => {
+    setDemoViewer("helper");
+    const me = (await getHelperPlan(TODAY)) as { ok: true; value: { me: Parameters<typeof saveMySettings>[1] } };
+    await saveMySettings("demo-group", { ...me.value.me, helperLanguage: "id", sharesLog: true });
+    const after = await getHelperPlan(TODAY);
+    expect(after.ok && after.value.me).toMatchObject({ isHelper: true, helperLanguage: "id", sharesLog: true });
+    expect(after.ok && after.value.members.find((m) => m.userId === "demo-maria")).toMatchObject({ helperLanguage: "id", sharesLog: true });
   });
 });
