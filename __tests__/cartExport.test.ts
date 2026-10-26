@@ -352,6 +352,33 @@ describe("missingItemsFromRecipe — pantry-aware, reuses the grocery merge", ()
     expect(keys.has(ingredientCanonicalKey(recipe.ingredients[1]))).toBe(false); // Egg
   });
 
+  it("never lets pantry chicken stand in for chicken stock or chicken breast", () => {
+    // Owner, 2026-10-26: 雞湯 was matched as 雞肉 because its Chinese name contains 雞, so chicken in
+    // the pantry quietly ticked off the stock, and a breast-only recipe too. Only true matches count.
+    const soup: Recipe = {
+      ...recipe,
+      ingredients: [ing("Chicken stock", "雞湯", 300, "ml"), ing("Chicken breast", "雞胸肉", 200, "g")],
+    };
+    const chickenInPantry: PantryItem[] = [
+      { ...pantry[0], id: "p-chicken", name: "Chicken", nameZh: "雞肉", quantity: 1000, unit: "g" },
+    ];
+    expect(missingItemsFromRecipe(soup, chickenInPantry).map((m) => [m.name, m.nameZh, m.quantity, m.unit])).toEqual([
+      ["Chicken stock", "雞湯", 300, "ml"],
+      ["Chicken breast", "雞胸肉", 200, "g"],
+    ]);
+    const keys = missingCanonicalKeys(soup, chickenInPantry);
+    expect(soup.ingredients.every((i) => keys.has(ingredientCanonicalKey(i)))).toBe(true);
+  });
+
+  it("still matches a pantry item by an exact name in either language", () => {
+    // 生抽 is one of soy sauce's listed names, so a bottle labelled that way covers the recipe's.
+    const soy: Recipe = { ...recipe, ingredients: [ing("Soy sauce", "豉油", 15, "ml")] };
+    const bottle: PantryItem[] = [
+      { ...pantry[0], id: "p-soy", name: "Light soy (bottle)", nameZh: "生抽", quantity: 1, unit: "bottle" },
+    ];
+    expect(missingItemsFromRecipe(soy, bottle)).toEqual([]);
+  });
+
   it("keeps the recipe badges and the cart list in exact agreement", () => {
     // One source of truth: every line the cart sheet lists is badged on the recipe, and nothing
     // else is. If these two ever drift, a shopper sees an ingredient flagged missing that the

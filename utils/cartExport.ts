@@ -1,12 +1,12 @@
 import { GroceryListItem, PantryItem, Recipe } from "@/types";
 import { RetailerConfig, SearchLanguage } from "@/constants/retailers";
-import { mergeIngredients, MergeInput, resolveCanonical } from "./groceryMerge";
+import { mergeIngredients, MergeInput, strictCanonical } from "./groceryMerge";
 
 /**
  * The missing shopping list for a single recipe: merge the recipe's ingredients (folding bilingual
  * duplicates and canonicalising names through the dictionary), deduct whatever the pantry already
- * has in stock, and keep only what's still short. Reuses the exact grocery-merge path the app uses
- * everywhere else, so "missing" here means the same thing as on the grocery screen.
+ * has in stock, and keep only what's still short. Reuses the app's grocery merge with its strict
+ * matching (strictCanonical), so pantry chicken never stands in for 雞湯 or 雞胸肉.
  */
 export function missingItemsFromRecipe(recipe: Recipe, pantry: PantryItem[]): GroceryListItem[] {
   const inputs: MergeInput[] = recipe.ingredients.map((ing) => ({
@@ -19,7 +19,7 @@ export function missingItemsFromRecipe(recipe: Recipe, pantry: PantryItem[]): Gr
     },
     recipeId: recipe.id,
   }));
-  return mergeIngredients(inputs, pantry, recipe.id).filter((item) => item.quantity > 0);
+  return mergeIngredients(inputs, pantry, recipe.id, strictCanonical).filter((item) => item.quantity > 0);
 }
 
 /**
@@ -29,13 +29,13 @@ export function missingItemsFromRecipe(recipe: Recipe, pantry: PantryItem[]): Gr
  */
 export function missingCanonicalKeys(recipe: Recipe, pantry: PantryItem[]): Set<string> {
   return new Set(
-    missingItemsFromRecipe(recipe, pantry).map((item) => resolveCanonical(item.name, item.nameZh)),
+    missingItemsFromRecipe(recipe, pantry).map((item) => strictCanonical(item.name, item.nameZh)),
   );
 }
 
 /** The canonical identity of a single recipe ingredient, matched against missingCanonicalKeys. */
 export function ingredientCanonicalKey(item: { name: string; nameZh: string }): string {
-  return resolveCanonical(item.name, item.nameZh);
+  return strictCanonical(item.name, item.nameZh);
 }
 
 /**

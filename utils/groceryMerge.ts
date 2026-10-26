@@ -2,6 +2,8 @@ import { CanonicalUnit, GroceryListItem, PantryItem, RecipeIngredient } from "@/
 import {
   canonicalizeIngredient,
   dictionaryEntry,
+  exactCanonical,
+  normalizeTerm,
 } from "@/constants/ingredientDictionary";
 
 export interface MergeInput {
@@ -30,6 +32,17 @@ export function resolveCanonical(name: string, nameZh: string): string {
   return a;
 }
 
+/**
+ * Stricter than resolveCanonical: the same ingredient only when a name IS a known name or alias in
+ * either language, else the English name itself. resolveCanonical also matches part of a Chinese
+ * name, so 雞湯 (stock) and 雞胸肉 (breast) became 雞肉 and chicken in the pantry "covered" them
+ * (owner, 2026-10-26). Used where a wrong match hides something to buy: the recipe page's missing
+ * ingredients and the family plan's shopping list.
+ */
+export function strictCanonical(name: string, nameZh: string): string {
+  return exactCanonical(name) ?? exactCanonical(nameZh) ?? normalizeTerm(name || nameZh);
+}
+
 interface Acc {
   canonical: string;
   unit: CanonicalUnit;
@@ -42,22 +55,24 @@ interface Acc {
 /**
  * Compile recipe ingredients into a deduplicated grocery list. Same item written
  * in English or Traditional Chinese folds into one line (bilingual merge), and
- * anything marked in-stock in the pantry is deducted.
+ * anything marked in-stock in the pantry is deducted. `resolve` decides what counts as the same
+ * item; the family plan passes a stricter one (see utils/weekPlan.ts).
  */
 export function mergeIngredients(
   inputs: MergeInput[],
   pantry: PantryItem[],
   groceryListId = "tmp",
+  resolve: (name: string, nameZh: string) => string = resolveCanonical,
 ): GroceryListItem[] {
   const pantryByKey = new Map<string, PantryItem>();
   for (const p of pantry) {
     if (!p.inStock) continue;
-    pantryByKey.set(resolveCanonical(p.name, p.nameZh), p);
+    pantryByKey.set(resolve(p.name, p.nameZh), p);
   }
 
   const groups = new Map<string, Acc>();
   for (const { ingredient, recipeId } of inputs) {
-    const canonical = resolveCanonical(ingredient.name, ingredient.nameZh);
+    const canonical = resolve(ingredient.name, ingredient.nameZh);
     const key = `${canonical}|${ingredient.unit}`;
     const existing = groups.get(key);
     const rawLabel = ingredient.name || ingredient.nameZh;
