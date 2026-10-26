@@ -21,11 +21,10 @@ export function todayKey(d: Date = new Date()): string {
   return `${y}-${m}-${day}`;
 }
 
-/** Seven ISO date keys for the Monday-first week containing `start`. */
+/** Seven ISO date keys for the Sunday-first week containing `start` (Sunday to Saturday). */
 export function weekDates(start: Date = new Date()): string[] {
   const d = new Date(start);
-  const offsetToMonday = (d.getDay() + 6) % 7;
-  d.setDate(d.getDate() - offsetToMonday);
+  d.setDate(d.getDate() - d.getDay());
   return Array.from({ length: 7 }, (_, i) => {
     const x = new Date(d);
     x.setDate(d.getDate() + i);

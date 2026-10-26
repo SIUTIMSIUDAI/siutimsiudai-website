@@ -1,7 +1,7 @@
 import { todayKey } from "@/utils/formatters";
 
 // Date ranges for the History report's calendar. Days are local calendar days as YYYY-MM-DD keys,
-// and weeks run Monday to Sunday like weekDates() elsewhere in the app.
+// and weeks run Sunday to Saturday like weekDates() elsewhere in the app (owner, 2026-10-26).
 
 // An inclusive span of days.
 export interface DateRange {
@@ -20,9 +20,9 @@ export function addDays(dateKey: string, n: number): string {
   return todayKey(d);
 }
 
-function mondayOf(dateKey: string): string {
-  const day = new Date(`${dateKey}T00:00:00`).getDay();
-  return addDays(dateKey, -((day + 6) % 7));
+/** The Sunday the week containing `dateKey` starts on. */
+export function weekStartOf(dateKey: string): string {
+  return addDays(dateKey, -new Date(`${dateKey}T00:00:00`).getDay());
 }
 
 export function presetRange(preset: RangePreset, today: string): DateRange {
@@ -30,7 +30,7 @@ export function presetRange(preset: RangePreset, today: string): DateRange {
     case "today":
       return { from: today, to: today };
     case "thisWeek":
-      return { from: mondayOf(today), to: today };
+      return { from: weekStartOf(today), to: today };
     case "last7":
       return { from: addDays(today, -6), to: today };
     case "last30":
@@ -38,8 +38,8 @@ export function presetRange(preset: RangePreset, today: string): DateRange {
   }
 }
 
-// The preset a range matches, for its label. Checked simplest first, so a Monday's "this week"
-// reads as "Today" and a Sunday's as "Last 7 days".
+// The preset a range matches, for its label. Checked simplest first, so a Sunday's "this week"
+// reads as "Today" and a Saturday's as "Last 7 days".
 export function matchPreset(range: DateRange, today: string): RangePreset | null {
   const order: RangePreset[] = ["today", "last7", "last30", "thisWeek"];
   for (const preset of order) {
@@ -62,9 +62,9 @@ export function normaliseRange(a: string, b: string): DateRange {
   return { from: from < earliest ? earliest : from, to };
 }
 
-// One month as calendar cells, Monday first, padded with null to whole weeks. month is 0 to 11.
+// One month as calendar cells, Sunday first, padded with null to whole weeks. month is 0 to 11.
 export function monthGrid(year: number, month: number): (string | null)[] {
-  const lead = (new Date(year, month, 1).getDay() + 6) % 7;
+  const lead = new Date(year, month, 1).getDay();
   const daysInMonth = new Date(year, month + 1, 0).getDate();
   const cells: (string | null)[] = Array(lead).fill(null);
   for (let day = 1; day <= daysInMonth; day++) cells.push(todayKey(new Date(year, month, day)));

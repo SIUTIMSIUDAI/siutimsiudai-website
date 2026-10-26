@@ -30,15 +30,15 @@ const PRESETS: { key: RangePreset; label: string; labelZh: string }[] = [
   { key: "last30", label: "Last 30 days", labelZh: "過去 30 日" },
 ];
 
-const WEEKDAYS = ["M", "T", "W", "T", "F", "S", "S"];
-const WEEKDAYS_ZH = ["一", "二", "三", "四", "五", "六", "日"];
+const WEEKDAYS = ["S", "M", "T", "W", "T", "F", "S"];
+const WEEKDAYS_ZH = ["日", "一", "二", "三", "四", "五", "六"];
 
 function monthOf(dateKey: string): { year: number; month: number } {
   return { year: Number(dateKey.slice(0, 4)), month: Number(dateKey.slice(5, 7)) - 1 };
 }
 
 // Pick what the History report covers: a preset, one day (tap it), or a range (tap a start, then an
-// end). Weeks run Monday to Sunday as elsewhere in the app; future days are off, and a range is kept
+// end). Weeks run Sunday to Saturday as elsewhere in the app; future days are off, and a range is kept
 // to MAX_RANGE_DAYS. Nothing changes until Apply.
 export function RangeCalendarSheet({ visible, value, today, onApply, onClose }: Props) {
   const { tl, locale } = useLocale();
