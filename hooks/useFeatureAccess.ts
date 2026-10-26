@@ -31,7 +31,8 @@ export type Feature =
   // Max — the Household Executive suite
   | "family_sync"
   | "household_calendar"
-  | "grocery_export";
+  | "grocery_export"
+  | "family_meal_plan";
 
 const TIER_RANK: Record<SubscriptionTier, number> = { free: 0, pro: 1, max: 2 };
 
@@ -61,6 +62,9 @@ const FEATURE_MIN_TIER: Record<Feature, SubscriptionTier> = {
   family_sync: "max",
   household_calendar: "max",
   grocery_export: "max",
+  // The weekly family meal plan (owner, 2026-10-21). Members of a Max family use it whatever their own
+  // plan; plan-week checks the planner's Max on the server.
+  family_meal_plan: "max",
 };
 
 // Pure tier-policy check: does `tier` clear the minimum tier that unlocks `feature`? This is the

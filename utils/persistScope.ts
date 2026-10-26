@@ -21,6 +21,7 @@ export const PERSONAL_DATA_KEYS = [
   "siutimsiudai-grocery",
   "siutimsiudai-saved-meals",
   "siutimsiudai-family",
+  "siutimsiudai-family-plan",
 ] as const;
 
 const PERSONAL_KEY_SET: ReadonlySet<string> = new Set(PERSONAL_DATA_KEYS);

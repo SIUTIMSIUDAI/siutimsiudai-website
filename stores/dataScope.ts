@@ -8,6 +8,7 @@ import { useMealPlanStore } from "./mealPlanStore";
 import { useGroceryStore } from "./groceryStore";
 import { useSavedMealsStore } from "./savedMealsStore";
 import { useFamilyStore } from "./familyStore";
+import { useFamilyPlanStore } from "./familyPlanStore";
 
 // The scope orchestrator: the single owner of "whose data is live on this device". authStore calls
 // reconcileDataScope() on every auth transition (cold start, sign-in, sign-out, account switch). It
@@ -39,6 +40,7 @@ function personalStores(): PersonalStore[] {
     { name: "siutimsiudai-grocery", store: useGroceryStore },
     { name: "siutimsiudai-saved-meals", store: useSavedMealsStore },
     { name: "siutimsiudai-family", store: useFamilyStore },
+    { name: "siutimsiudai-family-plan", store: useFamilyPlanStore },
   ];
 }
 

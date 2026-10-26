@@ -11,7 +11,9 @@ import { credentialMatchesUser } from "@/utils/biometricLogin";
 import { useAppStore } from "./appStore";
 import { useSubscriptionStore } from "./useSubscriptionStore";
 import { useFamilyStore } from "./familyStore";
+import { useFamilyPlanStore } from "./familyPlanStore";
 import { syncAllWindowedDays } from "@/services/nutritionSyncService";
+import { importFamilyInbox } from "@/services/familyInboxService";
 import { PERSONAL_DATA_KEYS, scopedKeyFor } from "@/utils/persistScope";
 import { reconcileDataScope } from "./dataScope";
 
@@ -181,6 +183,9 @@ export const useAuthStore = create<AuthState>((set, get) => ({
           // the next edit. Best-effort and windowed on the dependent's device.
           void syncAllWindowedDays();
         }
+        // Bring in any 食咗 the family's planner logged for this person, now that their own diary is
+        // the one loaded.
+        if (session) void importFamilyInbox();
       })();
       // Supabase raises this when it recognises a recovery session itself. It does not fire on
       // every path we support (the manual verifyOtp the deep-link handler runs may not trigger
@@ -251,6 +256,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       // Clear any cached family roster and pending invite so the next account starts clean and a
       // previous user's household never leaks onto a shared device.
       useFamilyStore.getState().reset();
+      useFamilyPlanStore.getState().reset();
       // Detach from RevenueCat so the next account starts from its own anonymous receipt.
       forgetUser().catch(() => {});
     }

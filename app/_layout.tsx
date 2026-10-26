@@ -21,6 +21,7 @@ import { configureRevenueCat } from "@/services/revenueCatService";
 import { useInviteDeepLink } from "@/hooks/useInviteDeepLink";
 import { isAtTarget, isPreAppRoute, resolveGate } from "@/utils/authGate";
 import { flushDirtyDates, syncAllWindowedDays } from "@/services/nutritionSyncService";
+import { importFamilyInbox } from "@/services/familyInboxService";
 
 // Bring up crash/error reporting as early as possible. No-op without a DSN or in dev (services/sentry.ts).
 initSentry();
@@ -92,13 +93,15 @@ function RootLayout() {
     configureRevenueCat(() => useAuthStore.getState().session?.user?.id).catch(() => {});
   }, []);
 
-  // On every return to foreground, retry any failed days and re-publish the windowed diary. Cheap
-  // and best-effort; no-ops for guests and when Supabase is unconfigured.
+  // On every return to foreground, retry any failed days and re-publish the windowed diary, and bring
+  // in any 食咗 the family's planner logged for us. Cheap and best-effort; no-ops for guests and when
+  // Supabase is unconfigured.
   useEffect(() => {
     const sub = AppState.addEventListener("change", (s) => {
       if (s === "active") {
         void flushDirtyDates();
         void syncAllWindowedDays();
+        void importFamilyInbox();
       }
     });
     return () => sub.remove();
@@ -126,6 +129,7 @@ function RootLayout() {
           <Stack.Screen name="cook/[id]" options={{ presentation: "fullScreenModal", animation: "fade" }} />
           <Stack.Screen name="subscription" options={{ presentation: "modal" }} />
           <Stack.Screen name="family/invite" />
+          <Stack.Screen name="family/plan" />
           <Stack.Screen name="family/[memberId]" />
           <Stack.Screen name="invite/[token]" />
           <Stack.Screen name="pantry-scan" />

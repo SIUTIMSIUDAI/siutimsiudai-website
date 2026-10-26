@@ -6,6 +6,7 @@ import { Screen } from "@/components/Screen";
 import { ScalableText } from "@/components/ScalableText";
 import { RecipeCard } from "@/components/RecipeCard";
 import { WeekPlanner } from "@/components/WeekPlanner";
+import { FamilyPlanCard } from "@/components/FamilyPlanCard";
 import { AddRecipeSheet } from "@/components/AddRecipeSheet";
 import { colors } from "@/constants/theme";
 import { useLocale } from "@/hooks/useLocale";
@@ -22,6 +23,8 @@ export default function RecipesScreen() {
     <Screen>
       <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: 120, gap: 16 }}>
         <ScalableText className="text-2xl font-bold text-ink">{t("recipes.title")}</ScalableText>
+
+        <FamilyPlanCard />
 
         <WeekPlanner />
 
