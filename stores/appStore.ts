@@ -30,6 +30,22 @@ interface AppState {
   setHasHydrated: (v: boolean) => void;
 }
 
+/**
+ * Saved app settings from an older version. v0 called the onboarding flag `onboardingSkipped`. v2
+ * (2026-10-26): the AI sheet now also lists the family plan's pantry and "foods I don't eat" lists
+ * (allergies included) and the recipes translated for a helper, so an earlier agreement is cleared
+ * and everyone reads the new list once.
+ */
+export function migrateAppState(persisted: unknown, version: number): AppState {
+  const state = persisted as Record<string, unknown> | undefined;
+  if (state && version < 1 && "onboardingSkipped" in state) {
+    state.onboardingComplete = state.onboardingSkipped;
+    delete state.onboardingSkipped;
+  }
+  if (state && version < 2) state.aiConsentAccepted = false;
+  return state as unknown as AppState;
+}
+
 export const useAppStore = create<AppState>()(
   persist(
     (set, get) => ({
@@ -61,17 +77,8 @@ export const useAppStore = create<AppState>()(
     {
       name: "siutimsiudai-app",
       storage: persistStorage,
-      version: 1,
-      // v0 called this flag `onboardingSkipped`; carry existing installs over so returning users
-      // are not shown onboarding again.
-      migrate: (persisted, version) => {
-        const state = persisted as Record<string, unknown> | undefined;
-        if (state && version < 1 && "onboardingSkipped" in state) {
-          state.onboardingComplete = state.onboardingSkipped;
-          delete state.onboardingSkipped;
-        }
-        return state as unknown as AppState;
-      },
+      version: 2,
+      migrate: migrateAppState,
       partialize: (s) => ({
         locale: s.locale,
         measurementSystem: s.measurementSystem,

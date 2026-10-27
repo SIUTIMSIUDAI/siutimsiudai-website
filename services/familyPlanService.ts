@@ -484,18 +484,16 @@ export async function saveMySettings(groupId: string, settings: MyPlanSettings):
     );
     return ok;
   }
-  const uid = await currentUserId();
-  if (!uid) return fail("unavailable");
-  const { error } = await supabase!.from("family_member_settings").upsert({
-    group_id: groupId,
-    user_id: uid,
-    default_size: settings.defaultSize,
-    exclusions: settings.exclusions,
-    helper_language: settings.helperLanguage,
-    log_private: !settings.sharesLog,
-    updated_at: new Date().toISOString(),
+  // Through the database function, which saves exactly these four things for the caller only (see
+  // database/0012_max_household.sql); a table upsert would also try to update the key columns.
+  const { data, error } = await supabase!.rpc("save_my_plan_settings", {
+    p_group_id: groupId,
+    p_default_size: settings.defaultSize,
+    p_exclusions: settings.exclusions,
+    p_helper_language: settings.helperLanguage,
+    p_log_private: !settings.sharesLog,
   });
-  return written(error);
+  return error || data !== true ? fail("unavailable") : ok;
 }
 
 /**

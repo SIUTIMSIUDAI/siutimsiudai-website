@@ -156,12 +156,11 @@ alter table family_plan_dishes enable row level security;
 alter table family_plan_portions enable row level security;
 alter table family_log_inbox enable row level security;
 
--- Settings: your own row only. The manager changes someone's usual size through
--- set_member_default_size, which cannot touch exclusions.
+-- Settings: you read your own row only, and write it through save_my_plan_settings (below), never
+-- directly. The manager changes someone's usual size through set_member_default_size and the helper
+-- flag through set_member_helper; neither can touch a member's exclusions.
 create policy member_settings_own on family_member_settings
-  for all
-  using (user_id = auth.uid())
-  with check (user_id = auth.uid() and public.is_family_group_member(group_id));
+  for select using (user_id = auth.uid());
 
 create policy plan_settings_read on family_plan_settings
   for select using (public.is_family_group_member(group_id));
@@ -217,13 +216,9 @@ create policy inbox_own_delete on family_log_inbox
 -- imported but not edit it. Plans and dishes are otherwise written by plan-week alone.
 revoke all on table family_member_settings, family_plan_settings, family_week_plans, family_plan_dishes,
   family_plan_portions, family_log_inbox from public, anon, authenticated;
--- A member writes their own settings but never is_helper, and can't delete the row (that would clear
--- is_helper and log_private behind the planner's and their own back).
+-- Members read their own settings and write them only through the functions below, so nobody can set
+-- is_helper on themselves or delete the row (which would clear is_helper and log_private).
 grant select on table family_member_settings to authenticated;
-grant insert (group_id, user_id, default_size, exclusions, helper_language, log_private, updated_at)
-  on table family_member_settings to authenticated;
-grant update (default_size, exclusions, helper_language, log_private, updated_at)
-  on table family_member_settings to authenticated;
 grant select, insert, update on table family_plan_settings to authenticated;
 grant select on table family_week_plans to authenticated;
 grant update (shopping, shopping_at) on table family_week_plans to authenticated;
@@ -264,6 +259,42 @@ language sql stable security definer set search_path = '' as $$
   left join public.profiles p on p.id = fm.user_id
   left join public.family_member_settings s on s.group_id = fm.group_id and s.user_id = fm.user_id
   order by (fm.role = 'manager') desc, fm.created_at;
+$$;
+
+-- RPC: a member saves their own settings ----------------------------------------------------------
+-- Exactly four things, for the caller only and only in a family they belong to: their usual size,
+-- the foods they don't eat, their helper-mode language and whether their food diary is private. A
+-- function rather than a table write because the app's API turns an upsert into an update of every
+-- column it sends, key columns included, which the narrow column grants would refuse.
+create or replace function public.save_my_plan_settings(
+  p_group_id uuid,
+  p_default_size text,
+  p_exclusions text[],
+  p_helper_language text,
+  p_log_private boolean
+)
+returns boolean language plpgsql security definer set search_path = '' as $$
+begin
+  if auth.uid() is null
+    or p_default_size is null or p_default_size not in ('small', 'medium', 'large')
+    or p_helper_language is null or p_helper_language not in ('en', 'fil', 'id')
+    or p_log_private is null
+    or cardinality(coalesce(p_exclusions, '{}')) > 40
+    or exists (select 1 from unnest(coalesce(p_exclusions, '{}')) e where e is null or length(e) not between 1 and 40)
+    or not exists (select 1 from public.family_members m where m.group_id = p_group_id and m.user_id = auth.uid())
+  then
+    return false;
+  end if;
+  insert into public.family_member_settings (group_id, user_id, default_size, exclusions, helper_language, log_private)
+  values (p_group_id, auth.uid(), p_default_size, coalesce(p_exclusions, '{}'), p_helper_language, p_log_private)
+  on conflict (group_id, user_id) do update
+    set default_size = excluded.default_size,
+        exclusions = excluded.exclusions,
+        helper_language = excluded.helper_language,
+        log_private = excluded.log_private,
+        updated_at = now();
+  return true;
+end;
 $$;
 
 -- RPC: the manager sets a member's usual size (and only that) ------------------------------------
@@ -458,6 +489,8 @@ returns integer language sql security definer set search_path = '' as $$
   returning regen_used;
 $$;
 
+revoke all on function public.save_my_plan_settings(uuid, text, text[], text, boolean) from public, anon;
+grant execute on function public.save_my_plan_settings(uuid, text, text[], text, boolean) to authenticated;
 revoke all on function public.is_family_helper(uuid) from public, anon;
 revoke all on function public.is_family_log_reader_of(uuid) from public, anon;
 revoke all on function public.helper_plan_dishes(uuid[]) from public, anon;

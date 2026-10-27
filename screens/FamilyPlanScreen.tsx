@@ -306,6 +306,7 @@ export function FamilyPlanScreen() {
                   </ScalableText>
                   <ScalableText className="text-xs text-ink-faint">{t("familyPlan.oncePerWeek", { count: REGEN_LIMIT_PER_WEEK })}</ScalableText>
                   <ScalableText className="text-xs text-ink-faint">{t("familyPlan.allergyNote")}</ScalableText>
+                  <ScalableText className="text-xs text-ink-faint">{t("familyPlan.aiNote")}</ScalableText>
                   <Pressable
                     accessibilityRole="button"
                     accessibilityLabel={t(selected === thisWeek ? "familyPlan.generateThis" : "familyPlan.generateNext")}

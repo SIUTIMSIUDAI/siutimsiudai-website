@@ -517,7 +517,7 @@
     "slotsMin": "最少要留一餐。",
     "mySizeLabel": "我平時食幾多",
     "exclusionsLabel": "我唔食嘅食物",
-    "exclusionsHint": "包括致敏食物。呢張清單只有你自己睇到，全家嘅餐單都會避開。",
+    "exclusionsHint": "包括致敏食物。呢張清單只有你自己睇到，只會傳送到我哋嘅 AI 供應商 Google Cloud，等每餐都避開。",
     "exclusionPlaceholder": "例如：花生",
     "membersLabel": "每個人平時份量",
     "you": "你",
@@ -548,7 +548,8 @@
     "helperLanguage": "姐姐用嘅語言",
     "helperHint": "佢會用自己嘅語言睇要煮乜、煮幾多，睇唔到任何人嘅卡路里、體重或目標；佢自己嘅飲食記錄亦會保密，除非佢自己分享。",
     "helperTag": "姐姐",
-    "logPrivate": "呢位成員嘅飲食記錄係私人嘅，只有佢自己可以分享畀你。"
+    "logPrivate": "呢位成員嘅飲食記錄係私人嘅，只有佢自己可以分享畀你。",
+    "aiNote": "安排餐單時，我哋會將你嘅存貨清單，同家人填咗唔食嘅食物，傳送到我哋嘅 AI 供應商 Google Cloud。"
   },
   "helper": {
     "title": "煮飯安排",

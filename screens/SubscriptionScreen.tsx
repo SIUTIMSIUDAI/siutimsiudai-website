@@ -196,31 +196,36 @@ export function SubscriptionScreen() {
       annualPrice: "HK$828",
       annualUnit: tl("/ year", "/ 年"),
       annualSub: tl("Just HK$69 / month, billed yearly", "折合每月 HK$69，全年結算"),
-      pitch: tl(
-        "Bilingual helper sync and direct e-grocer pipelines.",
-        "雙語工人同步，直駁網上超市。",
-      ),
-      // Each Max line is backed by real code (owner, 2026-10-19): the invite cap is FAMILY_MAX_MEMBERS
-      // minus the manager's own seat (createFamilyInvite + the accept_invite seat cap), add/remove is
-      // removeMember / revokeInvite, the member view is FamilyMemberLogScreen, and the language line
-      // is the per-phone locale with each meal shown in the viewer's language (MemberEntryRow).
-      // Members keep their own plan: Max is not shared, so never say they "use one Max account".
+      pitch: tl("Plan the family's week, with portions for everyone.", "一次過安排全家一週餐單，份量照顧到每個人。"),
+      // Each Max line is backed by real code (owner, 2026-10-19 and 2026-10-26): the weekly plan is
+      // FamilyPlanScreen + plan-week (pantry first), the portions and 食咗 are utils/weekPlan +
+      // log_family_meal (each member's own diary, through the inbox), helper mode is screens/Helper*
+      // in en / fil / id, the week's list goes through the same store sheet, the invite cap is
+      // FAMILY_MAX_MEMBERS minus the manager's own seat, add/remove is removeMember / revokeInvite, and
+      // the member view is FamilyMemberLogScreen (a helper's diary stays private unless she shares it,
+      // so the line says "family member"). Members keep their own plan: Max is not shared, so never
+      // say they "use one Max account".
       features: [
         tl("Everything in Pro", "Pro 全部功能"),
+        tl("A week of family meals, planned with your pantry first", "一週家庭餐單，優先用雪櫃食材"),
+        tl(
+          "Small, medium or large for each person; tap Eaten once to log everyone's portion in their own diary",
+          "每人揀細、中、大份，撳一下「食咗」，全家份量記入各自嘅記錄",
+        ),
+        tl("Helper mode in English, Filipino or Indonesian", "姐姐煮飯模式：英文、菲律賓文或印尼文"),
         tl(
           `Invite up to ${FAMILY_MAX_MEMBERS - 1} family members or helpers; add or remove any time`,
           `邀請最多 ${FAMILY_MAX_MEMBERS - 1} 位屋企人或工人，隨時加減成員`,
         ),
-        tl("See what each member eats, with nutrients, day by day", "睇到每位成員每日食咗乜同營養"),
-        tl("In English or Chinese, so your helper can use it too", "中英雙語，工人姐姐用英文都得"),
+        tl("See what each family member eats, with nutrients, day by day", "睇到每位屋企人每日食咗乜同營養"),
         // What the tap really does (components/CartExportSheet.tsx, utils/cartExport.ts): lists the
         // recipe's missing ingredients, copies them, opens the store's storefront (none of the three
         // can search a combined list), then a checklist searches that store for one ingredient per
         // tap and ticks it when the shopper comes back. It never adds to a cart, orders or arranges
         // delivery, so never say 落單, 加入購物車 or 送貨 here.
         tl(
-          "Search HKTVmall, Wellcome or ParknShop for what you're missing, one tap per item",
-          "爭咩材料，逐樣一撳去 HKTVmall、惠康、百佳搵",
+          "One shopping list for the week, then search HKTVmall, Wellcome or ParknShop item by item",
+          "一張清單買齊成個星期，再逐樣去 HKTVmall、惠康、百佳搵",
         ),
       ],
       cta: tl("Run the household", "話事人上場"),
@@ -230,8 +235,8 @@ export function SubscriptionScreen() {
       cardClass: "border-2 border-accent bg-[#FCF3DD]",
       successTitle: tl("You're the boss now", "你係老細"),
       successBody: tl(
-        "Max is on. Sync the whole household and search the e-grocers for what you're missing.",
-        "Max 已開通，全家同步，爭咩材料一撳去網上超市搵。",
+        "Max is on. Plan the family's week and search the stores for what you're missing.",
+        "Max 已開通，安排全家一週餐單，爭咩材料就去網上超市搵。",
       ),
     },
   ];

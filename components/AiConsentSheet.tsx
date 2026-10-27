@@ -30,6 +30,16 @@ export function AiConsentSheet() {
     { icon: "swap-horizontal-outline", text: tl("Ingredients you ask us to swap", "你要求更換嘅食材") },
     // Opening a recipe estimates one serving's nutrition from its ingredient list (recipe card).
     { icon: "nutrition-outline", text: tl("Ingredients of recipes you open, to estimate nutrition", "你打開嘅食譜材料，用嚟估算營養") },
+    // The weekly family plan (Max): plan-week gets the planner's pantry and everyone's "foods I don't
+    // eat" lists, without names, and translates the plan's recipes for a helper.
+    {
+      icon: "calendar-outline",
+      text: tl(
+        "For the family meal plan: your pantry list and the foods your family says they don't eat, allergies included",
+        "一週家庭餐單：你嘅存貨清單，同家人填咗唔食嘅食物（包括致敏食物）",
+      ),
+    },
+    { icon: "language-outline", text: tl("The family plan's recipes, to translate them for your helper", "家庭餐單嘅食譜，用嚟翻譯畀姐姐睇") },
   ];
 
   return (

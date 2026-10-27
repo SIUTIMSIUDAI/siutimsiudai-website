@@ -517,7 +517,7 @@
     "slotsMin": "Keep at least one meal.",
     "mySizeLabel": "My usual portion",
     "exclusionsLabel": "Foods I don't eat",
-    "exclusionsHint": "Allergies too. Only you can see this list, and the plan avoids it in every meal.",
+    "exclusionsHint": "Allergies too. Only you can see this list. It goes to our AI provider, Google Cloud, only so every meal avoids it.",
     "exclusionPlaceholder": "e.g. peanuts",
     "membersLabel": "Everyone's usual portion",
     "you": "You",
@@ -548,7 +548,8 @@
     "helperLanguage": "Helper mode language",
     "helperHint": "They see what to cook and how much, in their language. They never see anyone's calories, weight or goals, and their own food diary stays private unless they share it.",
     "helperTag": "Helper",
-    "logPrivate": "This member's food diary is private. Only they can share it with you."
+    "logPrivate": "This member's food diary is private. Only they can share it with you.",
+    "aiNote": "To plan, we send your pantry list and the foods your family says they don't eat to our AI provider, Google Cloud."
   },
   "helper": {
     "title": "Cooking plan",
