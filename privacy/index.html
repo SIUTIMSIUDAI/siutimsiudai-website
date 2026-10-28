@@ -88,7 +88,7 @@
   <main class="doc" role="main">
     <a class="back" href="https://siutimsiudai.app/">&larr; 少甜少底 · Siu Tim Siu Dai</a>
     <h1>Privacy Policy <span class="zh" lang="zh-Hant">私隱政策</span></h1>
-    <p class="meta">Effective Date: October 1, 2026 · <span lang="zh-Hant">生效日期:2026 年 10 月 1 日</span></p>
+    <p class="meta">Effective Date: October 28, 2026 · <span lang="zh-Hant">生效日期:2026 年 10 月 28 日</span></p>
     <p class="govern">
       <span lang="en">The English version governs. The Chinese translation is provided for convenience.</span>
       <span lang="zh-Hant">本頁以英文版本為準,中文翻譯僅供參考。</span>
@@ -114,6 +114,7 @@
       <p>To provide core app functionality, we rely on a small number of third-party services. Some of these, such as smart recipe substitutions and meal macro estimation, use artificial intelligence.</p>
       <ul>
         <li><strong>Google Cloud Integration:</strong> The text and dietary logs you input, and the meal and kitchen photos you capture for analysis, are sent to and processed by Google Cloud (our AI infrastructure provider) to estimate nutrition and identify ingredients.</li>
+        <li><strong>Family Meal Plan (Max):</strong> When a family's planner asks for a weekly meal plan, the planner's pantry list and the family members' lists of foods they don't eat (which may include allergies) are sent to Google Cloud to plan the meals. These lists are sent without anyone's name. When the family's helper opens the plan in Filipino or Indonesian, the plan's recipes are sent to Google Cloud to be translated; only recipe text is sent.</li>
         <li><strong>Data Training:</strong> Your personal data and food logs are strictly used to process your immediate request and are not used by Google Cloud to train public AI models.</li>
         <li><strong>Breached Password Check:</strong> When you choose a new password, we check it against the Have I Been Pwned database of passwords exposed in public data breaches. Your password is never sent. It is converted on your device into a SHA-1 hash, and only the <em>first five characters</em> of that hash are transmitted; the service returns every entry sharing those five characters, and the comparison is completed on your device. The service therefore cannot determine your password, nor whether the result was a match. No email address, account identifier or other personal data accompanies the request. This check runs only when a password is being set — never when you sign in — and if the service cannot be reached your password is accepted as normal.</li>
         <li><strong>Subscription Processing (RevenueCat):</strong> Our Pro and Max subscriptions are handled through Apple's in-app purchase system, with subscription status managed for us by RevenueCat, Inc. To tell whether a subscription is active, we share a randomly generated app user identifier and the App Store purchase receipt with RevenueCat. We also share your account email address with RevenueCat so we can look up your subscription, for example when you contact us for help or when we give you free access to a paid plan. No payment card details ever reach us or RevenueCat — those stay with Apple.</li>
@@ -125,13 +126,16 @@
       <h2>4. Family Sharing</h2>
       <p>The Max plan lets a subscriber (a "manager") invite family members to link their accounts. Linking is optional and always starts with an invitation you choose to accept.</p>
       <ul>
-        <li><strong>What is shared:</strong> Once you accept an invitation, the manager can view and manage (create, edit, and delete) your meal and nutrition logs, and can see your display name, profile photo and calorie targets so they can label those logs for you. Your recipes, pantry, meal plans, shopping lists, and account settings are never shared.</li>
+        <li><strong>What is shared:</strong> Once you accept an invitation, the manager can view and manage (create, edit, and delete) your meal and nutrition logs, and can see your display name, profile photo and calorie targets so they can label those logs for you. Your recipes, pantry, personal meal planner, shopping lists, and account settings are never shared, except as part of the family meal plan described below.</li>
+        <li><strong>Family Meal Plan:</strong> Everyone in the family can see the family's weekly meal plan, the portion size each member has chosen, and each member's display name. Each member's list of foods they don't eat is visible only to that member. The week's shopping list, worked out from the plan and the manager's pantry, is shared with the family's helper. When the manager marks a planned meal as eaten, each member who ate it has their portion added to their own meal log.</li>
+        <li><strong>Helper Mode:</strong> The manager can mark a family member as the family's helper. The helper sees what to cook and how much, and never any member's calories, weight, goals or nutrition details. Once you are marked as the helper, your own meal logs are private: the manager cannot see them unless you choose to share them in the app, and only you can change that choice. The manager can still see your display name, profile photo and calorie target.</li>
         <li><strong>One direction only:</strong> The manager does not share their own logs back to you, and linking does not give you any paid features from their plan.</li>
         <li><strong>Leaving:</strong> You keep your own account and can leave the family at any time from within the app, which ends the manager's access.</li>
       </ul>
 
       <h2>5. Data Retention and Deletion</h2>
       <p>We retain your data only as long as necessary to provide our services. You have the right to delete your data at any time. You can instantly wipe all local device data and delete your server account by navigating to the Profile tab in the app and selecting Delete Account.</p>
+      <p>If you leave a family, your family meal plan settings, your portion choices and any meals still waiting to be added to your log are deleted. The family's meal plans themselves are kept while the family exists.</p>
 
       <h2>6. Contact Us</h2>
       <p>If you have questions about this Privacy Policy, please contact us at <a href="mailto:support@siutimsiudai.app">support@siutimsiudai.app</a>.</p>
@@ -159,6 +163,7 @@
       <p>為提供核心功能,我們依賴少量第三方服務。當中部分(例如智能食譜替代及餐膳營養估算)會使用人工智能。</p>
       <ul>
         <li><strong>Google Cloud 整合:</strong>您輸入的文字及飲食記錄,以及您為分析而拍攝的餐膳及廚房相片,會傳送至 Google Cloud(我們的人工智能基礎設施供應商)並由其處理,以估算營養及辨識食材。</li>
+        <li><strong>家庭餐單(Max):</strong>當家庭的負責安排者要求生成一週餐單時,其食材庫清單及家庭成員填寫的「不吃的食物」清單(可能包括致敏食物)會傳送至 Google Cloud 以安排餐膳;這些清單傳送時不附帶任何人的姓名。當家庭的家務助理以菲律賓文或印尼文打開餐單時,餐單內的食譜會傳送至 Google Cloud 進行翻譯;只會傳送食譜文字。</li>
         <li><strong>資料訓練:</strong>您的個人資料及飲食記錄僅用於處理您當下的請求;Google Cloud 不會使用這些資料來訓練公開的人工智能模型。</li>
         <li><strong>外洩密碼檢查:</strong>當您設定新密碼時,我們會將其與 Have I Been Pwned(記錄公開資料外洩事件中曝光密碼的資料庫)比對。我們不會傳送您的密碼。密碼會在您的裝置上轉換為 SHA-1 雜湊值,而我們只會傳送該雜湊值的<em>首五個字元</em>;該服務會回傳所有共用這五個字元的紀錄,比對則在您的裝置上完成。因此,該服務無法得知您的密碼,亦無法得知比對結果是否吻合。有關要求不會附帶電郵地址、帳戶識別碼或任何其他個人資料。此檢查僅在設定密碼時執行,登入時絕不會執行;若無法連接該服務,您的密碼會照常獲接納。</li>
         <li><strong>訂閱處理(RevenueCat):</strong>我們的 Pro 及 Max 訂閱透過 Apple 的應用程式內購買系統處理,並由 RevenueCat, Inc. 代為管理訂閱狀態。為判斷訂閱是否生效,我們會將一個隨機產生的應用程式用戶識別碼,以及 App Store 的購買收據交予 RevenueCat。我們亦會將您的帳戶電郵地址提供予 RevenueCat,以便我們查找您的訂閱,例如在您聯絡我們尋求協助,或我們向您提供付費計劃的免費使用期時。任何信用卡資料都不會傳送至我們或 RevenueCat,一律由 Apple 保管。</li>
@@ -170,13 +175,16 @@
       <h2>4. 家庭共享</h2>
       <p>Max 方案容許訂閱者(「管理者」)邀請家庭成員連結帳戶。連結屬自願性質,並必定由您選擇接受邀請開始。</p>
       <ul>
-        <li><strong>共享的內容:</strong>當您接受邀請後,管理者可查看及管理(建立、編輯及刪除)您的餐膳及營養記錄,並可查看您的顯示名稱、個人頭像及卡路里目標,以便為您的記錄加上標示。您的食譜、食材庫、餐膳計劃、購物清單及帳戶設定則絕不會共享。</li>
+        <li><strong>共享的內容:</strong>當您接受邀請後,管理者可查看及管理(建立、編輯及刪除)您的餐膳及營養記錄,並可查看您的顯示名稱、個人頭像及卡路里目標,以便為您的記錄加上標示。您的食譜、食材庫、個人餐膳計劃、購物清單及帳戶設定則絕不會共享,惟下述家庭餐單的情況除外。</li>
+        <li><strong>家庭餐單:</strong>家庭內所有成員均可查看家庭的一週餐單、每位成員選擇的份量及各成員的顯示名稱。每位成員填寫的「不吃的食物」清單只有該成員本人可以查看。根據餐單及管理者食材庫計算出的一週購物清單,會與家庭的家務助理共享。當管理者將已安排的一餐標記為已食用時,每位有份食用的成員會將其份量加入自己的飲食記錄。</li>
+        <li><strong>家務助理模式:</strong>管理者可將一位家庭成員標記為家庭的家務助理。家務助理只會看到要煮甚麼及份量多少,絕不會看到任何成員的卡路里、體重、目標或營養資料。當您被標記為家務助理後,您本人的飲食記錄即屬私人:除非您在應用程式內選擇分享,否則管理者無法查看,而只有您本人可以更改此選擇。管理者仍可看到您的顯示名稱、個人頭像及卡路里目標。</li>
         <li><strong>單向共享:</strong>管理者不會向您共享其本人的記錄,連結亦不會為您帶來其方案的任何付費功能。</li>
         <li><strong>離開:</strong>您保留自己的帳戶,並可隨時於應用程式內離開家庭,管理者的存取權亦會就此終止。</li>
       </ul>
 
       <h2>5. 資料保留及刪除</h2>
       <p>我們僅會在提供服務所需的期間內保留您的資料。您有權隨時刪除您的資料。您可於應用程式的「個人檔案」分頁選擇「刪除帳戶」,即時清除所有本機裝置資料並刪除您的伺服器帳戶。</p>
+      <p>如您離開家庭,您的家庭餐單設定、份量選擇及任何尚待加入您記錄的餐膳均會被刪除。家庭的餐單本身則會在家庭存在期間保留。</p>
 
       <h2>6. 聯絡我們</h2>
       <p>如您對本私隱政策有任何疑問,請透過電郵 <a href="mailto:support@siutimsiudai.app">support@siutimsiudai.app</a> 與我們聯絡。</p>
