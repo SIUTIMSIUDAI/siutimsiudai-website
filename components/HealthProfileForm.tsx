@@ -5,9 +5,10 @@ import { useRouter } from "expo-router";
 import { ScalableText } from "./ScalableText";
 import { colors, macroColors } from "@/constants/theme";
 import { useLocale } from "@/hooks/useLocale";
-import { computeNutritionTargets } from "@/utils/nutritionTargets";
+import { computeNutritionTargets, targetCoverage } from "@/utils/nutritionTargets";
 import { resolveMicrosPresentation, useSubscriptionStore } from "@/stores/useSubscriptionStore";
-import { ActivityLevel, HealthProfile, Sex, WeightGoal } from "@/types";
+import { ActivityLevel, HealthProfile, LifeStage, Sex, WeightGoal } from "@/types";
+import { TargetCoverageNote } from "./TargetCoverageNote";
 
 const INPUT = "rounded-xl border border-[#E4DCCB] bg-surface px-3 py-2 text-base text-ink";
 
@@ -32,6 +33,13 @@ const GOAL_OPTIONS: { value: WeightGoal; labelKey: string; hintKey: string }[] =
   { value: "maintain", labelKey: "health.goalMaintain", hintKey: "health.goalMaintainHint" },
   { value: "gain", labelKey: "health.goalGain", hintKey: "health.goalGainHint" },
   { value: "muscle", labelKey: "health.goalMuscle", hintKey: "health.goalMuscleHint" },
+];
+
+// Asked of women only. "none" stands for no answer, which is the default.
+const LIFE_STAGE_OPTIONS: { value: LifeStage | "none"; labelKey: string }[] = [
+  { value: "none", labelKey: "health.lifeStageNo" },
+  { value: "pregnant", labelKey: "health.lifeStagePregnant" },
+  { value: "breastfeeding", labelKey: "health.lifeStageBreastfeeding" },
 ];
 
 const ACTIVITY_OPTIONS: { value: ActivityLevel; labelKey: string; hintKey: string }[] = [
@@ -133,6 +141,7 @@ export function HealthProfileForm({ initial, onChange, freeMicros = "upsell" }: 
   const [weightKg, setWeightKg] = useState(String(base.weightKg));
   const [activityLevel, setActivityLevel] = useState<ActivityLevel>(base.activityLevel);
   const [goal, setGoal] = useState<WeightGoal>(base.goal);
+  const [lifeStage, setLifeStage] = useState<LifeStage | null>(base.lifeStage ?? null);
 
   // Re-seed when the caller swaps in a different saved profile.
   useEffect(() => {
@@ -143,6 +152,7 @@ export function HealthProfileForm({ initial, onChange, freeMicros = "upsell" }: 
     setWeightKg(String(b.weightKg));
     setActivityLevel(b.activityLevel);
     setGoal(b.goal);
+    setLifeStage(b.lifeStage ?? null);
   }, [initial]);
 
   const draft = useMemo<HealthProfile>(
@@ -153,10 +163,12 @@ export function HealthProfileForm({ initial, onChange, freeMicros = "upsell" }: 
       weightKg: Number(weightKg) || 0,
       activityLevel,
       goal,
+      lifeStage: sex === "female" ? lifeStage : null,
     }),
-    [sex, age, heightCm, weightKg, activityLevel, goal],
+    [sex, age, heightCm, weightKg, activityLevel, goal, lifeStage],
   );
 
+  // Null for anyone the reference doesn't cover, who sees a note instead of a preview.
   const targets = useMemo(() => computeNutritionTargets(draft), [draft]);
 
   // Push the current draft up whenever it changes so the caller's commit button has it.
@@ -272,73 +284,87 @@ export function HealthProfileForm({ initial, onChange, freeMicros = "upsell" }: 
         </View>
       </Field>
 
-      <View className="gap-3 rounded-2xl border border-[#E4DCCB] bg-surface-subtle p-4">
-        <ScalableText className="text-sm font-semibold text-ink-muted">
-          {t("health.dailyTargets")}
-        </ScalableText>
+      {sex === "female" && (
+        <Field label={t("health.lifeStage")}>
+          <Segmented
+            value={lifeStage ?? "none"}
+            onChange={(v) => setLifeStage(v === "none" ? null : v)}
+            options={LIFE_STAGE_OPTIONS.map((o) => ({ value: o.value, label: t(o.labelKey) }))}
+          />
+        </Field>
+      )}
 
-        <View className="flex-row items-baseline gap-2">
-          <ScalableText className="text-3xl font-bold text-ink">{targets.calories}</ScalableText>
-          <ScalableText className="text-base text-ink-muted">
-            {tl("kcal", "千卡")} · {t("health.calories")}
+      {targets ? (
+        <View className="gap-3 rounded-2xl border border-[#E4DCCB] bg-surface-subtle p-4">
+          <ScalableText className="text-sm font-semibold text-ink-muted">
+            {t("health.dailyTargets")}
           </ScalableText>
-        </View>
 
-        <View className="flex-row gap-2">
-          <MacroPill label={t("health.protein")} grams={targets.protein} color={macroColors.protein} />
-          <MacroPill label={t("health.carbs")} grams={targets.carbs} color={macroColors.carbs} />
-          <MacroPill label={t("health.fat")} grams={targets.fat} color={macroColors.fat} />
-          <MacroPill label={t("health.fibre")} grams={targets.fiber} color={colors.inkFaint} />
-        </View>
+          <View className="flex-row items-baseline gap-2">
+            <ScalableText className="text-3xl font-bold text-ink">{targets.calories}</ScalableText>
+            <ScalableText className="text-base text-ink-muted">
+              {tl("kcal", "千卡")} · {t("health.calories")}
+            </ScalableText>
+          </View>
 
-        {micros !== "hidden" && (
-          <View className="mt-1 gap-2">
-            <View className="flex-row items-center gap-1.5">
-              <ScalableText className="text-sm font-semibold text-ink-muted">
-                {t("health.micros")}
-              </ScalableText>
-              {micros === "upsell" && <Ionicons name="lock-closed" size={12} color={colors.inkFaint} />}
-            </View>
-            {targets.micros.map((m) => (
-              <View key={m.key} className="flex-row items-center justify-between">
-                <View className="flex-row items-center gap-2">
-                  <ScalableText className="text-sm text-ink">{tl(m.label, m.labelZh)}</ScalableText>
-                  {m.isLimit && (
-                    <View className="rounded-full bg-surface-sunken px-2 py-0.5">
-                      <ScalableText className="text-xs font-medium text-ink-muted">
-                        {t("health.max")}
-                      </ScalableText>
-                    </View>
+          <View className="flex-row gap-2">
+            <MacroPill label={t("health.protein")} grams={targets.protein} color={macroColors.protein} />
+            <MacroPill label={t("health.carbs")} grams={targets.carbs} color={macroColors.carbs} />
+            <MacroPill label={t("health.fat")} grams={targets.fat} color={macroColors.fat} />
+            <MacroPill label={t("health.fibre")} grams={targets.fiber} color={colors.inkFaint} />
+          </View>
+
+          {micros !== "hidden" && (
+            <View className="mt-1 gap-2">
+              <View className="flex-row items-center gap-1.5">
+                <ScalableText className="text-sm font-semibold text-ink-muted">
+                  {t("health.micros")}
+                </ScalableText>
+                {micros === "upsell" && <Ionicons name="lock-closed" size={12} color={colors.inkFaint} />}
+              </View>
+              {targets.micros.map((m) => (
+                <View key={m.key} className="flex-row items-center justify-between">
+                  <View className="flex-row items-center gap-2">
+                    <ScalableText className="text-sm text-ink">{tl(m.label, m.labelZh)}</ScalableText>
+                    {m.isLimit && (
+                      <View className="rounded-full bg-surface-sunken px-2 py-0.5">
+                        <ScalableText className="text-xs font-medium text-ink-muted">
+                          {t("health.max")}
+                        </ScalableText>
+                      </View>
+                    )}
+                  </View>
+                  {micros === "upsell" ? (
+                    <ScalableText className="text-sm font-semibold tracking-widest text-ink-faint">
+                      ••••
+                    </ScalableText>
+                  ) : (
+                    <ScalableText className="text-sm font-semibold text-ink">
+                      {m.amount} {m.unit}
+                    </ScalableText>
                   )}
                 </View>
-                {micros === "upsell" ? (
-                  <ScalableText className="text-sm font-semibold tracking-widest text-ink-faint">
-                    ••••
-                  </ScalableText>
-                ) : (
-                  <ScalableText className="text-sm font-semibold text-ink">
-                    {m.amount} {m.unit}
-                  </ScalableText>
-                )}
-              </View>
-            ))}
+              ))}
 
-            {micros === "upsell" && (
-              <Pressable
-                accessibilityRole="button"
-                onPress={() => router.push("/subscription")}
-                className="mt-1 min-h-[44px] flex-row items-center gap-2 rounded-xl border border-brand/40 bg-brand/5 p-3 active:opacity-70"
-              >
-                <Ionicons name="lock-open-outline" size={16} color={colors.brand} />
-                <ScalableText className="flex-1 text-xs font-semibold text-ink">
-                  {t("health.microsUpsell")}
-                </ScalableText>
-                <Ionicons name="chevron-forward" size={16} color={colors.brand} />
-              </Pressable>
-            )}
-          </View>
-        )}
-      </View>
+              {micros === "upsell" && (
+                <Pressable
+                  accessibilityRole="button"
+                  onPress={() => router.push("/subscription")}
+                  className="mt-1 min-h-[44px] flex-row items-center gap-2 rounded-xl border border-brand/40 bg-brand/5 p-3 active:opacity-70"
+                >
+                  <Ionicons name="lock-open-outline" size={16} color={colors.brand} />
+                  <ScalableText className="flex-1 text-xs font-semibold text-ink">
+                    {t("health.microsUpsell")}
+                  </ScalableText>
+                  <Ionicons name="chevron-forward" size={16} color={colors.brand} />
+                </Pressable>
+              )}
+            </View>
+          )}
+        </View>
+      ) : (
+        <TargetCoverageNote coverage={targetCoverage(draft)} />
+      )}
 
       <ScalableText className="px-1 text-xs leading-5 text-ink-faint">
         {t("health.disclaimer")}

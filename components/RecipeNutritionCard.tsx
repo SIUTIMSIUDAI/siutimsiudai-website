@@ -78,7 +78,8 @@ function ServingNutrition({ nutrition, healthy }: { nutrition: RecipeNutrition; 
   const targets = useMemo(() => (profile ? computeNutritionTargets(profile) : null), [profile]);
 
   const kcal = Math.round(nutrition.perServing.calories);
-  const v = servingVerdict(kcal, eaten, target);
+  // No calorie target (under 18, pregnant or breastfeeding): no "fits today" verdict, just the numbers.
+  const v = target === null ? null : servingVerdict(kcal, eaten, target);
 
   const macros = [
     { key: "protein", label: t("dashboard.protein"), color: macroColors.protein },
@@ -90,14 +91,16 @@ function ServingNutrition({ nutrition, healthy }: { nutrition: RecipeNutrition; 
 
   return (
     <>
-      <View
-        className="self-start rounded-full px-3 py-1"
-        style={{ backgroundColor: v.fits ? FITS_TINT : OVER_TINT }}
-      >
-        <ScalableText className="text-sm font-bold" style={{ color: v.fits ? colors.jade : colors.accentDark }}>
-          {v.fits ? tl("✓ Fits today", "✓ 食得落") : tl(`⚠ ${v.over} kcal over today`, `⚠ 會超出今日 ${v.over} kcal`)}
-        </ScalableText>
-      </View>
+      {v ? (
+        <View
+          className="self-start rounded-full px-3 py-1"
+          style={{ backgroundColor: v.fits ? FITS_TINT : OVER_TINT }}
+        >
+          <ScalableText className="text-sm font-bold" style={{ color: v.fits ? colors.jade : colors.accentDark }}>
+            {v.fits ? tl("✓ Fits today", "✓ 食得落") : tl(`⚠ ${v.over} kcal over today`, `⚠ 會超出今日 ${v.over} kcal`)}
+          </ScalableText>
+        </View>
+      ) : null}
 
       <View className="gap-1">
         <View className="flex-row flex-wrap items-baseline gap-1.5">
@@ -117,26 +120,30 @@ function ServingNutrition({ nutrition, healthy }: { nutrition: RecipeNutrition; 
             </View>
           ) : null}
         </View>
-        <ScalableText className="text-sm text-ink-muted">
-          {v.fits
-            ? tl(`${v.left} kcal left today, ${v.after} after this`, `今日仲有 ${v.left} kcal 位，食完仲剩 ${v.after} kcal`)
-            : v.left <= 0
-              ? tl("Today's calories are used up", "今日已經用晒 kcal 位")
-              : tl(`${v.left} kcal left today, this is ${kcal}`, `今日仲有 ${v.left} kcal 位，呢份 ${kcal} kcal`)}
-        </ScalableText>
+        {v ? (
+          <ScalableText className="text-sm text-ink-muted">
+            {v.fits
+              ? tl(`${v.left} kcal left today, ${v.after} after this`, `今日仲有 ${v.left} kcal 位，食完仲剩 ${v.after} kcal`)
+              : v.left <= 0
+                ? tl("Today's calories are used up", "今日已經用晒 kcal 位")
+                : tl(`${v.left} kcal left today, this is ${kcal}`, `今日仲有 ${v.left} kcal 位，呢份 ${kcal} kcal`)}
+          </ScalableText>
+        ) : null}
       </View>
 
-      <View
-        accessible
-        accessibilityLabel={tl(
-          `Eaten today ${eaten} of ${target} kcal, this serving ${kcal} kcal`,
-          `今日食咗 ${eaten} / ${target} kcal，呢份 ${kcal} kcal`,
-        )}
-        className="h-2.5 flex-row overflow-hidden rounded-full bg-surface-sunken"
-      >
-        <View style={{ width: `${v.eatenShare * 100}%`, backgroundColor: EATEN_GREY }} />
-        <View style={{ width: `${v.dishShare * 100}%`, backgroundColor: v.fits ? colors.jade : colors.accent }} />
-      </View>
+      {v ? (
+        <View
+          accessible
+          accessibilityLabel={tl(
+            `Eaten today ${eaten} of ${target} kcal, this serving ${kcal} kcal`,
+            `今日食咗 ${eaten} / ${target} kcal，呢份 ${kcal} kcal`,
+          )}
+          className="h-2.5 flex-row overflow-hidden rounded-full bg-surface-sunken"
+        >
+          <View style={{ width: `${v.eatenShare * 100}%`, backgroundColor: EATEN_GREY }} />
+          <View style={{ width: `${v.dishShare * 100}%`, backgroundColor: v.fits ? colors.jade : colors.accent }} />
+        </View>
+      ) : null}
 
       {hasAccess ? (
         <View className="gap-2">

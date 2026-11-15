@@ -7,7 +7,7 @@ import { colors, macroColors, microColors } from "@/constants/theme";
 import { useLocale } from "@/hooks/useLocale";
 import { useFeatureAccess } from "@/hooks/useFeatureAccess";
 import { useNutritionStore } from "@/stores/nutritionStore";
-import { sumMicroTotals, TrackedMicroKey } from "@/utils/micros";
+import { sumMicroTotals, TRACKED_MICRO_META, TrackedMicroKey } from "@/utils/micros";
 import { NutritionTargets } from "@/types";
 
 interface Props {
@@ -41,24 +41,29 @@ function NutrientBar({
   unit: string;
   color: string;
 }) {
-  const pct =
-    target && target > 0
-      ? Math.min(100, Math.round((value / target) * 100))
-      : total && total > 0
-        ? Math.round((value / total) * 100)
-        : 0;
+  const hasTarget = !!target && target > 0;
+  const hasTotal = !!total && total > 0;
+  const pct = hasTarget
+    ? Math.min(100, Math.round((value / target) * 100))
+    : hasTotal
+      ? Math.round((value / total) * 100)
+      : 0;
   return (
     <View className="mb-3">
       <View className="mb-1 flex-row items-end justify-between">
         <ScalableText className="text-sm font-semibold text-ink">{label}</ScalableText>
         <ScalableText className="text-sm text-ink-muted">
           {Math.round(value)}
-          {target && target > 0 ? ` / ${Math.round(target)}` : ""} {unit}
+          {hasTarget ? ` / ${Math.round(target)}` : ""} {unit}
         </ScalableText>
       </View>
-      <View className="h-2 overflow-hidden rounded-full bg-surface-sunken">
-        <View style={{ width: `${pct}%`, backgroundColor: color }} className="h-full rounded-full" />
-      </View>
+      {/* With neither a target nor a total to measure against (a micro with no shown target), there
+          is no honest bar to draw, so only the amount shows. */}
+      {hasTarget || hasTotal ? (
+        <View className="h-2 overflow-hidden rounded-full bg-surface-sunken">
+          <View style={{ width: `${pct}%`, backgroundColor: color }} className="h-full rounded-full" />
+        </View>
+      ) : null}
     </View>
   );
 }
@@ -86,6 +91,9 @@ export function NutrientPanel({ date, macros, targets }: Props) {
   const { hasAccess, triggerPaywall } = useFeatureAccess("macro_drawer");
   const entries = useNutritionStore((s) => s.logsByDate[date]?.entries);
   const microTotals = useMemo(() => sumMicroTotals(entries ?? []), [entries]);
+  // A profile with no targets is someone the reference doesn't cover (under 18, pregnant or
+  // breastfeeding): they still see what they've eaten, with no goals.
+  const hasProfile = useNutritionStore((s) => s.healthProfile !== null);
 
   // Free tier: one locked upsell for the whole panel. Tapping opens the paywall, never numbers.
   if (!hasAccess) {
@@ -124,19 +132,20 @@ export function NutrientPanel({ date, macros, targets }: Props) {
   }
 
   const macroTotal = macros.protein + macros.carbs + macros.fat;
-  // Single source of truth for each micro's target, label and unit (utils/nutritionTargets).
+  // Each micro's target comes from utils/nutritionTargets. A micro without a shown target (one whose
+  // reference value is unverified, or every micro for someone the reference doesn't cover) still shows
+  // what was eaten, just without a goal.
   const microByKey = new Map((targets?.micros ?? []).map((m) => [m.key, m]));
 
   const renderMicro = (key: TrackedMicroKey) => {
-    const target = microByKey.get(key);
-    if (!target) return null;
+    const meta = TRACKED_MICRO_META[key];
     return (
       <NutrientBar
         key={key}
-        label={tl(target.label, target.labelZh)}
+        label={tl(meta.label, meta.labelZh)}
         value={microTotals[key]}
-        target={target.amount}
-        unit={target.unit}
+        target={microByKey.get(key)?.amount}
+        unit={meta.unit}
         color={microColors[key]}
       />
     );
@@ -189,7 +198,7 @@ export function NutrientPanel({ date, macros, targets }: Props) {
         />
       </Section>
 
-      {targets ? (
+      {targets || hasProfile ? (
         <>
           <Section title={tl("Minerals", "礦物質")}>{MINERAL_KEYS.map(renderMicro)}</Section>
           <Section title={tl("Vitamins", "維他命")}>{VITAMIN_KEYS.map(renderMicro)}</Section>

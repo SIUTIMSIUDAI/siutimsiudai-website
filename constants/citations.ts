@@ -15,7 +15,8 @@
 //   3. Verify a URL before changing it. The WHO sodium guideline was nearly shipped pointing at
 //      "Urban governance for health and well-being" because the ISBN in the path was one digit off.
 //
-// Last verified live: 2026-08-04.
+// Last verified live: 2026-11-15. Two links (wei-amdr, zhihu-dris-2023) open only after signing in,
+// which rule 1 forbids: they must be replaced before this ships.
 
 export type CitationTopic = "energy" | "macros" | "micros" | "swaps" | "food";
 
@@ -34,10 +35,9 @@ export interface Citation {
   backsZh: string;
   url: string;
   /**
-   * Traditional Chinese edition of the same document, where the publisher has one. Only the two
-   * Hong Kong government sources do; PubMed, NIH and ODPHP publish in English only, and WHO's
-   * Chinese coverage is inconsistent enough that pointing at it risks a dead link later.
-   * Note the path segments differ per site and are NOT guessable: CFS uses /tc_chi/, but
+   * Traditional Chinese edition of the same document, where the publisher has one and it has been
+   * checked live: today the Centre for Food Safety and Change4Health pages. Leave it out rather than
+   * guess. Note the path segments differ per site and are NOT guessable: CFS uses /tc_chi/, but
    * Change4Health uses /tc/ and 404s on /tc_chi/. Verify any change.
    */
   urlZh?: string;
@@ -65,59 +65,136 @@ export const CITATIONS: Citation[] = [
     publisher: "Mifflin MD, St Jeor ST, et al. American Journal of Clinical Nutrition, 1990",
     publisherZh: "Mifflin MD、St Jeor ST 等，《美國臨床營養學雜誌》，1990",
     backs:
-      "The Mifflin-St Jeor equation, which we use to estimate your basal metabolic rate from your age, sex, height and weight. Your daily calorie target is that figure scaled by your activity level and your weight goal.",
+      "The Mifflin-St Jeor equation, which we use to estimate your basal metabolic rate from your age, sex, height and weight. Your daily calorie target is that figure scaled by your activity level, kept within 10% of the Chinese reference energy need where one is confirmed for your age and activity, then adjusted for your weight goal.",
     backsZh:
-      "我們用 Mifflin-St Jeor 公式，按你的年齡、性別、身高同體重估算基礎代謝率。再按你的活動量同體重目標調整，得出每日熱量目標。",
+      "我們用 Mifflin-St Jeor 公式，按你的年齡、性別、身高同體重估算基礎代謝率。再按你的活動量調整；如果中國參考標準有確認你年齡同活動量嘅能量需要量，就保持喺佢嘅 10% 以內；最後按你的體重目標調整，得出每日熱量目標。",
     url: "https://pubmed.ncbi.nlm.nih.gov/2305711/",
   },
   {
-    key: "issn-protein",
-    topic: "macros",
-    title: "International Society of Sports Nutrition Position Stand: protein and exercise",
-    titleZh: "國際運動營養學會立場聲明：蛋白質與運動",
-    publisher: "Jäger R, et al. Journal of the International Society of Sports Nutrition, 2017",
-    publisherZh: "Jäger R 等，《國際運動營養學會期刊》，2017",
+    key: "china-dris-2023",
+    topic: "energy",
+    title: "Dietary Reference Intakes for China (2023)",
+    titleZh: "中國居民膳食營養素參考攝入量（2023版）",
+    publisher: "Chinese Nutrition Society",
+    publisherZh: "中國營養學會",
     backs:
-      "Your protein target, set between 1.2 g and 2.0 g per kilogram of body weight and rising with your activity level.",
-    backsZh: "你的蛋白質目標，按活動量由每公斤體重 1.2 克遞增至 2.0 克。",
-    url: "https://pubmed.ncbi.nlm.nih.gov/28642676/",
-  },
-  {
-    key: "dietary-guidelines",
-    topic: "macros",
-    title: "Dietary Guidelines for Americans",
-    titleZh: "美國膳食指南",
-    publisher: "Office of Disease Prevention and Health Promotion, U.S. Department of Health and Human Services",
-    publisherZh: "美國衞生及公共服務部　疾病預防及健康促進辦公室",
-    backs:
-      "Your fat target, set at about 27% of energy, the middle of the recommended 20-35% range. Also your fibre target of 14 g per 1,000 kcal.",
+      "The 2023 Chinese reference behind your targets. The energy check, your protein, fat and carbohydrate ranges, and your calcium, iron, vitamin C and vitamin D amounts all follow this edition.",
     backsZh:
-      "你的脂肪目標定於約佔熱量 27%，即建議範圍 20-35% 的中間值。纖維目標亦按每 1,000 千卡 14 克計算。",
-    url: "https://odphp.health.gov/our-work/nutrition-physical-activity/dietary-guidelines",
+      "你嘅目標所依據嘅 2023 年中國參考標準。熱量核對、蛋白質、脂肪同碳水化合物嘅比例範圍，以及鈣、鐵、維他命C同維他命D嘅份量，都跟呢個版本。",
+    url: "https://en.cnsoc.org/DRIs",
   },
   {
-    key: "nih-ods",
-    topic: "micros",
-    title: "Dietary Supplement Fact Sheets",
-    titleZh: "膳食營養素資料庫",
-    publisher: "Office of Dietary Supplements, U.S. National Institutes of Health",
-    publisherZh: "美國國家衞生研究院　膳食補充劑辦公室",
+    // The page's own title has a Chinese dash after 全民行动; it is shown with a colon instead, because
+    // app copy never uses em dashes.
+    key: "cqcdc-energy",
+    topic: "energy",
+    title: "吃动平衡 健康体重 全民行动：请看这里",
+    titleZh: "吃动平衡 健康体重 全民行动：请看这里",
+    publisher: "Chongqing Center for Disease Control and Prevention",
+    publisherZh: "重慶市疾病預防控制中心",
     backs:
-      "The recommended daily amounts we show for calcium, iron, potassium, vitamin C and vitamin D, which vary by your sex and age.",
-    backsZh: "我們顯示的鈣、鐵、鉀、維他命C同維他命D每日建議攝取量，會按你的性別同年齡而不同。",
-    url: "https://ods.od.nih.gov/factsheets/list-all/",
+      "The 2023 Chinese reference energy needs for adults aged 18 to 49 with light activity. Where your age and activity match, we keep your daily calories within 10% of that figure.",
+    backsZh:
+      "2023 年中國參考標準中，18 至 49 歲輕度活動成人嘅能量需要量。如果你嘅年齡同活動量符合，我哋會將你每日熱量保持喺呢個數字嘅 10% 以內。",
+    url: "https://www.cqcdc.org/index.php?a=shows&catid=252&id=2807",
   },
   {
-    key: "who-sodium",
-    topic: "micros",
-    title: "Guideline: sodium intake for adults and children",
-    titleZh: "指引：成人及兒童鈉攝取量",
-    publisher: "World Health Organization",
-    publisherZh: "世界衞生組織",
+    // RELEASE BLOCKER: this link asks for a sign-in (checked 2026-11-15), which rule 1 forbids.
+    key: "wei-amdr",
+    topic: "macros",
+    title: "Energy and nutrients intakes among adult residents in Xinjiang, 1982-2015",
+    titleZh: "新疆成年居民能量及營養素攝入量（1982-2015）",
+    publisher: "Wei X, et al. Wei Sheng Yan Jiu (Journal of Hygiene Research), 2026",
+    publisherZh: "Wei X 等，《衞生研究》，2026",
     backs:
-      "The 2,000 mg daily sodium ceiling. Sodium is the one target in the app you aim to stay under rather than reach.",
-    backsZh: "每日 2,000 毫克鈉上限。鈉係app入面唯一要「唔好超過」而非「要達到」的目標。",
-    url: "https://www.who.int/publications/i/item/9789241504836",
+      "The 2023 Chinese ranges for protein (10-15% of your daily calories), fat (20-30%) and carbohydrate (50-65%). Your protein target is 15%, fat 27%, and carbohydrate the rest.",
+    backsZh:
+      "2023 年中國參考標準嘅比例範圍：蛋白質佔每日熱量 10-15%、脂肪 20-30%、碳水化合物 50-65%。你嘅蛋白質目標係 15%，脂肪 27%，其餘係碳水化合物。",
+    url: "https://consensus.app/papers/details/w:f9feaaaf-f61f-4e32-92db-463a7c7f3fc6/",
+  },
+  {
+    key: "phc-fibre",
+    topic: "macros",
+    title: "Life Course Preventive Care for Women: Maintain a Healthy and Balanced Diet",
+    titleZh: "女性全生命周期預防保健：保持健康均衡飲食",
+    publisher: "Primary Healthcare Commission, Hong Kong SAR Government, 2025",
+    publisherZh: "香港特別行政區政府基層醫療署，2025",
+    backs: "Your fibre target of 25 g a day.",
+    backsZh: "你每日 25 克嘅纖維目標。",
+    url: "https://www.healthbureau.gov.hk/phcc/rfs/assets/pdf/women/lifestyle/printing_maintain_a_healthy_and_balanced_diet.pdf",
+  },
+  {
+    key: "cfs-sodium",
+    topic: "micros",
+    title: "Salt Reduction Together - Bread",
+    titleZh: "齊齊減鹽-麵包篇",
+    publisher: "Centre for Food Safety, Hong Kong SAR Government",
+    publisherZh: "香港特別行政區政府食物安全中心",
+    backs:
+      "The 2,000 mg daily sodium ceiling (5 g of salt) the World Health Organization recommends. Sodium is the one target in the app you aim to stay under rather than reach.",
+    backsZh: "世界衞生組織建議嘅每日 2,000 毫克鈉上限（即 5 克鹽）。鈉係app入面唯一要「唔好超過」而非「要達到」的目標。",
+    url: "https://www.cfs.gov.hk/english/programme/programme_rdss/Sodium_Voluntary_Sodium_Reduction_Target.html",
+    urlZh: "https://www.cfs.gov.hk/tc_chi/programme/programme_rdss/Sodium_Voluntary_Sodium_Reduction_Target.html",
+  },
+  {
+    key: "dh-potassium",
+    topic: "micros",
+    title: "DH releases Population Health Survey Report (Part II)",
+    titleZh: "衞生署公布人口健康調查報告（第二部分）",
+    publisher: "Department of Health, Hong Kong SAR Government, 2023",
+    publisherZh: "香港特別行政區政府衞生署，2023",
+    backs: "The World Health Organization's recommendation of at least 3.5 g (3,500 mg) of potassium a day, your potassium target.",
+    backsZh: "世界衞生組織建議每日最少攝取 3.5 克（3,500 毫克）鉀，即你嘅鉀目標。",
+    url: "https://www.info.gov.hk/gia/general/202304/26/P2023042600168.htm",
+  },
+  {
+    key: "tencent-dris-2023",
+    topic: "micros",
+    title: "【科普营养】主食少吃半碗，老人吃够肉蛋奶……新版《中国居民膳食营养素参考摄入量（2023版）》的变化影响我们餐桌",
+    titleZh: "【科普营养】主食少吃半碗，老人吃够肉蛋奶……新版《中国居民膳食营养素参考摄入量（2023版）》的变化影响我们餐桌",
+    publisher: "Tencent News, 2024",
+    publisherZh: "騰訊新聞，2024",
+    backs: "Your calcium target of 800 mg a day, the 2023 figure for all adults.",
+    backsZh: "你每日 800 毫克嘅鈣目標，即 2023 年版本俾所有成人嘅數字。",
+    url: "https://news.qq.com/rain/a/20241231A01T5800",
+  },
+  {
+    key: "phc-micros",
+    topic: "micros",
+    title: "Life Course Preventive Care for Women: Maintain a Healthy and Balanced Diet",
+    titleZh: "女性全生命周期預防保健：保持健康均衡飲食",
+    publisher: "Primary Healthcare Commission, Hong Kong SAR Government, 2025",
+    publisherZh: "香港特別行政區政府基層醫療署，2025",
+    backs: "The iron amounts for women (18 mg up to age 49, 10 mg from 50) and 10 mcg of vitamin D.",
+    backsZh: "女性嘅鐵份量（49 歲或以下 18 毫克，50 歲起 10 毫克），同 10 微克維他命D。",
+    url: "https://www.healthbureau.gov.hk/phcc/rfs/assets/pdf/women/lifestyle/printing_maintain_a_healthy_and_balanced_diet.pdf",
+  },
+  {
+    // O12, added 2026-11-15 after the reference doc: it confirms the DRIs 2023 vitamin C figure the doc
+    // had tagged unverified. The article's own title has an em dash before "10 PLADs"; it is shown with a
+    // colon, because app copy never uses em dashes.
+    key: "chinacdc-vitamin-c",
+    topic: "micros",
+    title: "Dietary Vitamin Intake Among Chinese Adults: 10 PLADs, China, 2022-2023",
+    titleZh: "中國成年人膳食維他命攝入量：10 個省級行政區，2022-2023",
+    publisher: "Zhang X, et al. China CDC Weekly, 2024",
+    publisherZh: "Zhang X 等，《中國疾病預防控制中心周報》，2024",
+    backs: "Your vitamin C target of 100 mg a day, the 2023 Chinese recommended intake for adults.",
+    backsZh: "你每日 100 毫克嘅維他命C目標，即 2023 年中國參考標準建議成人嘅攝取量。",
+    url: "https://pmc.ncbi.nlm.nih.gov/articles/PMC11724128/",
+  },
+  {
+    // RELEASE BLOCKER: this link asks for a Zhihu sign-in (checked 2026-11-15), which rule 1 forbids.
+    // Its own title couldn't be read for the same reason; this one describes it as the reference doc does.
+    key: "zhihu-dris-2023",
+    topic: "micros",
+    title: "2023 DRIs update explainer",
+    titleZh: "2023 版膳食營養素參考攝入量更新解讀",
+    publisher: "Zhihu, 2023",
+    publisherZh: "知乎，2023",
+    backs: "The iron amount for men (12 mg) and 15 mcg of vitamin D from age 65.",
+    backsZh: "男性嘅鐵份量（12 毫克），同 65 歲起嘅 15 微克維他命D。",
+    url: "https://zhuanlan.zhihu.com/p/659397959",
   },
   {
     key: "who-healthy-diet",

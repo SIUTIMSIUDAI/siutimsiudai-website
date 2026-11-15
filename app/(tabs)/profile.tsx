@@ -26,7 +26,8 @@ import { useAppStore } from "@/stores/appStore";
 import { useAuthStore } from "@/stores/authStore";
 import { useNutritionStore } from "@/stores/nutritionStore";
 import { SubscriptionTier, useSubscriptionStore } from "@/stores/useSubscriptionStore";
-import { computeNutritionTargets } from "@/utils/nutritionTargets";
+import { computeNutritionTargets, targetCoverage } from "@/utils/nutritionTargets";
+import { TargetCoverageNote } from "@/components/TargetCoverageNote";
 import { hasPasswordIdentity, socialProviderNames } from "@/utils/authIdentity";
 import { HealthProfile, Locale } from "@/types";
 
@@ -50,7 +51,7 @@ export default function ProfileScreen() {
   const healthProfile = useNutritionStore((s) => s.healthProfile);
   const setHealthProfile = useNutritionStore((s) => s.setHealthProfile);
   const clearHealthProfile = useNutritionStore((s) => s.clearHealthProfile);
-  const [targetText, setTargetText] = useState(String(target));
+  const [targetText, setTargetText] = useState(target === null ? "" : String(target));
   // The name family members see, shown at the top in place of "Signed in" and changed in NameDialog.
   // Null until loaded, or when none is set ("Add your name").
   const [displayName, setDisplayName] = useState<string | null>(null);
@@ -159,10 +160,13 @@ export default function ProfileScreen() {
     else setAvatarError("remove");
   }
 
+  // A typed target is the user's own and is kept. Clearing the box goes back to the calculated target,
+  // or to none for someone the reference doesn't cover.
   function commitTarget() {
-    const next = Math.max(0, Math.round(Number(targetText) || 0)) || 2000;
+    const typed = Math.max(0, Math.round(Number(targetText) || 0));
+    const next = typed > 0 ? typed : (targets?.calories ?? null);
     setCalorieTarget(next);
-    setTargetText(String(next));
+    setTargetText(next === null ? "" : String(next));
   }
 
   // Saved from NameDialog. The heading shows exactly what was stored (trimmed, capped), and saving an
@@ -197,9 +201,9 @@ export default function ProfileScreen() {
     setHealthProfile(profile);
     // Push the freshly calculated goal straight into the daily target the log page reads, so
     // the calorie ring updates immediately instead of waiting for a second manual save.
-    const calculated = computeNutritionTargets(profile).calories;
+    const calculated = computeNutritionTargets(profile)?.calories ?? null;
     setCalorieTarget(calculated);
-    setTargetText(String(calculated));
+    setTargetText(calculated === null ? "" : String(calculated));
   }
 
   async function confirmDelete() {
@@ -459,10 +463,12 @@ export default function ProfileScreen() {
             <View className="flex-1">
               <ScalableText className="text-base font-bold text-ink">{t("health.title")}</ScalableText>
               <ScalableText className="text-xs text-ink-muted">
-                {targets ? t("health.subtitle") : t("health.summaryUnset")}
+                {healthProfile ? t("health.subtitle") : t("health.summaryUnset")}
               </ScalableText>
             </View>
           </View>
+
+          {healthProfile && !targets ? <TargetCoverageNote coverage={targetCoverage(healthProfile)} /> : null}
 
           {targets && (
             <View className="gap-1">
@@ -478,9 +484,9 @@ export default function ProfileScreen() {
           )}
 
           <Button
-            label={targets ? t("health.edit") : t("health.setup")}
-            icon={targets ? "create-outline" : "calculator-outline"}
-            variant={targets ? "secondary" : "primary"}
+            label={healthProfile ? t("health.edit") : t("health.setup")}
+            icon={healthProfile ? "create-outline" : "calculator-outline"}
+            variant={healthProfile ? "secondary" : "primary"}
             onPress={() => setHealthSheetOpen(true)}
           />
 

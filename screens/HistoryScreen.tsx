@@ -158,9 +158,11 @@ export function HistoryScreen() {
               {Math.round(dayTotals.calories).toLocaleString("en-US")}
             </ScalableText>
             <ScalableText className="text-sm text-ink-muted">{t("history.booked")}</ScalableText>
-            <ScalableText className="mt-0.5 text-xs text-ink-faint">
-              {t("history.targetLine", { count: dailyCalorieTarget })}
-            </ScalableText>
+            {dailyCalorieTarget !== null ? (
+              <ScalableText className="mt-0.5 text-xs text-ink-faint">
+                {t("history.targetLine", { count: dailyCalorieTarget })}
+              </ScalableText>
+            ) : null}
           </View>
 
           {/* The macro split (carbs / protein / fat / fibre) is a Pro perk. Paid tiers see the real

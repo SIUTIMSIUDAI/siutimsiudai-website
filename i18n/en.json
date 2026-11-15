@@ -279,7 +279,7 @@
     "goalLoseHint": "Fewer calories to lose weight",
     "goalMaintainHint": "Keep your current weight",
     "goalGainHint": "More calories to gain weight",
-    "goalMuscleHint": "More protein to build muscle",
+    "goalMuscleHint": "More calories to support training",
     "dailyTargets": "Your daily targets",
     "calories": "Calories",
     "protein": "Protein",
@@ -291,7 +291,13 @@
     "microsUpsell": "Upgrade to Pro to track detailed vitamins & minerals",
     "disclaimer": "A rough estimate for general guidance, not medical advice. See a doctor or dietitian for personal advice.",
     "applied": "Targets updated. Your calorie goal is now {{count}} kcal.",
-    "summaryUnset": "Set your height, weight and activity to get daily targets."
+    "summaryUnset": "Set your height, weight and activity to get daily targets.",
+    "lifeStage": "Are you pregnant or breastfeeding?",
+    "lifeStageNo": "No",
+    "lifeStagePregnant": "Pregnant",
+    "lifeStageBreastfeeding": "Breastfeeding",
+    "under18Note": "Daily targets in this app are for adults 18 and over. You can still log everything you eat.",
+    "pregnancyNote": "Your needs change during pregnancy and breastfeeding, so we don't set targets for now. Your doctor or dietitian can give you yours."
   },
   "onboarding": {
     "welcomeTitle": "Every meal, on the books",

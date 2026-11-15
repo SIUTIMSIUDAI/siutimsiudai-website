@@ -7,7 +7,9 @@ import { useLocale } from "@/hooks/useLocale";
 
 interface Props {
   eaten: number;
-  target: number;
+  // Null when the user has no calorie target (under 18, pregnant or breastfeeding): the ring then
+  // shows what they've eaten, with no progress and no remaining line.
+  target: number | null;
   size?: number;
 }
 
@@ -20,15 +22,18 @@ export function CalorieRing({ eaten, target, size = 224 }: Props) {
   const stroke = 18;
   const radius = (size - stroke) / 2;
   const circumference = 2 * Math.PI * radius;
-  const pct = clampPercent(eaten, target);
+  const hasTarget = target !== null && target > 0;
+  const pct = hasTarget ? clampPercent(eaten, target) : 0;
   const offset = circumference * (1 - pct);
-  const over = eaten > target;
-  const remaining = Math.max(0, Math.round(target - eaten));
+  const over = hasTarget && eaten > target;
+  const remaining = hasTarget ? Math.max(0, Math.round(target - eaten)) : 0;
   // Health indicator: jade while on track, egg-tart gold once over target.
   const progressColor = over ? colors.accent : colors.jade;
-  const caption = over
-    ? t("dashboard.over", { count: Math.round(eaten - target) })
-    : t("dashboard.remaining", { count: remaining });
+  const caption = !hasTarget
+    ? null
+    : over
+      ? t("dashboard.over", { count: Math.round(eaten - target) })
+      : t("dashboard.remaining", { count: remaining });
 
   return (
     <View className="items-center gap-3">
@@ -60,16 +65,20 @@ export function CalorieRing({ eaten, target, size = 224 }: Props) {
             {formatCalories(eaten)}
           </ScalableText>
           <ScalableText className="mt-2 text-sm text-ink-muted">
-            {t("dashboard.eaten")} · {formatCalories(target)} {t("dashboard.target")}
+            {hasTarget
+              ? `${t("dashboard.eaten")} · ${formatCalories(target)} ${t("dashboard.target")}`
+              : t("dashboard.eaten")}
           </ScalableText>
         </View>
       </View>
-      <ScalableText
-        className="max-w-[280px] text-center text-sm font-semibold leading-relaxed tracking-wide"
-        style={{ color: progressColor }}
-      >
-        {caption}
-      </ScalableText>
+      {caption ? (
+        <ScalableText
+          className="max-w-[280px] text-center text-sm font-semibold leading-relaxed tracking-wide"
+          style={{ color: progressColor }}
+        >
+          {caption}
+        </ScalableText>
+      ) : null}
     </View>
   );
 }

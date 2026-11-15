@@ -49,9 +49,43 @@ export function retainMicrosForTier(
   return isPaidTier(tier) ? micros ?? null : null;
 }
 
+// The calorie rule before the 2026-11 Hong Kong reference (Mifflin-St Jeor x activity x goal, rounded
+// to 10), frozen here for the one-time update below. Never change it: it must keep recognising the
+// targets the old app calculated.
+const LEGACY_ACTIVITY: Record<string, number> = {
+  sedentary: 1.2,
+  light: 1.375,
+  moderate: 1.55,
+  active: 1.725,
+  very_active: 1.9,
+};
+const LEGACY_GOAL: Record<string, number> = { lose: 0.85, maintain: 1, gain: 1.1, muscle: 1.1 };
+
+export function legacyCalorieTarget(p: HealthProfile): number {
+  const clamp = (n: number, lo: number, hi: number) => (Number.isFinite(n) ? Math.min(Math.max(n, lo), hi) : lo);
+  const age = Math.round(clamp(p.age, 13, 100));
+  const heightCm = Math.round(clamp(p.heightCm, 100, 250));
+  const weightKg = Math.round(clamp(p.weightKg, 25, 300));
+  const bmr = Math.round(10 * weightKg + 6.25 * heightCm - 5 * age + (p.sex === "male" ? 5 : -161));
+  const tdee = Math.round(bmr * LEGACY_ACTIVITY[p.activityLevel]);
+  return Math.round((tdee * LEGACY_GOAL[p.goal]) / 10) * 10;
+}
+
+// Version 1 (2026-11): targets follow the Hong Kong reference. A saved calorie target the old app
+// calculated is recalculated once; one the user typed in themselves (anything else) is kept.
+export function migrateNutritionState(persisted: unknown, version: number): unknown {
+  const state = persisted as { dailyCalorieTarget?: number | null; healthProfile?: HealthProfile | null } | undefined;
+  if (state && version < 1 && state.healthProfile && state.dailyCalorieTarget === legacyCalorieTarget(state.healthProfile)) {
+    state.dailyCalorieTarget = computeNutritionTargets(state.healthProfile)?.calories ?? null;
+  }
+  return state;
+}
+
 interface NutritionState {
   logsByDate: Record<string, DailyLog>;
-  dailyCalorieTarget: number;
+  // Null when the reference doesn't cover the user (under 18, pregnant or breastfeeding) and they
+  // haven't typed in a target of their own: the ring then shows what they've eaten without a target.
+  dailyCalorieTarget: number | null;
   // Body metrics the user entered, or null before they set them up. Drives the macro and
   // micro targets and, on save, the calorie target too.
   healthProfile: HealthProfile | null;
@@ -62,7 +96,7 @@ interface NutritionState {
   // Tick 少甜 / 少底 on a logged item on or off. Reversible: the base macros are untouched.
   toggleCustomization: (date: string, entryId: string, customization: MealCustomization) => void;
   repeatMeal: (meal: NewFoodEntryInput, date?: string) => void;
-  setCalorieTarget: (target: number) => void;
+  setCalorieTarget: (target: number | null) => void;
   setHealthProfile: (profile: HealthProfile) => void;
   clearHealthProfile: () => void;
 
@@ -72,8 +106,10 @@ interface NutritionState {
   // micros (dropped at the save path), so their totals are all zero — this is premium-only by
   // construction, matching the gated tracker widget.
   microTotalsForDate: (date: string) => MicroTotals;
-  remainingForDate: (date: string) => number;
-  // Full computed target set, or null when no health profile has been entered yet.
+  // Null when there is no calorie target (see dailyCalorieTarget).
+  remainingForDate: (date: string) => number | null;
+  // Full computed target set, or null when no health profile has been entered yet or the reference
+  // doesn't cover the user.
   targets: () => NutritionTargets | null;
 }
 
@@ -199,7 +235,7 @@ export const useNutritionStore = create<NutritionState>()(
       setCalorieTarget: (dailyCalorieTarget) => set({ dailyCalorieTarget }),
 
       setHealthProfile: (profile) =>
-        set({ healthProfile: profile, dailyCalorieTarget: computeNutritionTargets(profile).calories }),
+        set({ healthProfile: profile, dailyCalorieTarget: computeNutritionTargets(profile)?.calories ?? null }),
 
       clearHealthProfile: () => set({ healthProfile: null }),
 
@@ -209,7 +245,10 @@ export const useNutritionStore = create<NutritionState>()(
 
       microTotalsForDate: (date) => sumMicroTotals(get().logsByDate[date]?.entries ?? []),
 
-      remainingForDate: (date) => get().dailyCalorieTarget - get().totalsForDate(date).calories,
+      remainingForDate: (date) => {
+        const target = get().dailyCalorieTarget;
+        return target === null ? null : target - get().totalsForDate(date).calories;
+      },
 
       targets: () => {
         const profile = get().healthProfile;
@@ -219,6 +258,8 @@ export const useNutritionStore = create<NutritionState>()(
     {
       name: "siutimsiudai-nutrition",
       storage: persistStorage,
+      version: 1,
+      migrate: (persisted, version) => migrateNutritionState(persisted, version) as NutritionState,
       partialize: (s) => ({
         logsByDate: s.logsByDate,
         dailyCalorieTarget: s.dailyCalorieTarget,

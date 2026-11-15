@@ -13,7 +13,8 @@ import { EditEntrySheet } from "@/components/EditEntrySheet";
 import { colors } from "@/constants/theme";
 import { useLocale } from "@/hooks/useLocale";
 import { todayKey } from "@/utils/formatters";
-import { computeNutritionTargets } from "@/utils/nutritionTargets";
+import { computeNutritionTargets, targetCoverage } from "@/utils/nutritionTargets";
+import { TargetCoverageNote } from "@/components/TargetCoverageNote";
 import { effectiveMacros } from "@/utils/customizations";
 import { useNutritionStore } from "@/stores/nutritionStore";
 import { useAppStore } from "@/stores/appStore";
@@ -77,6 +78,8 @@ export default function DashboardScreen() {
         <View className="items-center py-2">
           <CalorieRing eaten={totals.calories} target={target} />
         </View>
+
+        {healthProfile ? <TargetCoverageNote coverage={targetCoverage(healthProfile)} /> : null}
 
         {/* The ring is the most prominent health figure in the app and the first thing anyone sees
             on launch, so the caveat and the citations sit directly under it (Guideline 1.4.1). */}

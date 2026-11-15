@@ -114,7 +114,7 @@ describe("citationUrl", () => {
   });
 
   it("falls back to the default URL when the publisher has no Chinese edition", () => {
-    // PubMed, NIH and ODPHP publish in English only. A zh-Hant reader gets the English page rather
+    // PubMed, for one, publishes in English only. A zh-Hant reader gets the English page rather
     // than a guessed /tc_chi/ path that 404s, which is exactly how the Change4Health link broke.
     expect(citationUrl(withoutZh, "zh-Hant")).toBe(withoutZh.url);
   });

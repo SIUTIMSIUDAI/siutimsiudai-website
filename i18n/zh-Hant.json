@@ -279,7 +279,7 @@
     "goalLoseHint": "熱量少啲，幫你減磅",
     "goalMaintainHint": "維持而家嘅體重",
     "goalGainHint": "熱量多啲，幫你增重",
-    "goalMuscleHint": "蛋白質更多，幫你增肌",
+    "goalMuscleHint": "熱量多啲，配合訓練",
     "dailyTargets": "你嘅每日目標",
     "calories": "卡路里",
     "protein": "蛋白質",
@@ -291,7 +291,13 @@
     "microsUpsell": "升級 Pro，追蹤詳細維他命同礦物質",
     "disclaimer": "呢個只係一般參考嘅粗略估算，並非醫療建議。個人建議請諮詢醫生或營養師。",
     "applied": "目標已更新，你嘅卡路里目標而家係 {{count}} 千卡。",
-    "summaryUnset": "輸入身高、體重同運動量即可獲得每日目標。"
+    "summaryUnset": "輸入身高、體重同運動量即可獲得每日目標。",
+    "lifeStage": "你而家有冇懷孕或者餵緊母乳？",
+    "lifeStageNo": "冇",
+    "lifeStagePregnant": "懷孕",
+    "lifeStageBreastfeeding": "餵緊母乳",
+    "under18Note": "呢個 app 嘅每日目標係俾 18 歲或以上嘅成人用。你照樣可以記低食咗乜。",
+    "pregnancyNote": "懷孕同餵哺母乳期間，身體需要會唔同，所以我哋暫時唔會幫你定目標。可以問你嘅醫生或營養師。"
   },
   "onboarding": {
     "welcomeTitle": "餐餐入帳，食得安心",

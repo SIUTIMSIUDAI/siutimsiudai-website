@@ -52,6 +52,10 @@ export type ActivityLevel = "sedentary" | "light" | "moderate" | "active" | "ver
 
 export type WeightGoal = "lose" | "maintain" | "gain" | "muscle";
 
+// Asked of women only, and optional. Either answer means the app shows a talk-to-your-doctor note
+// instead of targets (utils/nutritionTargets targetCoverage).
+export type LifeStage = "pregnant" | "breastfeeding";
+
 // What the user enters. Metric only (cm / kg) since that is the HK norm.
 export interface HealthProfile {
   sex: Sex;
@@ -60,6 +64,7 @@ export interface HealthProfile {
   weightKg: number;
   activityLevel: ActivityLevel;
   goal: WeightGoal;
+  lifeStage?: LifeStage | null;
 }
 
 // Per-meal micronutrient amounts. These are the premium "vitamins & minerals" set. The daily
@@ -78,7 +83,7 @@ export interface EntryMicronutrients {
 }
 
 // One micronutrient reference line. isLimit marks a ceiling (e.g. sodium) rather than a
-// floor to reach.
+// floor to reach. status and sourceId trace it to its row in constants/nutrientReference.
 export interface MicronutrientTarget {
   key: string;
   label: string;
@@ -86,13 +91,26 @@ export interface MicronutrientTarget {
   amount: number;
   unit: string; // "mg" | "mcg" | "g"
   isLimit: boolean;
+  status: "verified" | "partial";
+  sourceId: string;
+}
+
+// WHO upper limits in grams for the day's energy. Kept for when food logging records these
+// nutrients; not shown yet.
+export interface NutrientLimits {
+  freeSugar: number;
+  saturatedFat: number;
+  transFat: number;
 }
 
 // The full daily target set computed from a HealthProfile.
 export interface NutritionTargets extends MacroNutrients {
   bmr: number; // basal metabolic rate, kcal
-  tdee: number; // maintenance energy, kcal
+  tdee: number; // Mifflin maintenance energy, kcal
+  maintenance: number; // tdee after the ±10% check against the Chinese EER, kcal
+  eer: number | null; // the verified Chinese EER that check used, or null where there is none
   micros: MicronutrientTarget[];
+  limits: NutrientLimits;
 }
 
 export interface Profile {
