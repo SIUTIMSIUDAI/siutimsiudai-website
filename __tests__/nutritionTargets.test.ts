@@ -169,9 +169,11 @@ describe("nutritionTargets: micronutrients", () => {
     expect(get(micronutrientTargets("female", 30), "potassium")?.amount).toBe(3500);
   });
 
-  test("vitamin D is 10 mcg to age 64 and 15 mcg from 65", () => {
+  test("vitamin D is 10 mcg to age 64 and has no target from 65 until its source can be opened", () => {
     expect(get(micronutrientTargets("female", 64), "vitaminD")?.amount).toBe(10);
-    expect(get(micronutrientTargets("female", 65), "vitaminD")?.amount).toBe(15);
+    expect(get(micronutrientTargets("female", 64), "vitaminD")?.sourceId).toBe("O3");
+    // 15 mcg from 65 is backed only by S2, whose link needs a sign-in, so it isn't shown yet.
+    expect(get(micronutrientTargets("female", 65), "vitaminD")).toBeUndefined();
   });
 
   test("vitamin C is 100 mg for every adult, confirmed by O12", () => {
@@ -228,17 +230,17 @@ describe("nutritionTargets: the three test users (doc value and source per targe
     ["female 25, sedentary", F25, [
       ["calories", 1530, "O7"], ["protein", 57, "C1"], ["fat", 46, "C1"], ["carbs", 222, "C1"], ["fiber", 25, "O3"],
       ["sodium", 2000, "O4"], ["calcium", 800, "S1"], ["iron", 18, "O3"], ["potassium", 3500, "O8"],
-      ["vitaminC", 100, "O12"], ["vitaminD", 10, "S2"],
+      ["vitaminC", 100, "O12"], ["vitaminD", 10, "O3"],
     ]],
     ["male 35, moderately active", M35, [
       ["calories", 2490, "-"], ["protein", 93, "C1"], ["fat", 75, "C1"], ["carbs", 361, "C1"], ["fiber", 25, "O3"],
-      ["sodium", 2000, "O4"], ["calcium", 800, "S1"], ["iron", 12, "S2"], ["potassium", 3500, "O8"],
-      ["vitaminC", 100, "O12"], ["vitaminD", 10, "S2"],
+      ["sodium", 2000, "O4"], ["calcium", 800, "S1"], ["iron", 12, "S1"], ["potassium", 3500, "O8"],
+      ["vitaminC", 100, "O12"], ["vitaminD", 10, "O3"],
     ]],
     ["female 72, light activity", F72, [
       ["calories", 1370, "-"], ["protein", 51, "C1"], ["fat", 41, "C1"], ["carbs", 199, "C1"], ["fiber", 25, "O3"],
       ["sodium", 2000, "O4"], ["calcium", 800, "S1"], ["iron", 10, "O3"], ["potassium", 3500, "O8"],
-      ["vitaminC", 100, "O12"], ["vitaminD", 15, "S2"],
+      ["vitaminC", 100, "O12"], ["vitaminD", null, "-"],
     ]],
   ];
 

@@ -1,4 +1,4 @@
-import { canShow, NUTRIENT_REFERENCE, ReferenceRow, rowsFor } from "@/constants/nutrientReference";
+import { canShow, NUTRIENT_REFERENCE, ReferenceRow, rowsFor, SIGN_IN_ONLY_SOURCES } from "@/constants/nutrientReference";
 import { computeNutritionTargets } from "@/utils/nutritionTargets";
 import { TRACKED_MICRO_META } from "@/utils/micros";
 import { ActivityLevel, HealthProfile, Sex, WeightGoal } from "@/types";
@@ -65,8 +65,18 @@ describe("nutrientReference: the table", () => {
     expect(r.value).toBeGreaterThanOrEqual(0);
   });
 
-  test("only 12 rows can drive a shown target", () => {
-    expect(NUTRIENT_REFERENCE.filter((r) => r.use === "target" && canShow(r))).toHaveLength(12);
+  test("only 11 rows can drive a shown target", () => {
+    expect(NUTRIENT_REFERENCE.filter((r) => r.use === "target" && canShow(r))).toHaveLength(11);
+  });
+
+  test("a row whose only source needs a sign-in is never shown", () => {
+    const vitD65 = NUTRIENT_REFERENCE.find((r) => r.nutrient === "vitaminD" && r.ageMin === 65 && r.use === "target")!;
+    expect(vitD65.status).toBe("partial");
+    expect(vitD65.sourceId).toBe("S2");
+    expect(canShow(vitD65)).toBe(false);
+    for (const r of NUTRIENT_REFERENCE.filter((r) => r.sourceId && SIGN_IN_ONLY_SOURCES.has(r.sourceId))) {
+      expect(canShow(r)).toBe(false);
+    }
   });
 
   test("an unverified row can never be shown", () => {
@@ -106,6 +116,7 @@ describe("nutrientReference: every adult's targets", () => {
         expect(row!.sourceId).not.toBeNull();
         expect(m.amount).toBe(row!.value);
         expect(m.sourceId).toBe(row!.sourceId);
+        expect(SIGN_IN_ONLY_SOURCES.has(m.sourceId)).toBe(false);
         expect(m.unit).toBe(LOGGING_UNITS[m.key]);
         expect(row!.unit).toBe(LOGGING_UNITS[m.key]);
       }

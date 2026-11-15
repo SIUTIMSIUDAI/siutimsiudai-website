@@ -15,8 +15,8 @@
 //   3. Verify a URL before changing it. The WHO sodium guideline was nearly shipped pointing at
 //      "Urban governance for health and well-being" because the ISBN in the path was one digit off.
 //
-// Last verified live: 2026-11-15. Two links (wei-amdr, zhihu-dris-2023) open only after signing in,
-// which rule 1 forbids: they must be replaced before this ships.
+// Last verified live: 2026-11-15. (PubMed shows a "checking your browser" page to automated browsers;
+// people get the abstract straight away.)
 
 export type CitationTopic = "energy" | "macros" | "micros" | "swaps" | "food";
 
@@ -99,18 +99,19 @@ export const CITATIONS: Citation[] = [
     url: "https://www.cqcdc.org/index.php?a=shows&catid=252&id=2807",
   },
   {
-    // RELEASE BLOCKER: this link asks for a sign-in (checked 2026-11-15), which rule 1 forbids.
+    // The reference doc linked this paper on Consensus, which needs a sign-in; this is the same paper's
+    // PubMed abstract, which states the 2023 ranges word for word.
     key: "wei-amdr",
     topic: "macros",
-    title: "Energy and nutrients intakes among adult residents in Xinjiang, 1982-2015",
-    titleZh: "新疆成年居民能量及營養素攝入量（1982-2015）",
+    title: "Energy and nutrients intakes among adult residents in Xinjiang Uygur Autonomous Region from 1982 to 2015",
+    titleZh: "新疆維吾爾自治區成年居民 1982 至 2015 年能量及營養素攝入量",
     publisher: "Wei X, et al. Wei Sheng Yan Jiu (Journal of Hygiene Research), 2026",
     publisherZh: "Wei X 等，《衞生研究》，2026",
     backs:
       "The 2023 Chinese ranges for protein (10-15% of your daily calories), fat (20-30%) and carbohydrate (50-65%). Your protein target is 15%, fat 27%, and carbohydrate the rest.",
     backsZh:
       "2023 年中國參考標準嘅比例範圍：蛋白質佔每日熱量 10-15%、脂肪 20-30%、碳水化合物 50-65%。你嘅蛋白質目標係 15%，脂肪 27%，其餘係碳水化合物。",
-    url: "https://consensus.app/papers/details/w:f9feaaaf-f61f-4e32-92db-463a7c7f3fc6/",
+    url: "https://pubmed.ncbi.nlm.nih.gov/42036365/",
   },
   {
     key: "phc-fibre",
@@ -154,8 +155,8 @@ export const CITATIONS: Citation[] = [
     titleZh: "【科普营养】主食少吃半碗，老人吃够肉蛋奶……新版《中国居民膳食营养素参考摄入量（2023版）》的变化影响我们餐桌",
     publisher: "Tencent News, 2024",
     publisherZh: "騰訊新聞，2024",
-    backs: "Your calcium target of 800 mg a day, the 2023 figure for all adults.",
-    backsZh: "你每日 800 毫克嘅鈣目標，即 2023 年版本俾所有成人嘅數字。",
+    backs: "Your calcium target of 800 mg a day, the 2023 figure for all adults, and the 12 mg of iron for men.",
+    backsZh: "你每日 800 毫克嘅鈣目標，即 2023 年版本俾所有成人嘅數字；同男性每日 12 毫克嘅鐵。",
     url: "https://news.qq.com/rain/a/20241231A01T5800",
   },
   {
@@ -165,8 +166,8 @@ export const CITATIONS: Citation[] = [
     titleZh: "女性全生命周期預防保健：保持健康均衡飲食",
     publisher: "Primary Healthcare Commission, Hong Kong SAR Government, 2025",
     publisherZh: "香港特別行政區政府基層醫療署，2025",
-    backs: "The iron amounts for women (18 mg up to age 49, 10 mg from 50) and 10 mcg of vitamin D.",
-    backsZh: "女性嘅鐵份量（49 歲或以下 18 毫克，50 歲起 10 毫克），同 10 微克維他命D。",
+    backs: "The iron amounts for women (18 mg up to age 49, 10 mg from 50) and 10 mcg of vitamin D a day up to age 64.",
+    backsZh: "女性嘅鐵份量（49 歲或以下 18 毫克，50 歲起 10 毫克），同 64 歲或以下每日 10 微克維他命D。",
     url: "https://www.healthbureau.gov.hk/phcc/rfs/assets/pdf/women/lifestyle/printing_maintain_a_healthy_and_balanced_diet.pdf",
   },
   {
@@ -182,19 +183,6 @@ export const CITATIONS: Citation[] = [
     backs: "Your vitamin C target of 100 mg a day, the 2023 Chinese recommended intake for adults.",
     backsZh: "你每日 100 毫克嘅維他命C目標，即 2023 年中國參考標準建議成人嘅攝取量。",
     url: "https://pmc.ncbi.nlm.nih.gov/articles/PMC11724128/",
-  },
-  {
-    // RELEASE BLOCKER: this link asks for a Zhihu sign-in (checked 2026-11-15), which rule 1 forbids.
-    // Its own title couldn't be read for the same reason; this one describes it as the reference doc does.
-    key: "zhihu-dris-2023",
-    topic: "micros",
-    title: "2023 DRIs update explainer",
-    titleZh: "2023 版膳食營養素參考攝入量更新解讀",
-    publisher: "Zhihu, 2023",
-    publisherZh: "知乎，2023",
-    backs: "The iron amount for men (12 mg) and 15 mcg of vitamin D from age 65.",
-    backsZh: "男性嘅鐵份量（12 毫克），同 65 歲起嘅 15 微克維他命D。",
-    url: "https://zhuanlan.zhihu.com/p/659397959",
   },
   {
     key: "who-healthy-diet",

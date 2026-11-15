@@ -5,8 +5,9 @@
 //
 // Rules for anyone editing this file:
 //   1. Values come from the reference doc only. A value it doesn't give is not added here.
-//   2. A row reaches the screen only through canShow(): verified or partial, AND a source ID. Unverified
-//      rows, and rows the doc gives no source for, are kept for the record and never shown.
+//   2. A row reaches the screen only through canShow(): verified or partial, AND a source ID whose link
+//      anyone can open. Unverified rows, rows the doc gives no source for, and rows whose only source
+//      needs a sign-in (SIGN_IN_ONLY_SOURCES) are kept for the record and never shown.
 //   3. When a value is verified in an official or peer-reviewed source (the DRIs 2023 handbook, or a
 //      source quoting it), update its status and source here, and the targets follow. Nothing else needs
 //      to change. Sources added after the doc (O12 so far) are noted on their rows.
@@ -77,7 +78,7 @@ export const NUTRIENT_REFERENCE: readonly ReferenceRow[] = [
   { nutrient: "potassium", ageMin: 18, ageMax: null, sex: "all", lifeStage: "general", pal: null, value: 3600, valueMax: null, unit: "mg", valueType: "PI-NCD", status: "unverified", sourceId: null, use: "none", sourceNote: "Chinese PI-NCD." },
   { nutrient: "calcium", ageMin: 18, ageMax: null, sex: "all", lifeStage: "general", pal: null, value: 800, valueMax: null, unit: "mg", valueType: "RNI", status: "partial", sourceId: "S1", use: "target", sourceNote: "Also S2, S3. 2023 dropped the 50+ value from 1,000 to 800. Conflict C3: HK PHC lists 1,000 mg for women 18-64 (O3)." },
   { nutrient: "calcium", ageMin: 18, ageMax: null, sex: "all", lifeStage: "general", pal: null, value: 2000, valueMax: null, unit: "mg", valueType: "UL", status: "unverified", sourceId: null, use: "ul", sourceNote: "" },
-  { nutrient: "iron", ageMin: 18, ageMax: null, sex: "male", lifeStage: "general", pal: null, value: 12, valueMax: null, unit: "mg", valueType: "RNI", status: "partial", sourceId: "S2", use: "target", sourceNote: "" },
+  { nutrient: "iron", ageMin: 18, ageMax: null, sex: "male", lifeStage: "general", pal: null, value: 12, valueMax: null, unit: "mg", valueType: "RNI", status: "partial", sourceId: "S1", use: "target", sourceNote: "The doc cites S2, whose link needs a sign-in; S1's mineral table (表3) shows 12 mg for men at 18+, 30+ and 50+ (checked 2026-11-15)." },
   { nutrient: "iron", ageMin: 18, ageMax: 49, sex: "female", lifeStage: "general", pal: null, value: 18, valueMax: null, unit: "mg", valueType: "RNI", status: "partial", sourceId: "O3", use: "target", sourceNote: "HK PHC lists 18 mg; S2 says 2023 lowered women's RNI." },
   { nutrient: "iron", ageMin: 50, ageMax: null, sex: "female", lifeStage: "general", pal: null, value: 10, valueMax: null, unit: "mg", valueType: "RNI", status: "partial", sourceId: "O3", use: "target", sourceNote: "HK PHC lists 10 mg; S2 says 2023 lowered women's RNI." },
   { nutrient: "iron", ageMin: 18, ageMax: null, sex: "all", lifeStage: "general", pal: null, value: 42, valueMax: null, unit: "mg", valueType: "UL", status: "unverified", sourceId: null, use: "ul", sourceNote: "" },
@@ -96,8 +97,8 @@ export const NUTRIENT_REFERENCE: readonly ReferenceRow[] = [
   { nutrient: "vitaminA", ageMin: 65, ageMax: 74, sex: "female", lifeStage: "general", pal: null, value: 640, valueMax: null, unit: "mcg RAE", valueType: "RNI", status: "partial", sourceId: "S1", use: "none", sourceNote: "" },
   { nutrient: "vitaminA", ageMin: 75, ageMax: null, sex: "female", lifeStage: "general", pal: null, value: 600, valueMax: null, unit: "mcg RAE", valueType: "RNI", status: "partial", sourceId: "S1", use: "none", sourceNote: "" },
   { nutrient: "vitaminA", ageMin: 18, ageMax: null, sex: "all", lifeStage: "general", pal: null, value: 3000, valueMax: null, unit: "mcg RAE", valueType: "UL", status: "unverified", sourceId: null, use: "ul", sourceNote: "" },
-  { nutrient: "vitaminD", ageMin: 18, ageMax: 64, sex: "all", lifeStage: "general", pal: null, value: 10, valueMax: null, unit: "mcg", valueType: "RNI", status: "partial", sourceId: "S2", use: "target", sourceNote: "Unchanged from 2013 (S2). HK PHC also uses 10 mcg (O3)." },
-  { nutrient: "vitaminD", ageMin: 65, ageMax: null, sex: "all", lifeStage: "general", pal: null, value: 15, valueMax: null, unit: "mcg", valueType: "RNI", status: "partial", sourceId: "S2", use: "target", sourceNote: "Unchanged from 2013 (S2)." },
+  { nutrient: "vitaminD", ageMin: 18, ageMax: 64, sex: "all", lifeStage: "general", pal: null, value: 10, valueMax: null, unit: "mcg", valueType: "RNI", status: "partial", sourceId: "O3", use: "target", sourceNote: "Unchanged from 2013 (S2, whose link needs a sign-in). HK PHC also uses 10 mcg (O3), which is public." },
+  { nutrient: "vitaminD", ageMin: 65, ageMax: null, sex: "all", lifeStage: "general", pal: null, value: 15, valueMax: null, unit: "mcg", valueType: "RNI", status: "partial", sourceId: "S2", use: "target", sourceNote: "Unchanged from 2013 (S2). S2 is its only source and its link needs a sign-in, so it is not shown until the handbook check." },
   { nutrient: "vitaminD", ageMin: 18, ageMax: null, sex: "all", lifeStage: "general", pal: null, value: 50, valueMax: null, unit: "mcg", valueType: "UL", status: "unverified", sourceId: null, use: "ul", sourceNote: "" },
   { nutrient: "folate", ageMin: 18, ageMax: null, sex: "all", lifeStage: "general", pal: null, value: 400, valueMax: null, unit: "mcg DFE", valueType: "RNI", status: "verified", sourceId: "O3", use: "none", sourceNote: "Verified as HK guidance." },
   { nutrient: "vitaminC", ageMin: 18, ageMax: null, sex: "all", lifeStage: "general", pal: null, value: 100, valueMax: null, unit: "mg", valueType: "RNI", status: "verified", sourceId: "O12", use: "target", sourceNote: "Confirmed 2026-11-15 in O12 (Zhang X et al., China CDC Weekly 2024;6(51)), which cites the DRIs 2023: adults' recommended intake 100 mg, PI-NCD 200 mg. The 2026-11-14 doc tagged it unverified; O12 is not in its source list yet." },
@@ -115,9 +116,14 @@ export const NUTRIENT_REFERENCE: readonly ReferenceRow[] = [
   { nutrient: "vitaminK", ageMin: 18, ageMax: null, sex: "all", lifeStage: "general", pal: null, value: 80, valueMax: null, unit: "mcg", valueType: "AI", status: "unverified", sourceId: null, use: "none", sourceNote: "" },
 ];
 
-/** True when a row may reach the screen: verified or partial, and traceable to a source. */
+// Sources in the doc whose links open only after signing in (checked 2026-11-15): S2 and S3 are Zhihu
+// articles. The Sources screen can't cite them for a reader or an App Store reviewer, so a value they
+// alone back is not shown.
+export const SIGN_IN_ONLY_SOURCES: ReadonlySet<string> = new Set(["S2", "S3"]);
+
+/** True when a row may reach the screen: verified or partial, and traceable to a source anyone can open. */
 export function canShow(row: ReferenceRow): boolean {
-  return row.status !== "unverified" && row.sourceId !== null;
+  return row.status !== "unverified" && row.sourceId !== null && !SIGN_IN_ONLY_SOURCES.has(row.sourceId);
 }
 
 /** The rows for one nutrient that apply to this person (age, sex, life stage). */
