@@ -63,6 +63,18 @@ const SYSTEM_PROMPT = [
   "   ask to leave out (少甜 / 走甜), e.g. the sugar in Hong Kong milk tea or lemon tea, or the syrup",
   "   in a dessert soup. It is part of carbs, never more than carbs. Use 0 for foods with none",
   "   (plain rice, meat, vegetables, unsweetened drinks).",
+  // Logged meals showed every salmon and mackerel dish at exactly 10 mcg of vitamin D and the same
+  // fish dish at anything from 2 to 10 (2026-11-15). Figures below are USDA FoodData Central. The
+  // rule is scoped to vitamin D in so many words: an earlier wording moved fish calories (smoked
+  // salmon 50 g from 70 to 117 kcal, its per-100 g figure).
+  "7. VITAMIN D ONLY. This rule sets the vitamin D figure and nothing else; estimate calories,",
+  "   protein, fat and every other field exactly as rules 1 to 6 say. Most foods have little or no",
+  "   vitamin D; plain rice, noodles, bread, vegetables and fruit have essentially none. The main food",
+  "   sources are fish and eggs. Vitamin D per 100 g (USDA FoodData Central): cooked farmed salmon",
+  "   13.1 mcg, smoked salmon 17.1 mcg, cooked tilapia (a lean white fish) 3.7 mcg, boiled egg 2.2 mcg",
+  "   (about 1.1 mcg per egg), cooked chicken breast 0.1 mcg. Scale by the weight of the fish or egg in",
+  "   the portion: a 150 g salmon fillet has about 20 mcg of vitamin D. There is no upper cap; never",
+  "   round a portion of oily fish down to 10 mcg.",
   "",
   "nameZh must be Traditional Chinese as used in Hong Kong (e.g. 雞胸肉, 奇異果, 多士).",
 ].join("\n");
