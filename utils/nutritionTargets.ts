@@ -11,7 +11,7 @@
 // shares of the energy inside the Chinese AMDR ranges. Targets are for adults: under-18s and anyone
 // pregnant or breastfeeding get none (see targetCoverage), as section 2.6 of the reference says.
 
-import { canShow, ReferenceRow, ReferenceUse, rowsFor } from "@/constants/nutrientReference";
+import { canShow, IRON_WITH_PERIODS_50_64_MG, ReferenceRow, ReferenceUse, rowsFor } from "@/constants/nutrientReference";
 import {
   ActivityLevel,
   HealthProfile,
@@ -94,6 +94,16 @@ export function mifflinStJeorBmr(profile: HealthProfile): number {
 
 // Who the targets cover. The reference's values are for adults; pregnancy and breastfeeding change
 // needs enough that the app shows a talk-to-your-doctor note instead (owner's decision, 2026-11-14).
+// The iron note for women aged 50 to 64 (owner, 2026-11-17): their target is the DRIs' 10 mg for women
+// without periods, and the note gives the 18 mg for women who still have them. Null for everyone else,
+// including anyone the reference doesn't cover (under 18, pregnant or breastfeeding).
+export function ironPeriodsNoteMg(profile: HealthProfile | null): number | null {
+  if (!profile) return null;
+  const p = normalizeHealthProfile(profile);
+  if (p.sex !== "female" || p.lifeStage || p.age < 50 || p.age > 64) return null;
+  return IRON_WITH_PERIODS_50_64_MG;
+}
+
 export function targetCoverage(profile: HealthProfile): TargetCoverage {
   const p = normalizeHealthProfile(profile);
   if (p.age < 18) return "under_18";

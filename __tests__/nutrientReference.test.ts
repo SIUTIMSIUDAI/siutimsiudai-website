@@ -49,10 +49,11 @@ function rowBehind(key: string, age: number, sex: Sex): ReferenceRow | undefined
 }
 
 describe("nutrientReference: the table", () => {
-  test("holds the 72 rows of Part A: 25 verified (2 since confirmed by O12), 15 partial, 32 unverified", () => {
+  // 2026-11-17: calcium, iron (three rows) and vitamin D (two rows) were checked in the DRIs 2023 book.
+  test("holds the 72 rows of Part A: 31 verified (2 by O12, 6 in the DRIs 2023 book), 9 partial, 32 unverified", () => {
     expect(NUTRIENT_REFERENCE).toHaveLength(72);
     const count = (s: string) => NUTRIENT_REFERENCE.filter((r) => r.status === s).length;
-    expect([count("verified"), count("partial"), count("unverified")]).toEqual([25, 15, 32]);
+    expect([count("verified"), count("partial"), count("unverified")]).toEqual([31, 9, 32]);
   });
 
   test.each(NUTRIENT_REFERENCE.map((r, i) => [i + 1, r] as const))("row %i is well formed", (_i, r) => {
@@ -65,15 +66,16 @@ describe("nutrientReference: the table", () => {
     expect(r.value).toBeGreaterThanOrEqual(0);
   });
 
-  test("only 11 rows can drive a shown target", () => {
-    expect(NUTRIENT_REFERENCE.filter((r) => r.use === "target" && canShow(r))).toHaveLength(11);
+  test("only 12 rows can drive a shown target", () => {
+    expect(NUTRIENT_REFERENCE.filter((r) => r.use === "target" && canShow(r))).toHaveLength(12);
   });
 
-  test("a row whose only source needs a sign-in is never shown", () => {
+  // Vitamin D at 65+ was hidden while S2 (sign-in only) was its only source; the DRIs 2023 book (O6)
+  // confirmed 15 mcg on 2026-11-17, and the owner chose to show it with the book's citation.
+  test("vitamin D at 65+ is shown from the book, and a row citing a sign-in source never is", () => {
     const vitD65 = NUTRIENT_REFERENCE.find((r) => r.nutrient === "vitaminD" && r.ageMin === 65 && r.use === "target")!;
-    expect(vitD65.status).toBe("partial");
-    expect(vitD65.sourceId).toBe("S2");
-    expect(canShow(vitD65)).toBe(false);
+    expect(vitD65).toMatchObject({ value: 15, status: "verified", sourceId: "O6" });
+    expect(canShow(vitD65)).toBe(true);
     for (const r of NUTRIENT_REFERENCE.filter((r) => r.sourceId && SIGN_IN_ONLY_SOURCES.has(r.sourceId))) {
       expect(canShow(r)).toBe(false);
     }

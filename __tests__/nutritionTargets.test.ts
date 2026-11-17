@@ -1,5 +1,6 @@
 import {
   computeNutritionTargets,
+  ironPeriodsNoteMg,
   micronutrientTargets,
   mifflinStJeorBmr,
   normalizeHealthProfile,
@@ -169,11 +170,25 @@ describe("nutritionTargets: micronutrients", () => {
     expect(get(micronutrientTargets("female", 30), "potassium")?.amount).toBe(3500);
   });
 
-  test("vitamin D is 10 mcg to age 64 and has no target from 65 until its source can be opened", () => {
+  // DRIs 2023 附表3-8, p. 636 (checked 2026-11-17): 10 mcg to 64, 15 mcg from 65.
+  test("vitamin D is 10 mcg to age 64 and 15 mcg from 65", () => {
     expect(get(micronutrientTargets("female", 64), "vitaminD")?.amount).toBe(10);
     expect(get(micronutrientTargets("female", 64), "vitaminD")?.sourceId).toBe("O3");
-    // 15 mcg from 65 is backed only by S2, whose link needs a sign-in, so it isn't shown yet.
-    expect(get(micronutrientTargets("female", 65), "vitaminD")).toBeUndefined();
+    expect(get(micronutrientTargets("female", 65), "vitaminD")).toMatchObject({ amount: 15, sourceId: "O6", status: "verified" });
+    expect(get(micronutrientTargets("male", 80), "vitaminD")?.amount).toBe(15);
+  });
+
+  // DRIs 2023 附表3-7, p. 635: women 50-64 without periods 10 mg, with periods 18 mg. The target is 10,
+  // and the card adds a note with the 18 for women in that band only.
+  test("the iron note is for women aged 50 to 64 only", () => {
+    expect(ironPeriodsNoteMg({ ...F25, age: 50 })).toBe(18);
+    expect(ironPeriodsNoteMg({ ...F25, age: 64 })).toBe(18);
+    expect(ironPeriodsNoteMg({ ...F25, age: 49 })).toBeNull();
+    expect(ironPeriodsNoteMg({ ...F25, age: 65 })).toBeNull();
+    expect(ironPeriodsNoteMg({ ...MALE, age: 55 })).toBeNull();
+    expect(ironPeriodsNoteMg({ ...F25, age: 55, lifeStage: "pregnant" })).toBeNull();
+    expect(ironPeriodsNoteMg(null)).toBeNull();
+    expect(get(micronutrientTargets("female", 55), "iron")?.amount).toBe(10);
   });
 
   test("vitamin C is 100 mg for every adult, confirmed by O12", () => {
@@ -240,7 +255,7 @@ describe("nutritionTargets: the three test users (doc value and source per targe
     ["female 72, light activity", F72, [
       ["calories", 1370, "-"], ["protein", 51, "C1"], ["fat", 41, "C1"], ["carbs", 199, "C1"], ["fiber", 25, "O3"],
       ["sodium", 2000, "O4"], ["calcium", 800, "S1"], ["iron", 10, "O3"], ["potassium", 3500, "O8"],
-      ["vitaminC", 100, "O12"], ["vitaminD", null, "-"],
+      ["vitaminC", 100, "O12"], ["vitaminD", 15, "O6"],
     ]],
   ];
 

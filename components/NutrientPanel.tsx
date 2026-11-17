@@ -8,6 +8,7 @@ import { useLocale } from "@/hooks/useLocale";
 import { useFeatureAccess } from "@/hooks/useFeatureAccess";
 import { useNutritionStore } from "@/stores/nutritionStore";
 import { isLimitMicro, sumMicroTotals, TRACKED_MICRO_META, TrackedMicroKey } from "@/utils/micros";
+import { ironPeriodsNoteMg } from "@/utils/nutritionTargets";
 import { NutritionTargets } from "@/types";
 
 interface Props {
@@ -29,7 +30,7 @@ const VITAMIN_KEYS: TrackedMicroKey[] = ["vitaminC", "vitaminD"];
 //
 // `limit` marks a ceiling (sodium): the bar fills toward the limit, and past it turns the darker
 // egg-tart gold (lighter gold is vitamin C's own bar) with a plain "X mg over". A fact, never a
-// telling-off.
+// telling-off. `note` is one quiet line under the bar (the iron note for women aged 50 to 64).
 function NutrientBar({
   label,
   value,
@@ -38,6 +39,7 @@ function NutrientBar({
   unit,
   color,
   limit = false,
+  note,
 }: {
   label: string;
   value: number;
@@ -46,6 +48,7 @@ function NutrientBar({
   unit: string;
   color: string;
   limit?: boolean;
+  note?: string;
 }) {
   const { tl } = useLocale();
   const hasTarget = !!target && target > 0;
@@ -85,6 +88,7 @@ function NutrientBar({
           {tl(`${over} ${unit} over`, `超出 ${over} ${unit}`)}
         </ScalableText>
       ) : null}
+      {note ? <ScalableText className="mt-1 text-xs text-ink-muted">{note}</ScalableText> : null}
     </View>
   );
 }
@@ -117,7 +121,11 @@ export function NutrientPanel({ date, macros, targets }: Props) {
   const microTotals = useMemo(() => sumMicroTotals(entries ?? []), [entries]);
   // A profile with no targets is someone the reference doesn't cover (under 18, pregnant or
   // breastfeeding): they still see what they've eaten, with no goals.
-  const hasProfile = useNutritionStore((s) => s.healthProfile !== null);
+  const profile = useNutritionStore((s) => s.healthProfile);
+  const hasProfile = profile !== null;
+  // Women aged 50 to 64: the iron target is the DRIs' figure for women without periods, so the bar
+  // carries the figure for women who still have them (owner, 2026-11-17).
+  const ironNoteMg = ironPeriodsNoteMg(profile);
 
   const macroTotal = macros.protein + macros.carbs + macros.fat;
   // Each micro's target comes from utils/nutritionTargets. A micro without a shown target (one whose
@@ -137,6 +145,11 @@ export function NutrientPanel({ date, macros, targets }: Props) {
         unit={meta.unit}
         color={microColors[key]}
         limit={isLimitMicro(key)}
+        note={
+          key === "iron" && ironNoteMg != null
+            ? tl(`${ironNoteMg} mg if you still have periods`, `如仍有月經，建議 ${ironNoteMg} mg`)
+            : undefined
+        }
       />
     );
   };
