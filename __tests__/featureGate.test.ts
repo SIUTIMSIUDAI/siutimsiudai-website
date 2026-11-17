@@ -1,7 +1,7 @@
 import { featureMeetsTier } from "@/hooks/useFeatureAccess";
 
 // The tier half of feature access, split out of the hook so the paywall policy is provable
-// without rendering. `hasAccess` layers the free ai_log weekly quota on top of this; everything
+// without rendering. `hasAccess` layers the free ai_log daily quota on top of this; everything
 // else is pure tier math. These tests pin the four Pro perks that have real UI surfaces
 // (url_scraper, recipe_modifier, wet_market_units, pantry_suggest) plus the existing macro/micro
 // drawers, so a stray edit to FEATURE_MIN_TIER can't silently drop a paywall.
@@ -14,11 +14,15 @@ describe("featureMeetsTier — free tier", () => {
     expect(featureMeetsTier("free", "local_checklist")).toBe(true);
   });
 
+  // Owner, 2026-11-17: protein, carbs and fat are free beside calories.
+  it("shows protein, carbs and fat on the free plan", () => {
+    expect(featureMeetsTier("free", "macro_drawer")).toBe(true);
+  });
+
   it("is blocked from every Pro perk", () => {
     expect(featureMeetsTier("free", "url_scraper")).toBe(false);
     expect(featureMeetsTier("free", "recipe_modifier")).toBe(false);
     expect(featureMeetsTier("free", "wet_market_units")).toBe(false);
-    expect(featureMeetsTier("free", "macro_drawer")).toBe(false);
     expect(featureMeetsTier("free", "micro_tracker")).toBe(false);
     expect(featureMeetsTier("free", "unlimited_ai")).toBe(false);
     expect(featureMeetsTier("free", "pantry_suggest")).toBe(false);
@@ -72,16 +76,18 @@ describe("featureMeetsTier — max tier", () => {
   });
 });
 
-// Recipe nutrition per serving (owner, 2026-10-19): calories are free, the breakdown is Pro and Max,
-// the same split as the food diary. The card's calorie part rides on total_calories.
-describe("featureMeetsTier — recipe nutrition breakdown", () => {
-  it("keeps the breakdown off Free while its calories stay free", () => {
-    expect(featureMeetsTier("free", "recipe_nutrition")).toBe(false);
+// "More nutrients" (owner, 2026-11-17): on the dashboard, in History and on recipe cards, protein,
+// carbs and fat are free; fibre, sodium and the vitamins and minerals are Pro and Max.
+describe("featureMeetsTier — the nutrient split", () => {
+  it("gives Free calories, protein, carbs and fat, and nothing behind More nutrients", () => {
     expect(featureMeetsTier("free", "total_calories")).toBe(true);
+    expect(featureMeetsTier("free", "macro_drawer")).toBe(true);
+    expect(featureMeetsTier("free", "micro_tracker")).toBe(false);
   });
 
-  it("opens the breakdown on Pro and Max", () => {
-    expect(featureMeetsTier("pro", "recipe_nutrition")).toBe(true);
-    expect(featureMeetsTier("max", "recipe_nutrition")).toBe(true);
+  it("opens every nutrient on Pro and Max", () => {
+    expect(featureMeetsTier("pro", "micro_tracker")).toBe(true);
+    expect(featureMeetsTier("max", "micro_tracker")).toBe(true);
+    expect(featureMeetsTier("max", "macro_drawer")).toBe(true);
   });
 });

@@ -39,6 +39,7 @@ export const microColors = {
   iron: "#C2554B", // rust red
   calcium: "#4E93A6", // mineral teal
   potassium: "#7FA653", // leaf green
+  sodium: "#7D8597", // sea-salt slate
   vitaminC: "#EBA524", // egg-tart gold (citrus)
   vitaminD: "#E0803A", // sunlight orange
 } as const;

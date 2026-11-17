@@ -59,14 +59,14 @@ describe("new account defaults to the free plan", () => {
     expect(useSubscriptionStore.getState().activeTier).toBe("free");
   });
 
-  it("leaves the weekly AI-log quota untouched so signing out and back in can't refill it", () => {
+  it("leaves the daily photo-log quota untouched so signing out and back in can't refill it", () => {
     useSubscriptionStore.getState().incrementAiLog();
-    const spent = useSubscriptionStore.getState().weeklyAiLogCount;
+    const spent = useSubscriptionStore.getState().aiLogCount;
     expect(spent).toBeGreaterThan(0);
 
     useSubscriptionStore.getState().resetTierForNewAccount();
     const s = useSubscriptionStore.getState();
     expect(s.activeTier).toBe("free"); // tier reset...
-    expect(s.weeklyAiLogCount).toBe(spent); // ...but the quota is preserved
+    expect(s.aiLogCount).toBe(spent); // ...but the quota is preserved
   });
 });

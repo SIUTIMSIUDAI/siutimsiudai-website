@@ -1,4 +1,5 @@
 import {
+  isLimitMicro,
   emptyMicroTotals,
   sanitizeMicros,
   sumMicroTotals,
@@ -43,21 +44,24 @@ describe("sumMicroTotals", () => {
     expect(sumMicroTotals([])).toEqual(emptyMicroTotals());
   });
 
-  it("adds the five tracked micros across entries and ignores null / absent captures", () => {
+  it("adds the six tracked micros across entries and ignores null / absent captures", () => {
     expect(
       sumMicroTotals([
-        { micros: { iron: 2, calcium: 100, potassium: 200, vitaminC: 10, vitaminD: 1 } },
+        { micros: { iron: 2, calcium: 100, potassium: 200, sodium: 600, vitaminC: 10, vitaminD: 1 } },
         { micros: null },
-        { micros: { iron: 1, potassium: 50 } },
+        { micros: { iron: 1, potassium: 50, sodium: 400 } },
         {},
       ]),
-    ).toEqual({ iron: 3, calcium: 100, potassium: 250, vitaminC: 10, vitaminD: 1 });
+    ).toEqual({ iron: 3, calcium: 100, potassium: 250, sodium: 1000, vitaminC: 10, vitaminD: 1 });
   });
 
-  it("never folds sodium into the tracked totals", () => {
+  // Owner, 2026-11-17: the estimator returns sodium, and the tracker charts it as a daily ceiling.
+  it("tracks sodium, as a ceiling", () => {
     const totals = sumMicroTotals([{ micros: { sodium: 999 } as EntryMicronutrients }]);
-    expect(Object.values(totals).every((v) => v === 0)).toBe(true);
-    expect(TRACKED_MICRO_KEYS).not.toContain("sodium" as never);
+    expect(totals.sodium).toBe(999);
+    expect(TRACKED_MICRO_KEYS).toContain("sodium");
+    expect(isLimitMicro("sodium")).toBe(true);
+    expect(isLimitMicro("iron")).toBe(false);
   });
 });
 
@@ -69,6 +73,7 @@ describe("microTotalsForDate is premium-only by construction", () => {
     iron: 2,
     calcium: 50,
     potassium: 100,
+    sodium: 300,
     vitaminC: 5,
     vitaminD: 1,
   };
@@ -126,6 +131,7 @@ describe("editEntry applies the micros tier-gate to a re-estimate patch", () => 
     iron: 2,
     calcium: 50,
     potassium: 100,
+    sodium: 300,
     vitaminC: 5,
     vitaminD: 1,
   };

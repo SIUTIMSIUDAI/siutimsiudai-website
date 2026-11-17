@@ -7,6 +7,7 @@ import { colors } from "@/constants/theme";
 import { NUTRIENT_COLORS, NUTRIENT_LABELS } from "@/constants/reportNutrients";
 import { useLocale } from "@/hooks/useLocale";
 import { weekdayShort } from "@/utils/formatters";
+import { isLimitMicro } from "@/utils/micros";
 import {
   countedDays,
   DayNutrients,
@@ -104,12 +105,19 @@ export function NutrientDetailSheet({ visible, row, days, today, onClose }: Prop
             </View>
             <ScalableText className="text-sm text-ink-muted">
               {target != null
-                ? tl(`Target ${formatNutrientAmount(key, target)} ${unit}`, `目標 ${formatNutrientAmount(key, target)} ${unit}`) +
+                ? (isLimitMicro(key)
+                    ? tl(`Limit ${formatNutrientAmount(key, target)} ${unit}`, `上限 ${formatNutrientAmount(key, target)} ${unit}`)
+                    : tl(`Target ${formatNutrientAmount(key, target)} ${unit}`, `目標 ${formatNutrientAmount(key, target)} ${unit}`)) +
                   (row.daysCounted > 1
-                    ? tl(
-                        ` · on target ${row.daysOnTarget} of ${row.daysCounted} days`,
-                        ` · ${row.daysCounted} 日中 ${row.daysOnTarget} 日達標`,
-                      )
+                    ? isLimitMicro(key)
+                      ? tl(
+                          ` · within the limit ${row.daysOnTarget} of ${row.daysCounted} days`,
+                          ` · ${row.daysCounted} 日中 ${row.daysOnTarget} 日冇超標`,
+                        )
+                      : tl(
+                          ` · on target ${row.daysOnTarget} of ${row.daysCounted} days`,
+                          ` · ${row.daysCounted} 日中 ${row.daysOnTarget} 日達標`,
+                        )
                     : "")
                 : tl("No target set yet", "未設定目標")}
             </ScalableText>
@@ -128,7 +136,10 @@ export function NutrientDetailSheet({ visible, row, days, today, onClose }: Prop
                         {pickedInProgress ? tl(" (so far)", "（暫時）") : ""}
                       </ScalableText>
                       {target != null && !pickedInProgress ? (
-                        <TargetStatusLabel status={targetStatus(key, picked.values[key], target)} />
+                        <TargetStatusLabel
+                          status={targetStatus(key, picked.values[key], target)}
+                          limit={isLimitMicro(key)}
+                        />
                       ) : null}
                     </>
                   ) : (

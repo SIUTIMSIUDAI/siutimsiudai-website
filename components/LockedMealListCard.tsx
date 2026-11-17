@@ -29,7 +29,7 @@ function DecoyRow({ nameW }: { nameW: DimensionValue }) {
 
 // The locked per-day meal list for free users on the History tab. The rows are blurred and dimmed
 // under a charcoal scrim, with a compact upsell floated on top. Calories and the macro split sit
-// above this; only the "what you ate" list is Pro. Mirrors LockedMacroCard so the History locks
+// above this; only the "what you ate" list is Pro. Mirrors LockedTrendCard so the History locks
 // feel like one system.
 export function LockedMealListCard({ onUnlock }: Props) {
   const { tl } = useLocale();

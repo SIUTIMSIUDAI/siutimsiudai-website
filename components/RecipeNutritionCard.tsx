@@ -10,7 +10,7 @@ import { useRecipeNutrition } from "@/hooks/useRecipeNutrition";
 import { useNutritionStore } from "@/stores/nutritionStore";
 import { computeNutritionTargets } from "@/utils/nutritionTargets";
 import { todayKey } from "@/utils/formatters";
-import { TRACKED_MICRO_KEYS, TRACKED_MICRO_META } from "@/utils/micros";
+import { isLimitMicro, TRACKED_MICRO_KEYS, TRACKED_MICRO_META } from "@/utils/micros";
 import {
   formatAmount,
   formatShare,
@@ -31,8 +31,9 @@ const OVER_TINT = "#FCEBD3";
 
 /**
  * One serving at a glance (owner, 2026-10-19, mockup C): does it fit what's left of today's calories,
- * and what does it give you? Calories are free; the macros and vitamins are Pro and Max, locked
- * behind a panel on Free. Every figure is an estimate, said so, with the sources link.
+ * and what does it give you? Calories, protein, carbs and fat are free (owner, 2026-11-17); fibre and
+ * the vitamins and minerals, sodium among them, are Pro and Max, locked behind a panel on Free. Every
+ * figure is an estimate, said so, with the sources link.
  */
 export function RecipeNutritionCard({ recipe }: Props) {
   const { tl } = useLocale();
@@ -70,7 +71,7 @@ export function RecipeNutritionCard({ recipe }: Props) {
 
 function ServingNutrition({ nutrition, healthy }: { nutrition: RecipeNutrition; healthy: boolean }) {
   const { t, tl } = useLocale();
-  const { hasAccess, triggerPaywall } = useFeatureAccess("recipe_nutrition");
+  const { hasAccess: canViewMore, triggerPaywall } = useFeatureAccess("micro_tracker");
   const today = todayKey();
   const eaten = Math.round(useNutritionStore((s) => s.totalsForDate(today).calories));
   const target = useNutritionStore((s) => s.dailyCalorieTarget);
@@ -81,11 +82,12 @@ function ServingNutrition({ nutrition, healthy }: { nutrition: RecipeNutrition; 
   // No calorie target (under 18, pregnant or breastfeeding): no "fits today" verdict, just the numbers.
   const v = target === null ? null : servingVerdict(kcal, eaten, target);
 
+  // Protein, carbs and fat for everyone; fibre joins them on Pro and Max.
   const macros = [
     { key: "protein", label: t("dashboard.protein"), color: macroColors.protein },
     { key: "carbs", label: t("dashboard.carbs"), color: macroColors.carbs },
     { key: "fat", label: t("dashboard.fat"), color: macroColors.fat },
-    { key: "fiber", label: t("dashboard.fibre"), color: macroColors.fiber },
+    ...(canViewMore ? [{ key: "fiber", label: t("dashboard.fibre"), color: macroColors.fiber } as const] : []),
   ] as const;
   const microTarget = (key: string) => targets?.micros.find((m) => m.key === key)?.amount;
 
@@ -145,60 +147,61 @@ function ServingNutrition({ nutrition, healthy }: { nutrition: RecipeNutrition; 
         </View>
       ) : null}
 
-      {hasAccess ? (
-        <View className="gap-2">
-          {macros.map((m) => {
-            const grams = nutrition.perServing[m.key];
-            const share = shareOfTarget(grams, targets?.[m.key]);
-            return (
-              <View key={m.key} className="flex-row items-center gap-2">
-                <ScalableText className="w-14 text-sm text-ink-muted">{m.label}</ScalableText>
-                <ScalableText className="w-12 text-sm font-bold text-ink">{formatAmount(grams, "g")}</ScalableText>
-                {share != null ? (
-                  <>
-                    <View className="h-2 flex-1 overflow-hidden rounded-full bg-surface-sunken">
-                      <View style={{ width: `${Math.min(100, share)}%`, backgroundColor: m.color, height: "100%" }} />
-                    </View>
-                    <ScalableText className="w-10 text-right text-xs text-ink-muted">{formatShare(share)}</ScalableText>
-                  </>
-                ) : null}
-              </View>
-            );
-          })}
-
-          {nutrition.micros ? (
-            <View className="mt-1 gap-1.5 border-t border-dashed border-[#E4DCCB] pt-2">
-              <ScalableText className="text-xs text-ink-muted">
-                {targets
-                  ? tl("Vitamins & minerals (share of daily target)", "維他命及礦物質（佔每日目標）")
-                  : tl("Vitamins & minerals", "維他命及礦物質")}
-              </ScalableText>
-              <View className="flex-row flex-wrap gap-1.5">
-                {TRACKED_MICRO_KEYS.map((k) => {
-                  const meta = TRACKED_MICRO_META[k];
-                  const amount = nutrition.micros![k];
-                  const share = shareOfTarget(amount, microTarget(k));
-                  return (
-                    <View key={k} className="rounded-lg bg-surface-subtle px-2 py-1">
-                      <ScalableText className="text-xs text-ink">
-                        {tl(meta.label, meta.labelZh)}{" "}
-                        <ScalableText className="font-bold">
-                          {share != null ? formatShare(share) : formatAmount(amount, meta.unit as "mg" | "mcg")}
-                        </ScalableText>
-                      </ScalableText>
-                    </View>
-                  );
-                })}
-              </View>
+      <View className="gap-2">
+        {macros.map((m) => {
+          const grams = nutrition.perServing[m.key];
+          const share = shareOfTarget(grams, targets?.[m.key]);
+          return (
+            <View key={m.key} className="flex-row items-center gap-2">
+              <ScalableText className="w-14 text-sm text-ink-muted">{m.label}</ScalableText>
+              <ScalableText className="w-12 text-sm font-bold text-ink">{formatAmount(grams, "g")}</ScalableText>
+              {share != null ? (
+                <>
+                  <View className="h-2 flex-1 overflow-hidden rounded-full bg-surface-sunken">
+                    <View style={{ width: `${Math.min(100, share)}%`, backgroundColor: m.color, height: "100%" }} />
+                  </View>
+                  <ScalableText className="w-10 text-right text-xs text-ink-muted">{formatShare(share)}</ScalableText>
+                </>
+              ) : null}
             </View>
-          ) : null}
-        </View>
-      ) : (
+          );
+        })}
+
+        {canViewMore && nutrition.micros ? (
+          <View className="mt-1 gap-1.5 border-t border-dashed border-[#E4DCCB] pt-2">
+            <ScalableText className="text-xs text-ink-muted">
+              {targets
+                ? tl("Vitamins & minerals (share of daily target)", "維他命及礦物質（佔每日目標）")
+                : tl("Vitamins & minerals", "維他命及礦物質")}
+            </ScalableText>
+            <View className="flex-row flex-wrap gap-1.5">
+              {TRACKED_MICRO_KEYS.map((k) => {
+                const meta = TRACKED_MICRO_META[k];
+                const amount = nutrition.micros![k];
+                // Sodium is a daily ceiling, not a target to reach, so it shows its amount.
+                const share = isLimitMicro(k) ? null : shareOfTarget(amount, microTarget(k));
+                return (
+                  <View key={k} className="rounded-lg bg-surface-subtle px-2 py-1">
+                    <ScalableText className="text-xs text-ink">
+                      {tl(meta.label, meta.labelZh)}{" "}
+                      <ScalableText className="font-bold">
+                        {share != null ? formatShare(share) : formatAmount(amount, meta.unit as "mg" | "mcg")}
+                      </ScalableText>
+                    </ScalableText>
+                  </View>
+                );
+              })}
+            </View>
+          </View>
+        ) : null}
+      </View>
+
+      {canViewMore ? null : (
         <Pressable
           accessibilityRole="button"
           accessibilityLabel={tl(
-            "Protein, carbs, fat, fibre and 5 vitamins & minerals per serving. Go Pro / Max to see it all",
-            "每份嘅蛋白質、碳水、脂肪、纖維，同 5 種維他命礦物質。升級 Pro／Max 睇晒",
+            `Fibre and ${TRACKED_MICRO_KEYS.length} vitamins & minerals per serving, sodium included. Go Pro / Max to see it all`,
+            `每份嘅纖維，同 ${TRACKED_MICRO_KEYS.length} 種維他命礦物質（包括鈉）。升級 Pro／Max 睇晒`,
           )}
           onPress={triggerPaywall}
           className="gap-2 rounded-xl bg-surface-subtle p-3 active:opacity-80"
@@ -207,8 +210,8 @@ function ServingNutrition({ nutrition, healthy }: { nutrition: RecipeNutrition; 
             <Ionicons name="lock-closed" size={16} color={colors.inkMuted} />
             <ScalableText className="flex-1 text-sm text-ink-muted">
               {tl(
-                "Protein, carbs, fat, fibre and 5 vitamins & minerals per serving",
-                "每份嘅蛋白質、碳水、脂肪、纖維，同 5 種維他命礦物質",
+                `Fibre and ${TRACKED_MICRO_KEYS.length} vitamins & minerals per serving, sodium included`,
+                `每份嘅纖維，同 ${TRACKED_MICRO_KEYS.length} 種維他命礦物質（包括鈉）`,
               )}
             </ScalableText>
           </View>

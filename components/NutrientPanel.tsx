@@ -1,4 +1,4 @@
-import { useMemo, type ReactNode } from "react";
+import { useMemo, useState, type ReactNode } from "react";
 import { Pressable, View } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { ScalableText } from "./ScalableText";
@@ -7,7 +7,7 @@ import { colors, macroColors, microColors } from "@/constants/theme";
 import { useLocale } from "@/hooks/useLocale";
 import { useFeatureAccess } from "@/hooks/useFeatureAccess";
 import { useNutritionStore } from "@/stores/nutritionStore";
-import { sumMicroTotals, TRACKED_MICRO_META, TrackedMicroKey } from "@/utils/micros";
+import { isLimitMicro, sumMicroTotals, TRACKED_MICRO_META, TrackedMicroKey } from "@/utils/micros";
 import { NutritionTargets } from "@/types";
 
 interface Props {
@@ -18,14 +18,18 @@ interface Props {
   targets: NutritionTargets | null;
 }
 
-// The two micro groups the tracker charts, split from the five tracked keys so vitamins and
-// minerals read as their own tidy blocks rather than one undifferentiated list.
-const MINERAL_KEYS: TrackedMicroKey[] = ["iron", "calcium", "potassium"];
+// The two micro groups the tracker charts, split from the tracked keys so vitamins and minerals read
+// as their own tidy blocks rather than one undifferentiated list. Sodium sits with the minerals.
+const MINERAL_KEYS: TrackedMicroKey[] = ["iron", "calcium", "potassium", "sodium"];
 const VITAMIN_KEYS: TrackedMicroKey[] = ["vitaminC", "vitaminD"];
 
 // One progress row, shared by every nutrient. With a target it fills toward it and shows
 // "eaten / target unit"; without one (macros before a profile exists) it shows the macro's
 // share of the day's total, matching the old macro drawer so the bars stay familiar.
+//
+// `limit` marks a ceiling (sodium): the bar fills toward the limit, and past it turns the darker
+// egg-tart gold (lighter gold is vitamin C's own bar) with a plain "X mg over". A fact, never a
+// telling-off.
 function NutrientBar({
   label,
   value,
@@ -33,6 +37,7 @@ function NutrientBar({
   total,
   unit,
   color,
+  limit = false,
 }: {
   label: string;
   value: number;
@@ -40,7 +45,9 @@ function NutrientBar({
   total?: number;
   unit: string;
   color: string;
+  limit?: boolean;
 }) {
+  const { tl } = useLocale();
   const hasTarget = !!target && target > 0;
   const hasTotal = !!total && total > 0;
   const pct = hasTarget
@@ -48,10 +55,16 @@ function NutrientBar({
     : hasTotal
       ? Math.round((value / total) * 100)
       : 0;
+  const over = limit && hasTarget ? Math.round(value - target) : 0;
   return (
     <View className="mb-3">
       <View className="mb-1 flex-row items-end justify-between">
-        <ScalableText className="text-sm font-semibold text-ink">{label}</ScalableText>
+        <ScalableText className="text-sm font-semibold text-ink">
+          {label}
+          {limit ? (
+            <ScalableText className="text-xs font-normal text-ink-faint">{tl(" (limit)", "（上限）")}</ScalableText>
+          ) : null}
+        </ScalableText>
         <ScalableText className="text-sm text-ink-muted">
           {Math.round(value)}
           {hasTarget ? ` / ${Math.round(target)}` : ""} {unit}
@@ -61,8 +74,16 @@ function NutrientBar({
           is no honest bar to draw, so only the amount shows. */}
       {hasTarget || hasTotal ? (
         <View className="h-2 overflow-hidden rounded-full bg-surface-sunken">
-          <View style={{ width: `${pct}%`, backgroundColor: color }} className="h-full rounded-full" />
+          <View
+            style={{ width: `${pct}%`, backgroundColor: over > 0 ? colors.accentDark : color }}
+            className="h-full rounded-full"
+          />
         </View>
+      ) : null}
+      {over > 0 ? (
+        <ScalableText className="mt-1 text-xs font-semibold" style={{ color: colors.accentDark }}>
+          {tl(`${over} ${unit} over`, `超出 ${over} ${unit}`)}
+        </ScalableText>
       ) : null}
     </View>
   );
@@ -81,61 +102,29 @@ function Section({ title, first, children }: { title: string; first?: boolean; c
   );
 }
 
-// The unified premium "Nutrients" card: macros, minerals and vitamins in one elegant panel with
-// matching progress bars. Gated end to end — both macro_drawer and micro_tracker are Pro, so a
-// free user sees one locked upsell and never any figures. Belt-and-braces: micros are also stripped
-// from free history at the save path (retainMicrosForTier), so the numbers behind this are premium
-// by construction, not just hidden by the gate.
+// The "Nutrients" card. Protein, carbs and fat show for everyone, the free plan included (owner,
+// 2026-11-17). Fibre, the minerals (sodium among them) and the vitamins sit behind "More nutrients":
+// Pro and Max open them, and on Free the button carries a Pro lock and opens the paywall, never any
+// figures. The extra rows start closed every time the card appears (owner, 2026-11-17), so the
+// state lives in the component, not in a store. Belt-and-braces: micros are also stripped from free
+// history at the save path (retainMicrosForTier), so the numbers behind the locked rows are premium
+// by construction, not just hidden.
 export function NutrientPanel({ date, macros, targets }: Props) {
   const { t, tl } = useLocale();
-  const { hasAccess, triggerPaywall } = useFeatureAccess("macro_drawer");
+  const { hasAccess: canViewMore, triggerPaywall } = useFeatureAccess("micro_tracker");
+  const [expanded, setExpanded] = useState(false);
   const entries = useNutritionStore((s) => s.logsByDate[date]?.entries);
   const microTotals = useMemo(() => sumMicroTotals(entries ?? []), [entries]);
   // A profile with no targets is someone the reference doesn't cover (under 18, pregnant or
   // breastfeeding): they still see what they've eaten, with no goals.
   const hasProfile = useNutritionStore((s) => s.healthProfile !== null);
 
-  // Free tier: one locked upsell for the whole panel. Tapping opens the paywall, never numbers.
-  if (!hasAccess) {
-    return (
-      <Pressable
-        accessibilityRole="button"
-        accessibilityLabel={tl(
-          "Unlock the full nutrients breakdown with Pro",
-          "升級 Pro 解鎖完整營養分析",
-        )}
-        onPress={triggerPaywall}
-        className="min-h-[44px] flex-row items-center justify-between rounded-2xl border border-[#E4DCCB] bg-surface px-4 py-3 active:opacity-80"
-      >
-        <View className="flex-1 flex-row items-center gap-2">
-          <Ionicons name="nutrition-outline" size={20} color={colors.inkMuted} />
-          <View className="flex-1">
-            <ScalableText className="text-base font-semibold text-ink">
-              {t("dashboard.nutrients")}
-            </ScalableText>
-            <ScalableText className="text-xs text-ink-muted" numberOfLines={1}>
-              {tl("Macros, vitamins & minerals breakdown", "營養素、維他命同礦物質完整分析")}
-            </ScalableText>
-          </View>
-        </View>
-        <View
-          className="flex-row items-center gap-1 rounded-full px-3 py-1"
-          style={{ backgroundColor: "#F5EBE0" }}
-        >
-          <Ionicons name="lock-closed" size={12} color={colors.brand} />
-          <ScalableText className="text-xs font-bold" style={{ color: colors.brand }}>
-            {tl("Pro", "Pro")}
-          </ScalableText>
-        </View>
-      </Pressable>
-    );
-  }
-
   const macroTotal = macros.protein + macros.carbs + macros.fat;
   // Each micro's target comes from utils/nutritionTargets. A micro without a shown target (one whose
   // reference value is unverified, or every micro for someone the reference doesn't cover) still shows
   // what was eaten, just without a goal.
   const microByKey = new Map((targets?.micros ?? []).map((m) => [m.key, m]));
+  const open = expanded && canViewMore;
 
   const renderMicro = (key: TrackedMicroKey) => {
     const meta = TRACKED_MICRO_META[key];
@@ -147,6 +136,7 @@ export function NutrientPanel({ date, macros, targets }: Props) {
         target={microByKey.get(key)?.amount}
         unit={meta.unit}
         color={microColors[key]}
+        limit={isLimitMicro(key)}
       />
     );
   };
@@ -188,32 +178,78 @@ export function NutrientPanel({ date, macros, targets }: Props) {
         {/* Fibre is a subset of carbs, so it stays OUT of macroTotal (adding it would double-count
             the carb share). With a profile it fills toward targets.fiber; without one it reads as a
             share of protein+carbs+fat, matching the other bars. */}
-        <NutrientBar
-          label={t("dashboard.fibre")}
-          value={macros.fiber}
-          target={targets?.fiber}
-          total={macroTotal}
-          unit="g"
-          color={macroColors.fiber}
-        />
+        {open ? (
+          <NutrientBar
+            label={t("dashboard.fibre")}
+            value={macros.fiber}
+            target={targets?.fiber}
+            total={macroTotal}
+            unit="g"
+            color={macroColors.fiber}
+          />
+        ) : null}
       </Section>
 
-      {targets || hasProfile ? (
-        <>
-          <Section title={tl("Minerals", "礦物質")}>{MINERAL_KEYS.map(renderMicro)}</Section>
-          <Section title={tl("Vitamins", "維他命")}>{VITAMIN_KEYS.map(renderMicro)}</Section>
-        </>
-      ) : (
-        // Paid, but no health profile yet: no personalised micro targets to chart against. Nudge
-        // setup rather than showing empty vitamin/mineral bars.
-        <View className="mt-4 rounded-xl bg-surface-subtle p-3">
-          <ScalableText className="text-xs text-ink-muted">
-            {tl(
-              "Set up your health profile to see your vitamin & mineral targets.",
-              "設定健康檔案，即可睇維他命同礦物質目標。",
-            )}
+      {open ? (
+        targets || hasProfile ? (
+          <>
+            <Section title={tl("Minerals", "礦物質")}>{MINERAL_KEYS.map(renderMicro)}</Section>
+            <Section title={tl("Vitamins", "維他命")}>{VITAMIN_KEYS.map(renderMicro)}</Section>
+          </>
+        ) : (
+          // Paid, but no health profile yet: no personalised micro targets to chart against. Nudge
+          // setup rather than showing empty vitamin/mineral bars.
+          <View className="mt-1 rounded-xl bg-surface-subtle p-3">
+            <ScalableText className="text-xs text-ink-muted">
+              {tl(
+                "Set up your health profile to see your vitamin & mineral targets.",
+                "設定健康檔案，即可睇維他命同礦物質目標。",
+              )}
+            </ScalableText>
+          </View>
+        )
+      ) : null}
+
+      {canViewMore ? (
+        <Pressable
+          accessibilityRole="button"
+          accessibilityState={{ expanded }}
+          accessibilityLabel={
+            expanded
+              ? tl("Show fewer nutrients", "收起其他營養")
+              : tl("More nutrients: fibre, minerals and vitamins", "睇更多營養：纖維、礦物質同維他命")
+          }
+          onPress={() => setExpanded((v) => !v)}
+          className="mt-1 min-h-[44px] flex-row items-center justify-center gap-1 rounded-xl active:opacity-70"
+        >
+          <ScalableText className="text-sm font-semibold text-brand">
+            {expanded ? tl("Show less", "收起") : tl("More nutrients", "睇更多營養")}
           </ScalableText>
-        </View>
+          <Ionicons name={expanded ? "chevron-up" : "chevron-down"} size={16} color={colors.brand} />
+        </Pressable>
+      ) : (
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel={tl(
+            "More nutrients: fibre, sodium, vitamins and minerals. Unlock with Pro",
+            "睇更多營養：纖維、鈉、維他命同礦物質。升級 Pro 解鎖",
+          )}
+          onPress={triggerPaywall}
+          className="mt-1 min-h-[44px] flex-row items-center justify-center gap-2 rounded-xl active:opacity-70"
+        >
+          <ScalableText className="text-sm font-semibold text-ink-muted">
+            {tl("More nutrients", "睇更多營養")}
+          </ScalableText>
+          <View
+            className="flex-row items-center gap-1 rounded-full px-2 py-0.5"
+            style={{ backgroundColor: "#F5EBE0" }}
+          >
+            <Ionicons name="lock-closed" size={11} color={colors.brand} />
+            <ScalableText className="text-xs font-bold" style={{ color: colors.brand }}>
+              {tl("Pro", "Pro")}
+            </ScalableText>
+          </View>
+        </Pressable>
       )}
 
       {/* The recommended daily amounts charted above are published figures, not ours. The dashboard

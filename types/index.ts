@@ -68,9 +68,8 @@ export interface HealthProfile {
 }
 
 // Per-meal micronutrient amounts. These are the premium "vitamins & minerals" set. The daily
-// tracker charts five of them (iron, calcium, potassium, vitamin C, vitamin D); sodium is captured
-// when a source provides it but shown as a ceiling elsewhere, and fibre stays a macro and is never
-// gated here. Every field is optional because a capture (photo/voice AI, label scan) may only know
+// tracker charts all six (utils/micros TRACKED_MICRO_KEYS), sodium as a ceiling rather than a target;
+// fibre stays a macro and is never gated here. Every field is optional because a capture (photo/voice AI, label scan) may only know
 // a subset. Retained in history for paid tiers only, stripped to null for free users at the save
 // path (see retainMicrosForTier in stores/nutritionStore).
 export interface EntryMicronutrients {
@@ -227,8 +226,16 @@ export interface RecipeHealthySnapshot {
  */
 export interface RecipeNutrition {
   perServing: MacroNutrients;
-  // The five vitamins and minerals the diary tracks, or null when the estimator returned none.
-  micros: { iron: number; calcium: number; potassium: number; vitaminC: number; vitaminD: number } | null;
+  // The vitamins and minerals the diary tracks (sodium among them), or null when the estimator
+  // returned none.
+  micros: {
+    iron: number;
+    calcium: number;
+    potassium: number;
+    sodium: number;
+    vitaminC: number;
+    vitaminD: number;
+  } | null;
   basis: string;
   estimatedAt: string; // ISO
 }

@@ -1,24 +1,33 @@
-// Shared helpers for the premium micronutrient tracker. The app follows five high-value daily
-// micronutrients — iron, calcium, potassium, vitamin C and vitamin D — against the user's
-// personalised targets. These pure helpers are the single source of truth for WHICH micros the
+// Shared helpers for the premium micronutrient tracker. The app follows six daily micronutrients:
+// iron, calcium, potassium, vitamin C and vitamin D against the user's personalised targets, and
+// sodium against a daily ceiling. These pure helpers are the single source of truth for WHICH micros the
 // tracker charts, how an untrusted payload (a Gemini estimate, a future label parse) is sanitised
 // into EntryMicronutrients, and how a day's entries roll up into running totals. Kept free of
 // React and stores so the policy is unit-testable in isolation.
 
 import { EntryMicronutrients } from "@/types";
 
-// The five nutrients the daily tracker surfaces, in display order. Sodium (a ceiling) and fibre
-// (a macro, already in the macro drawer) are deliberately excluded: the brief is to focus on a few
-// high-value floors, not every line on a label.
-export type TrackedMicroKey = "iron" | "calcium" | "potassium" | "vitaminC" | "vitaminD";
+// The nutrients the daily tracker surfaces, in display order: minerals, then vitamins. Sodium joined
+// on 2026-11-17 (owner): the meal estimator now returns it, and it is the one buyers asked about. It
+// is a ceiling, not a floor (see LIMIT_MICRO_KEYS). Fibre stays out: it is a macro.
+export type TrackedMicroKey = "iron" | "calcium" | "potassium" | "sodium" | "vitaminC" | "vitaminD";
 
 export const TRACKED_MICRO_KEYS: readonly TrackedMicroKey[] = [
   "iron",
   "calcium",
   "potassium",
+  "sodium",
   "vitaminC",
   "vitaminD",
 ];
+
+// The tracked micros that are daily ceilings rather than amounts to reach: eating less is never a
+// miss, going over is. Matches the "limit" use of sodium in constants/nutrientReference.
+export const LIMIT_MICRO_KEYS: ReadonlySet<TrackedMicroKey> = new Set<TrackedMicroKey>(["sodium"]);
+
+export function isLimitMicro(key: string): boolean {
+  return LIMIT_MICRO_KEYS.has(key as TrackedMicroKey);
+}
 
 // Display name (EN/zh) and unit for each tracked micro. Mirrors the labels in nutritionTargets so
 // UI that charts a micro (e.g. the history micro-trend toggle) can label it without a health
@@ -30,12 +39,12 @@ export const TRACKED_MICRO_META: Record<
   iron: { label: "Iron", labelZh: "鐵", unit: "mg" },
   calcium: { label: "Calcium", labelZh: "鈣", unit: "mg" },
   potassium: { label: "Potassium", labelZh: "鉀", unit: "mg" },
+  sodium: { label: "Sodium", labelZh: "鈉", unit: "mg" },
   vitaminC: { label: "Vitamin C", labelZh: "維他命C", unit: "mg" },
   vitaminD: { label: "Vitamin D", labelZh: "維他命D", unit: "mcg" },
 };
 
-// Every numeric field EntryMicronutrients may carry. Sodium is retained when a source provides it
-// (e.g. a nutrition label) even though the tracker doesn't chart it, so no captured datum is lost.
+// Every numeric field EntryMicronutrients may carry.
 const MICRO_FIELDS: readonly (keyof EntryMicronutrients)[] = [
   "sodium",
   "calcium",
@@ -61,14 +70,14 @@ export function sanitizeMicros(raw: unknown): EntryMicronutrients | undefined {
   return Object.keys(out).length > 0 ? out : undefined;
 }
 
-// Running totals of the five tracked micros for a set of logged entries. Micros are NOT touched by
+// Running totals of the tracked micros for a set of logged entries. Micros are NOT touched by
 // 少甜 / 少底 customizations (those only adjust macros), so this is a straight sum of stored values.
 // Free-tier entries never carry micros (dropped at the save path, see retainMicrosForTier), so a
 // free user's totals are all zero — the calculation is premium-only by construction.
 export type MicroTotals = Record<TrackedMicroKey, number>;
 
 export function emptyMicroTotals(): MicroTotals {
-  return { iron: 0, calcium: 0, potassium: 0, vitaminC: 0, vitaminD: 0 };
+  return { iron: 0, calcium: 0, potassium: 0, sodium: 0, vitaminC: 0, vitaminD: 0 };
 }
 
 export function sumMicroTotals(

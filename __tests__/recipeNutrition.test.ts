@@ -109,7 +109,7 @@ describe("sumServing", () => {
       ]),
     ).toEqual({
       perServing: { calories: 420, protein: 38, carbs: 9, fat: 25, fiber: 0.5 },
-      micros: { iron: 1.5, calcium: 0, potassium: 0, vitaminC: 0, vitaminD: 0 },
+      micros: { iron: 1.5, calcium: 0, potassium: 0, sodium: 0, vitaminC: 0, vitaminD: 0 },
     });
   });
 

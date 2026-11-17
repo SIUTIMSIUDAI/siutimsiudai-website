@@ -8,7 +8,6 @@ import { MacroProgressBar } from "@/components/MacroProgressBar";
 import { NutrientReportCard } from "@/components/NutrientReportCard";
 import { NutrientDetailSheet } from "@/components/NutrientDetailSheet";
 import { RangeCalendarSheet } from "@/components/RangeCalendarSheet";
-import { LockedMacroCard } from "@/components/LockedMacroCard";
 import { LockedTrendCard } from "@/components/LockedTrendCard";
 import { LockedMealListCard } from "@/components/LockedMealListCard";
 import { MemberEntryRow } from "@/components/MemberEntryRow";
@@ -74,11 +73,11 @@ export function HistoryScreen() {
   const dailyCalorieTarget = useNutritionStore((s) => s.dailyCalorieTarget);
   const activeTier = useSubscriptionStore((s) => s.activeTier);
 
-  // Calories are free for every tier and every past day; only the macro split is Pro. So the day
-  // gate is the macro-drawer feature flag, not a date window — past days stay browsable for free.
-  const { hasAccess: canViewMacros, triggerPaywall } = useFeatureAccess("macro_drawer");
-  // The per-day "what you ate" list is its own Pro perk. Same paywall opener as the macro drawer,
-  // so a free user tapping either lock lands on the same subscription screen.
+  // Calories, protein, carbs and fat are free for every tier and every past day (owner, 2026-11-17).
+  // Fibre, like the rest of "More nutrients", is Pro: the micro_tracker gate.
+  const { hasAccess: canViewMore, triggerPaywall } = useFeatureAccess("micro_tracker");
+  // The per-day "what you ate" list is its own Pro perk. Same paywall opener as the nutrient lock,
+  // so a free user tapping any lock lands on the same subscription screen.
   const { hasAccess: canViewMeals } = useFeatureAccess("meal_history");
   // Adding a forgotten meal to a past day. Pro too, and only on days the strip shows before today.
   const { hasAccess: canBackfill } = useFeatureAccess("backfill_log");
@@ -165,33 +164,33 @@ export function HistoryScreen() {
             ) : null}
           </View>
 
-          {/* The macro split (carbs / protein / fat / fibre) is a Pro perk. Paid tiers see the real
-              bars; free users get a locked decoy in its place while the calorie hero stays visible. */}
-          {canViewMacros ? (
-            <View className="rounded-2xl border border-[#E4DCCB] bg-surface p-4">
-              <MacroProgressBar
-                label={t("dashboard.carbs")}
-                grams={dayTotals.carbs}
-                target={targets?.carbs}
-                total={macroTotal}
-                color={macroColors.carbs}
-              />
-              <MacroProgressBar
-                label={t("dashboard.protein")}
-                grams={dayTotals.protein}
-                target={targets?.protein}
-                total={macroTotal}
-                color={macroColors.protein}
-              />
-              <MacroProgressBar
-                label={t("dashboard.fat")}
-                grams={dayTotals.fat}
-                target={targets?.fat}
-                total={macroTotal}
-                color={macroColors.fat}
-              />
-              {/* Fibre sits below the big three. It stays OUT of macroTotal (subset of carbs), so its
-                  no-target share reads against protein+carbs+fat like the dashboard panel. */}
+          {/* The macro split. Carbs, protein and fat are free (owner, 2026-11-17); fibre is Pro, like
+              every row behind the dashboard's "More nutrients". */}
+          <View className="rounded-2xl border border-[#E4DCCB] bg-surface p-4">
+            <MacroProgressBar
+              label={t("dashboard.carbs")}
+              grams={dayTotals.carbs}
+              target={targets?.carbs}
+              total={macroTotal}
+              color={macroColors.carbs}
+            />
+            <MacroProgressBar
+              label={t("dashboard.protein")}
+              grams={dayTotals.protein}
+              target={targets?.protein}
+              total={macroTotal}
+              color={macroColors.protein}
+            />
+            <MacroProgressBar
+              label={t("dashboard.fat")}
+              grams={dayTotals.fat}
+              target={targets?.fat}
+              total={macroTotal}
+              color={macroColors.fat}
+            />
+            {/* Fibre sits below the big three. It stays OUT of macroTotal (subset of carbs), so its
+                no-target share reads against protein+carbs+fat like the dashboard panel. */}
+            {canViewMore ? (
               <MacroProgressBar
                 label={t("dashboard.fibre")}
                 grams={dayTotals.fiber}
@@ -199,10 +198,8 @@ export function HistoryScreen() {
                 total={macroTotal}
                 color={macroColors.fiber}
               />
-            </View>
-          ) : (
-            <LockedMacroCard onUnlock={triggerPaywall} />
-          )}
+            ) : null}
+          </View>
 
           {/* "What you ate": the per-day meal list. Only shown on days that actually have entries, so
               an empty day stays clean. Paid tiers get the real read-only rows (same MemberEntryRow the

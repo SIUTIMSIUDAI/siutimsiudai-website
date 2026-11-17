@@ -9,7 +9,7 @@ import { LegalLinks } from "@/components/LegalLinks";
 import { colors } from "@/constants/theme";
 import { useLocale } from "@/hooks/useLocale";
 import {
-  MAX_WEEKLY_FREE_AI_LOGS,
+  MAX_DAILY_FREE_AI_LOGS,
   SubscriptionTier,
   useSubscriptionStore,
 } from "@/stores/useSubscriptionStore";
@@ -126,13 +126,14 @@ export function SubscriptionScreen() {
       // Every feature line on these three cards must match what the app really does (gates live in
       // hooks/useFeatureAccess.ts, plus isPaidTier for vitamins, history extras and family sync).
       // Owner, 2026-10-18: the unbuilt household calendar and the untracked sugar/sodium claim are
-      // gone, and the free list says what is truly free.
+      // gone, and the free list says what is truly free. Owner, 2026-11-17: protein, carbs and fat
+      // are free, and the free photo log is daily (macro_drawer, MAX_DAILY_FREE_AI_LOGS).
       features: [
-        tl("Total daily calorie count", "每日總卡路里"),
+        tl("Daily calories, plus protein, carbs and fat", "每日卡路里，加埋蛋白質、碳水同脂肪"),
         tl("Unlimited logging by typing, voice or barcode", "打字、語音、掃碼記錄唔限次"),
         tl(
-          `${MAX_WEEKLY_FREE_AI_LOGS} AI snap-logs a week`,
-          `每星期 ${MAX_WEEKLY_FREE_AI_LOGS} 次 AI 影相入數`,
+          `${MAX_DAILY_FREE_AI_LOGS} AI photo log${MAX_DAILY_FREE_AI_LOGS === 1 ? "" : "s"} a day`,
+          `每日 ${MAX_DAILY_FREE_AI_LOGS} 次 AI 影相入數`,
         ),
         tl("Fridge scan into your pantry", "影雪櫃自動記存貨"),
         tl("1-tap 少甜 / 走甜 / 少底 on your meals", "記低嘅餐一撳少甜、走甜、少底"),
@@ -163,8 +164,10 @@ export function SubscriptionScreen() {
       pitch: tl("Cheaper than one lunch set a month.", "平過每個月一個午餐常餐。"),
       features: [
         tl("Unlimited AI photo logging", "無限次 AI 影相入數"),
-        tl("Full nutrients: macros, fibre, vitamins & minerals", "完整營養：三大營養素、纖維、維他命同礦物質"),
-        tl("Look back at past days: meals, macros & nutrient report", "睇返過往每日食咗乜、營養分佈同營養報告"),
+        tl("All nutrients: fibre, sodium, vitamins and minerals", "全部營養：纖維、鈉、維他命同礦物質"),
+        // Past days' calories, protein, carbs and fat are free since 2026-11-17 (macro_drawer); Pro
+        // adds the meal list (meal_history) and the nutrient report.
+        tl("Look back at past days: meals and nutrient report", "睇返過往每日食咗乜同營養報告"),
         tl("Add a meal you forgot to a past day", "補記之前漏咗嘅餐"),
         tl("1-tap 少甜少底 recipe tweaks", "一撳 少甜少底 改食譜"),
         tl("AI recipes from a link, a photo or your pantry", "AI 由連結、相片或者存貨變出食譜"),
@@ -181,8 +184,8 @@ export function SubscriptionScreen() {
       ribbon: tl("Most popular", "最多人揀"),
       successTitle: tl("Welcome, regular!", "歡迎熟客！"),
       successBody: tl(
-        "Pro is on. Unlimited logging and the full macro drawer are yours.",
-        "Pro 已開通，無限入數同完整營養抽屜任你用。",
+        "Pro is on. Unlimited photo logs and every nutrient are yours.",
+        "Pro 已開通，無限次影相入數同全部營養任你睇。",
       ),
     },
     {

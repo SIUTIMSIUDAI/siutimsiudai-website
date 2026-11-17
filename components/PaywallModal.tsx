@@ -4,14 +4,13 @@ import { Ionicons } from "@expo/vector-icons";
 import { ScalableText } from "./ScalableText";
 import { colors } from "@/constants/theme";
 import { useLocale } from "@/hooks/useLocale";
-import { MAX_WEEKLY_FREE_AI_LOGS } from "@/stores/useSubscriptionStore";
 
 interface Props {
   visible: boolean;
   onClose: () => void;
 }
 
-// The contextual paywall that pops when a free user has spent the week's free photo logs and
+// The contextual paywall that pops when a free user has spent today's free photo log and
 // reaches for another. It floats over the log sheet, so manual entry stays free right behind it;
 // the Milk Tea Amber CTA hands off to the full subscription screen. Positioning stays strictly
 // nutrition-ledger: this is a metabolic bookkeeping quota, never a food-ordering limit.
@@ -51,13 +50,13 @@ export function PaywallModal({ visible, onClose }: Props) {
           </View>
 
           <ScalableText className="text-center text-xl font-bold text-ink">
-            {tl("Weekly Quota Fully Booked", "呢個星期嘅健康 quota 已用完！")}
+            {tl("Today's Free Photo Log Is Used", "今日嘅免費影相入數用咗喇！")}
           </ScalableText>
 
           <ScalableText className="text-center text-sm leading-6 text-ink-muted">
             {tl(
-              `Boss, your ${MAX_WEEKLY_FREE_AI_LOGS} free photo scans for the week are fully spent! Even the kitchen needs a break. Want to scan your macros anytime without restrictions? Upgrade to our Pro Plan to unlock unlimited AI recognition and fully automate your healthy routine!`,
-              `老細，你今個禮拜嘅 ${MAX_WEEKLY_FREE_AI_LOGS} 次免費 AI 影相入數已經用晒喇！廚房都要休息㗎。想隨時隨地無限制影相入數？升級到 Pro 計劃，即刻解鎖無限次 AI 識別，全面自動化你嘅少甜少底生活！`,
+              "Boss, today's free AI photo log is spent! Typing and voice logs stay free and unlimited, and tomorrow brings another photo. Want to snap every meal? Upgrade to Pro to unlock unlimited AI photo recognition.",
+              "老細，今日嘅免費 AI 影相入數用咗喇！打字同語音記錄照樣免費無限用，聽日又有一次。想餐餐都影相入數？升級 Pro，即刻解鎖無限次 AI 影相識別。",
             )}
           </ScalableText>
 

@@ -17,8 +17,9 @@ function perServing(quantity: number, servings: number): number {
 
 // Bumped whenever the request below changes enough that saved estimates should be redone. v2: each
 // ingredient is its own entry (2026-10-19); estimates from the one-dish request carry no version.
-// v3: raw values and edible part only (2026-10-19).
-const REQUEST_VERSION = "v3";
+// v3: raw values and edible part only (2026-10-19). v4: the estimator returns sodium, and cooked foods
+// use cooked values (estimate-meal rules 8 and 9, 2026-11-17).
+const REQUEST_VERSION = "v4";
 
 /**
  * Fingerprint of the one-serving ingredient list. Identical for any serving count of the same dish,

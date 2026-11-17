@@ -14,6 +14,7 @@ export const NUTRIENT_COLORS: Record<ReportNutrientKey, string> = {
   iron: microColors.iron,
   calcium: microColors.calcium,
   potassium: microColors.potassium,
+  sodium: microColors.sodium,
   vitaminC: microColors.vitaminC,
   vitaminD: microColors.vitaminD,
 };
@@ -27,6 +28,7 @@ export const NUTRIENT_LABELS: Record<ReportNutrientKey, { label: string; labelZh
   iron: TRACKED_MICRO_META.iron,
   calcium: TRACKED_MICRO_META.calcium,
   potassium: TRACKED_MICRO_META.potassium,
+  sodium: TRACKED_MICRO_META.sodium,
   vitaminC: TRACKED_MICRO_META.vitaminC,
   vitaminD: TRACKED_MICRO_META.vitaminD,
 };

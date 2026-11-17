@@ -5,45 +5,69 @@ import { persistStorage } from "./persistStorage";
 // The three tiers the whole app gates on. Ranked free < pro < max in useFeatureAccess.
 export type SubscriptionTier = "free" | "pro" | "max";
 
-// A casual eater gets two AI photo logs a week before the paywall taps them on the shoulder
-// (owner's call, 2026-10-18; it was five). Only photos count: typing, voice and barcode never do
-// (utils/logMetering.ts). Exported as a constant so gating logic and the copy that states the
-// number can reference it without a store read, and mirrored into state below so the store stays
-// the single source of truth.
-export const MAX_WEEKLY_FREE_AI_LOGS = 2;
+// A casual eater gets one AI photo log a day before the paywall taps them on the shoulder (owner,
+// 2026-11-17; it was two a week, and five a week before that). Only photos count: typing, voice and
+// barcode never do (utils/logMetering.ts). Exported as a constant so gating logic and the copy that
+// states the number can reference it without a store read, and mirrored into state below so the store
+// stays the single source of truth.
+export const MAX_DAILY_FREE_AI_LOGS = 1;
 
-// One weekly cycle in milliseconds. The rolling allotment resets exactly seven days after the
-// first log of a cycle, not on a fixed calendar weekday, so the clock starts when the user
-// actually starts logging.
-export const QUOTA_CYCLE_MS = 7 * 24 * 60 * 60 * 1000;
+// Hong Kong is a fixed UTC+8 with no daylight saving.
+const HK_OFFSET_MS = 8 * 60 * 60 * 1000;
+const DAY_MS = 24 * 60 * 60 * 1000;
 
-// --- Pure quota-cycle helpers --------------------------------------------------------------
+// --- Pure quota-day helpers ----------------------------------------------------------------
 //
-// Kept free of store and clock so the weekly-allotment policy can be unit-tested with an
-// explicit `nowMs`. The gating hook reads through these (a stale cycle reports zero without
-// mutating anything); incrementAiLog is the only writer that physically rolls the cycle over.
+// The free allowance runs by the Hong Kong calendar day: it refills at midnight in Hong Kong, the
+// same day the server's AI counter uses (bump_ai_usage counts per Asia/Hong_Kong date). Kept free of
+// store and clock so the policy can be unit-tested with an explicit `nowMs`. The gating hook reads
+// through these (a tally from a day that has ended reports zero without mutating anything);
+// incrementAiLog is the only writer that physically starts a new day's tally.
 
-// Is the weekly cycle still open? A null reset date means no cycle has started (fresh install
-// or just after a reset); a reset date at or before now means last week's cycle has lapsed.
+// Is today's tally still open? A null reset time means no tally has started (fresh install or just
+// after a reset); a reset time at or before now means the day it was counted on has ended.
 export function isQuotaCycleActive(quotaResetDate: string | null, nowMs: number): boolean {
   if (!quotaResetDate) return false;
   const resetMs = Date.parse(quotaResetDate);
   return Number.isFinite(resetMs) && nowMs < resetMs;
 }
 
-// The tally that actually applies right now. Once the cycle lapses this reads as zero, so a
-// free user's quota is restored the moment the week is up even before the next write lands.
-export function effectiveWeeklyCount(
-  weeklyAiLogCount: number,
+// The tally that actually applies right now. Once its day has ended this reads as zero, so a free
+// user's photo log comes back at midnight even before the next write lands.
+export function effectiveAiLogCount(
+  aiLogCount: number,
   quotaResetDate: string | null,
   nowMs: number,
 ): number {
-  return isQuotaCycleActive(quotaResetDate, nowMs) ? weeklyAiLogCount : 0;
+  return isQuotaCycleActive(quotaResetDate, nowMs) ? aiLogCount : 0;
 }
 
-// Stamp a fresh cycle expiry: exactly seven days out from the first log of the cycle.
+// When today's allowance refills: the next midnight in Hong Kong after `nowMs`.
 export function nextQuotaReset(nowMs: number): string {
-  return new Date(nowMs + QUOTA_CYCLE_MS).toISOString();
+  const hkMidnightToday = Math.floor((nowMs + HK_OFFSET_MS) / DAY_MS) * DAY_MS - HK_OFFSET_MS;
+  return new Date(hkMidnightToday + DAY_MS).toISOString();
+}
+
+// Persisted-state migration. Version 0 kept a WEEKLY tally (`weeklyAiLogCount`, with a seven-day
+// expiry). Carrying it into a daily allowance would lock out anyone who had used two photos that week
+// for days, so the move to daily starts everyone on a fresh day: the tier is kept, the tally is not.
+// The worst case is one extra free photo log on the day of the update.
+export const SUBSCRIPTION_STORE_VERSION = 1;
+
+export function migrateSubscriptionState(
+  persisted: unknown,
+  version: number,
+): { activeTier: SubscriptionTier; aiLogCount: number; quotaResetDate: string | null } {
+  const p = (persisted ?? {}) as Record<string, unknown>;
+  const tier = p.activeTier;
+  const activeTier: SubscriptionTier = tier === "pro" || tier === "max" || tier === "free" ? tier : "free";
+  if (version < 1) return { activeTier, aiLogCount: 0, quotaResetDate: null };
+  const count = Number(p.aiLogCount);
+  return {
+    activeTier,
+    aiLogCount: Number.isFinite(count) && count >= 0 ? count : 0,
+    quotaResetDate: typeof p.quotaResetDate === "string" ? p.quotaResetDate : null,
+  };
 }
 
 // RevenueCat entitlement identifiers, mapped to our tiers. These strings are configured in
@@ -107,14 +131,14 @@ export function resolveTierFromEntitlements(activeEntitlementIds: string[]): Sub
 
 interface SubscriptionState {
   activeTier: SubscriptionTier;
-  // Total AI-assisted logs submitted in the current weekly cycle. Read through
-  // effectiveWeeklyCount so a lapsed cycle counts as zero without a write.
-  weeklyAiLogCount: number;
-  // Fixed ceiling on free AI logs per week. Lives in state to match the spec; never persisted,
+  // AI photo logs submitted today (Hong Kong day). Read through effectiveAiLogCount so a tally
+  // from a day that has ended counts as zero without a write.
+  aiLogCount: number;
+  // Fixed ceiling on free AI photo logs a day. Lives in state to match the spec; never persisted,
   // so it always tracks the constant above even after an app update changes it.
-  maxWeeklyFreeAiLogs: number;
-  // ISO timestamp the current weekly cycle expires, or null when no cycle is running. Set to
-  // "now + 7 days" on the first log of a cycle; once now passes it, the tally resets.
+  maxFreeAiLogs: number;
+  // ISO timestamp today's tally expires (the next midnight in Hong Kong), or null when no tally is
+  // running. Set on the first log of the day; once now passes it, the tally resets.
   quotaResetDate: string | null;
   hasHydrated: boolean;
 
@@ -124,10 +148,10 @@ interface SubscriptionState {
   // This is what the CustomerInfo listener calls, so the store always mirrors the store receipt.
   setTierFromEntitlements: (activeEntitlementIds: string[]) => void;
   // Reset the local tier mirror to the free default for a brand-new account (a fresh sign-up, or
-  // the account boundary when a user signs out). Tier only — never the weekly quota. See the impl.
+  // the account boundary when a user signs out). Tier only — never the photo-log quota. See the impl.
   resetTierForNewAccount: () => void;
   incrementAiLog: () => void;
-  resetWeeklyLogs: () => void;
+  resetAiLogs: () => void;
   setHasHydrated: (v: boolean) => void;
 }
 
@@ -135,8 +159,8 @@ export const useSubscriptionStore = create<SubscriptionState>()(
   persist(
     (set) => ({
       activeTier: NEW_ACCOUNT_TIER,
-      weeklyAiLogCount: 0,
-      maxWeeklyFreeAiLogs: MAX_WEEKLY_FREE_AI_LOGS,
+      aiLogCount: 0,
+      maxFreeAiLogs: MAX_DAILY_FREE_AI_LOGS,
       quotaResetDate: null,
       hasHydrated: false,
 
@@ -147,7 +171,7 @@ export const useSubscriptionStore = create<SubscriptionState>()(
       // Force the local tier mirror back to the free default for a brand-new account — a fresh
       // sign-up, or the account boundary the moment a user signs out. Guards two shared-device
       // leaks that live only in the persisted mirror: a previous user's paid tier, and a leftover
-      // simulated-checkout purchase. Tier ONLY: the weekly AI-log quota is deliberately preserved
+      // simulated-checkout purchase. Tier ONLY: the daily photo-log quota is deliberately preserved
       // so signing out and back in can't refill it. A live RevenueCat sync then raises this to the
       // real server-validated entitlement (still free for a genuine first-time user).
       resetTierForNewAccount: () => set({ activeTier: NEW_ACCOUNT_TIER }),
@@ -155,29 +179,31 @@ export const useSubscriptionStore = create<SubscriptionState>()(
       incrementAiLog: () =>
         set((state) => {
           const now = Date.now();
-          // First log of a fresh cycle (or the previous week has fully lapsed): restart the
-          // tally at one and anchor a new seven-day expiry from this moment.
+          // First log of the day (or the last tally's day has ended): restart the tally at one,
+          // expiring at the next midnight in Hong Kong.
           if (!isQuotaCycleActive(state.quotaResetDate, now)) {
-            return { weeklyAiLogCount: 1, quotaResetDate: nextQuotaReset(now) };
+            return { aiLogCount: 1, quotaResetDate: nextQuotaReset(now) };
           }
-          return { weeklyAiLogCount: state.weeklyAiLogCount + 1 };
+          return { aiLogCount: state.aiLogCount + 1 };
         }),
 
-      // Wipe the weekly tally and clear the cycle so the next log starts a fresh seven days.
-      resetWeeklyLogs: () => set({ weeklyAiLogCount: 0, quotaResetDate: null }),
+      // Wipe the tally and clear its expiry so the next log starts a fresh day.
+      resetAiLogs: () => set({ aiLogCount: 0, quotaResetDate: null }),
 
       setHasHydrated: (hasHydrated) => set({ hasHydrated }),
     }),
     {
       name: "siutimsiudai-subscription",
       storage: persistStorage,
-      // Persist the tier and the weekly tally + its expiry so an upgrade survives a reboot and
-      // the free quota can't be reset by force-quitting. maxWeeklyFreeAiLogs stays out on purpose.
+      // Persist the tier and the day's tally + its expiry so an upgrade survives a reboot and the
+      // free quota can't be reset by force-quitting. maxFreeAiLogs stays out on purpose.
       partialize: (s) => ({
         activeTier: s.activeTier,
-        weeklyAiLogCount: s.weeklyAiLogCount,
+        aiLogCount: s.aiLogCount,
         quotaResetDate: s.quotaResetDate,
       }),
+      version: SUBSCRIPTION_STORE_VERSION,
+      migrate: (persisted, version) => migrateSubscriptionState(persisted, version) as unknown as SubscriptionState,
       onRehydrateStorage: () => (state) => {
         state?.setHasHydrated(true);
       },

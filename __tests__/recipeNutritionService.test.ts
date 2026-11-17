@@ -48,7 +48,7 @@ describe("estimateRecipeNutrition", () => {
       ok: true,
       nutrition: {
         perServing: { calories: 420, protein: 38, carbs: 9, fat: 25, fiber: 1 },
-        micros: { iron: 1.5, calcium: 0, potassium: 300, vitaminC: 0, vitaminD: 0 },
+        micros: { iron: 1.5, calcium: 0, potassium: 300, sodium: 0, vitaminC: 0, vitaminD: 0 },
         basis: nutritionBasis(RECIPE),
         estimatedAt: "2026-10-19T08:00:00.000Z",
       },

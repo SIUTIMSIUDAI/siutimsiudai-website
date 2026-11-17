@@ -1,6 +1,6 @@
 import { DailyLog, NutritionTargets } from "@/types";
 import { effectiveMacros } from "@/utils/customizations";
-import { sumMicroTotals, TRACKED_MICRO_KEYS, TRACKED_MICRO_META, TrackedMicroKey } from "@/utils/micros";
+import { isLimitMicro, sumMicroTotals, TRACKED_MICRO_KEYS, TRACKED_MICRO_META, TrackedMicroKey } from "@/utils/micros";
 
 // The History report: how a range of days compared with the user's own targets. A day counts only
 // if something was logged on it, so a skipped day never drags an average down, and today counts
@@ -19,7 +19,8 @@ export const REPORT_NUTRIENT_KEYS: readonly ReportNutrientKey[] = [
 ];
 
 // Calories, carbs and fat are budgets: on target within 10% either way. Protein, fibre, vitamins and
-// minerals are floors: on target from 90% up, and eating more is never a miss.
+// minerals are floors: on target from 90% up, and eating more is never a miss. Sodium is a ceiling
+// (isLimitMicro): on target at or under the limit, over above it, and eating less is never a miss.
 const BAND: ReadonlySet<ReportNutrientKey> = new Set(["calories", "carbs", "fat"]);
 const ON_TARGET_LOW = 0.9;
 const ON_TARGET_HIGH = 1.1;
@@ -28,6 +29,7 @@ export type TargetStatus = "on" | "under" | "over";
 
 export function targetStatus(key: ReportNutrientKey, value: number, target: number): TargetStatus {
   const ratio = value / target;
+  if (isLimitMicro(key)) return ratio > 1 ? "over" : "on";
   if (ratio < ON_TARGET_LOW) return "under";
   if (BAND.has(key) && ratio > ON_TARGET_HIGH) return "over";
   return "on";
@@ -98,10 +100,11 @@ export function countedDays(days: DayNutrients[], today: string): DayNutrients[]
   return days.filter((d) => d.logged && (todayAlone || d.dateKey !== today));
 }
 
-// How far a row sits from its target, in percentage points. Going over a floor is no gap, and rows
-// without a target sort last.
+// How far a row sits from its target, in percentage points. Going over a floor is no gap, staying
+// under a ceiling is no gap, and rows without a target sort last.
 function gapOf(row: ReportRow): number {
   if (row.percent == null) return -1;
+  if (isLimitMicro(row.key)) return Math.max(0, row.percent - 100);
   return BAND.has(row.key) ? Math.abs(row.percent - 100) : Math.max(0, 100 - row.percent);
 }
 

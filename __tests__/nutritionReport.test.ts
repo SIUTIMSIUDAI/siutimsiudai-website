@@ -46,6 +46,7 @@ const ZERO: Record<ReportNutrientKey, number> = {
   iron: 0,
   calcium: 0,
   potassium: 0,
+  sodium: 0,
   vitaminC: 0,
   vitaminD: 0,
 };
@@ -115,6 +116,15 @@ describe("targetStatus", () => {
     expect(targetStatus("protein", 90, 100)).toBe("on");
     expect(targetStatus("vitaminD", 30, 15)).toBe("on");
   });
+
+  // Sodium is a ceiling (owner, 2026-11-17): at or under the limit is on target, any amount over is
+  // over, and eating less is never a miss.
+  it("treats sodium as a ceiling", () => {
+    expect(targetStatus("sodium", 0, 2000)).toBe("on");
+    expect(targetStatus("sodium", 1200, 2000)).toBe("on");
+    expect(targetStatus("sodium", 2000, 2000)).toBe("on");
+    expect(targetStatus("sodium", 2001, 2000)).toBe("over");
+  });
 });
 
 describe("buildReport", () => {
@@ -147,7 +157,7 @@ describe("buildReport", () => {
   it("shows amounts without judging them when there are no targets, in the usual order", () => {
     const report = buildReport(range, null, TODAY);
     expect(report.rows.map((r) => r.key)).toEqual([
-      "calories", "protein", "carbs", "fat", "fiber", "iron", "calcium", "potassium", "vitaminC", "vitaminD",
+      "calories", "protein", "carbs", "fat", "fiber", "iron", "calcium", "potassium", "sodium", "vitaminC", "vitaminD",
     ]);
     expect(report.rows[0]).toMatchObject({ average: 2000, target: null, percent: null, status: null, daysOnTarget: 0 });
   });
@@ -168,9 +178,26 @@ describe("buildReport", () => {
       TODAY,
     );
     expect(report.rows.map((r) => r.key)).toEqual([
-      "vitaminD", "fat", "fiber", "calories", "protein", "carbs", "iron", "calcium", "potassium", "vitaminC",
+      "vitaminD", "fat", "fiber", "calories", "protein", "carbs", "iron", "calcium", "potassium", "sodium", "vitaminC",
     ]);
     expect(biggestGaps(report)).toEqual(["vitaminD", "fat"]);
+  });
+
+  // Sodium is a ceiling: staying under it is no gap, going over it is, by how far over (130% of the
+  // limit is a 30-point gap, ranked between fibre's 40 and the rows on target).
+  it("counts going over the sodium ceiling as a gap, and staying under it as none", () => {
+    const base = {
+      calories: 2000, protein: 150, carbs: 250, fat: 105, fiber: 15,
+      iron: 8, calcium: 1000, potassium: 3400, vitaminC: 90, vitaminD: 1.5,
+    };
+    const over = buildReport([day("2026-09-30", { ...base, sodium: 2600 })], TARGETS, TODAY);
+    expect(over.rows.find((r) => r.key === "sodium")).toMatchObject({ average: 2600, target: 2000, percent: 130, status: "over" });
+    expect(over.rows.map((r) => r.key)).toEqual([
+      "vitaminD", "fat", "fiber", "sodium", "calories", "protein", "carbs", "iron", "calcium", "potassium", "vitaminC",
+    ]);
+    const under = buildReport([day("2026-09-30", { ...base, sodium: 900 })], TARGETS, TODAY);
+    expect(under.rows.find((r) => r.key === "sodium")).toMatchObject({ status: "on", daysOnTarget: 1 });
+    expect(under.rows.map((r) => r.key).indexOf("sodium")).toBe(9);
   });
 });
 

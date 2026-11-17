@@ -38,8 +38,8 @@ function DecoyRow({ color, fill }: { color: string; fill: number }) {
 }
 
 // The locked report state for free users. A decoy report card is blurred and dimmed under a
-// charcoal scrim, with a compact upsell card floated on top. Mirrors the
-// LockedMacroCard treatment so the History locks feel like one system.
+// charcoal scrim, with a compact upsell card floated on top. Mirrors LockedMealListCard so the
+// History locks feel like one system.
 export function LockedTrendCard({ onUnlock }: Props) {
   const { tl } = useLocale();
 

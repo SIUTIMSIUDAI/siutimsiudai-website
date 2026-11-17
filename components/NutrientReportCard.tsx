@@ -5,6 +5,7 @@ import { TargetStatusLabel } from "./TargetStatusLabel";
 import { colors } from "@/constants/theme";
 import { NUTRIENT_COLORS, NUTRIENT_LABELS } from "@/constants/reportNutrients";
 import { useLocale } from "@/hooks/useLocale";
+import { isLimitMicro } from "@/utils/micros";
 import {
   biggestGaps,
   formatNutrientAmount,
@@ -121,13 +122,25 @@ function ReportRowView({ row, name, onPress }: { row: ReportRow; name: string; o
     row.target != null
       ? `${average} / ${formatNutrientAmount(row.key, row.target)} ${unit}`
       : `${average} ${unit}`;
+  // Sodium is a ceiling: its "on" days are the days within the limit, and it says so.
+  const limit = isLimitMicro(row.key);
   // A single day needs no "1 of 1 days": the status says it.
   const days =
     row.target != null && row.daysCounted > 1
-      ? tl(`${row.daysOnTarget} of ${row.daysCounted} days`, `${row.daysCounted} 日中 ${row.daysOnTarget} 日達標`)
+      ? limit
+        ? tl(`${row.daysOnTarget} of ${row.daysCounted} days within`, `${row.daysCounted} 日中 ${row.daysOnTarget} 日冇超標`)
+        : tl(`${row.daysOnTarget} of ${row.daysCounted} days`, `${row.daysCounted} 日中 ${row.daysOnTarget} 日達標`)
       : null;
   const statusWord =
-    row.status === "on" ? tl("on target", "達標") : row.status === "over" ? tl("over", "超標") : row.status === "under" ? tl("under", "唔夠") : "";
+    row.status === "on"
+      ? limit
+        ? tl("within limit", "冇超標")
+        : tl("on target", "達標")
+      : row.status === "over"
+        ? tl("over", "超標")
+        : row.status === "under"
+          ? tl("under", "唔夠")
+          : "";
 
   return (
     <Pressable
@@ -147,7 +160,7 @@ function ReportRowView({ row, name, onPress }: { row: ReportRow; name: string; o
           <Meter percent={row.percent} color={NUTRIENT_COLORS[row.key]} />
           {/* A steady width here keeps every meter the same length, so the target marks line up. */}
           <View className="flex-row items-center justify-end gap-3" style={{ minWidth: 150 }}>
-            <TargetStatusLabel status={row.status} />
+            <TargetStatusLabel status={row.status} limit={limit} />
             {days ? <ScalableText className="text-xs text-ink-faint">{days}</ScalableText> : null}
           </View>
         </View>
