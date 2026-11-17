@@ -110,15 +110,16 @@ const RECIPE_SHAPE = [
   '  "servings": <number>, "totalMinutes": <number>, "sourceUrl": null,',
   '  "ingredients": [{"name":"English","nameZh":"中文","quantity":<number>,"unit":"g"|"ml"|"piece","displayUnit":"g|ml|piece|bowl|...","rawText":"e.g. 2 pieces egg","substitutedFrom":null}],',
   '  "steps": [{"stepNumber":<1-based int>,"instruction":"English","instructionZh":"中文","imageUri":null,"durationSeconds":<number or null>}],',
-  '  "micros": {"iron":<mg>,"calcium":<mg>,"potassium":<mg>,"vitaminC":<mg>,"vitaminD":<mcg>}',
+  '  "micros": {"iron":<mg>,"calcium":<mg>,"potassium":<mg>,"sodium":<mg>,"vitaminC":<mg>,"vitaminD":<mcg>}',
   "}",
 ];
 
 // The required response contract for pantry and dish mode: one recipe object.
 const JSON_SHAPE_INSTRUCTIONS = [
   "Also estimate the nutrition for ONE serving of the finished dish and fill in `micros`: iron,",
-  "calcium, potassium and vitamin C in milligrams (mg), vitamin D in micrograms (mcg). These are",
-  "rough per-serving estimates that DESCRIBE the dish — do not tailor them to anyone's targets.",
+  "calcium, potassium, sodium and vitamin C in milligrams (mg), vitamin D in micrograms (mcg). Count",
+  "the salt, soy sauce, oyster sauce and stock in the recipe in its sodium. These are rough",
+  "per-serving estimates that DESCRIBE the dish — do not tailor them to anyone's targets.",
   "",
   "Respond with ONLY a JSON object, no prose, in exactly this shape:",
   ...RECIPE_SHAPE,
@@ -127,8 +128,9 @@ const JSON_SHAPE_INSTRUCTIONS = [
 // Suggestion mode's contract: the same recipe object, in a list.
 const SUGGEST_JSON_SHAPE_INSTRUCTIONS = [
   "For EACH dish, also estimate the nutrition for ONE serving and fill in `micros`: iron, calcium,",
-  "potassium and vitamin C in milligrams (mg), vitamin D in micrograms (mcg). These are rough",
-  "per-serving estimates that DESCRIBE the dish, never tailored to anyone's targets.",
+  "potassium, sodium and vitamin C in milligrams (mg), vitamin D in micrograms (mcg). Count the salt,",
+  "soy sauce, oyster sauce and stock in the recipe in its sodium. These are rough per-serving",
+  "estimates that DESCRIBE the dish, never tailored to anyone's targets.",
   "",
   'Respond with ONLY a JSON object, no prose, of the shape {"recipes": [<dish>, ...]}, where every',
   "<dish> is exactly this shape:",
