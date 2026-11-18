@@ -83,7 +83,9 @@ const SYSTEM_PROMPT = [
   // added 2026-11-18 for gemini-3.5-flash-lite, which put spinach at 2.1 mg iron and luncheon meat at
   // 360 to 580 mg sodium. The 臘腸 figure is the Centre for Food Safety's Nutrient Information Inquiry
   // System ("Pork sausage, cured sausage, Canton style, small", 1,420 mg per 100 g, from the China CDC
-  // table CFC2002Ed2), added after the new model put a 臘味 clay-pot rice photo at 920 mg.
+  // table CFC2002Ed2), added after the new model put a 臘味 clay-pot rice photo at 920 mg. That alone
+  // moved the photo only to 980 mg, because the model judged the pot as a whole, hence the last
+  // sentence of rule 9: add up the salty parts.
   "8. VITAMINS AND MINERALS AS EATEN. This rule sets iron, calcium, potassium and vitamin C and",
   "   nothing else. Use the values for the food as it is eaten, cooked if it is cooked: never the raw",
   "   figure for a boiled, steamed, stir-fried or roasted food. Cooking destroys some vitamin C, and per",
@@ -99,6 +101,8 @@ const SYSTEM_PROMPT = [
   "   sausage (臘腸) has about 1,400 mg per 100 g (Hong Kong Centre for Food Safety). Plain rice, fresh",
   "   fruit and vegetables boiled without salt have almost none. Restaurant and takeaway dishes are",
   "   seasoned, so count their sauce and seasoning.",
+  "   A mixed dish's sodium is the sum of its salty parts at the amounts in it: cured meat or sausage,",
+  "   sauce poured over, gravy, soup and seasoning. Add each one up, even when the dish is one entry.",
   "",
   "nameZh must be Traditional Chinese as used in Hong Kong (e.g. 雞胸肉, 奇異果, 多士).",
 ].join("\n");

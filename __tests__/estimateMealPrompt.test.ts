@@ -19,4 +19,9 @@ describe("estimate-meal prompt anchors (USDA FoodData Central, SR Legacy)", () =
   it("gives Chinese sausage its sodium (Centre for Food Safety, 臘腸: 1,420 mg per 100 g)", () => {
     expect(source).toContain("sausage (臘腸) has about 1,400 mg per 100 g (Hong Kong Centre for Food Safety)");
   });
+
+  it("adds up a mixed dish's salty parts instead of judging the plate as a whole", () => {
+    expect(source).toContain("A mixed dish's sodium is the sum of its salty parts at the amounts in it");
+    expect(source).toContain("Add each one up, even when the dish is one entry.");
+  });
 });
