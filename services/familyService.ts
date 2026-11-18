@@ -158,23 +158,27 @@ export async function getMyFamily(): Promise<FamilySnapshot> {
     supabase.from("family_members").select("user_id, role").eq("group_id", groupId),
   ]);
 
-  // 4. Display names the caller is allowed to read (a manager can read each dependent's profile).
+  // 4. Names and photos the caller is allowed to read (a manager can read each dependent's profile).
   const ids = (memberRows ?? []).map((m: { user_id: string }) => m.user_id);
-  const nameById = new Map<string, string | null>();
+  const profileById = new Map<string, { displayName: string | null; avatarPath: string | null }>();
   if (ids.length) {
     const { data: profileRows } = await supabase
       .from("profiles")
-      .select("id, display_name")
+      .select("id, display_name, avatar_path")
       .in("id", ids);
     for (const p of profileRows ?? []) {
-      nameById.set(p.id as string, (p.display_name as string | null) ?? null);
+      profileById.set(p.id as string, {
+        displayName: (p.display_name as string | null) ?? null,
+        avatarPath: (p.avatar_path as string | null) ?? null,
+      });
     }
   }
   const members: FamilyMember[] = (memberRows ?? []).map(
     (m: { user_id: string; role: FamilyRole }) => ({
       userId: m.user_id,
       role: m.role,
-      displayName: nameById.get(m.user_id) ?? null,
+      displayName: profileById.get(m.user_id)?.displayName ?? null,
+      avatarPath: profileById.get(m.user_id)?.avatarPath ?? null,
     }),
   );
 

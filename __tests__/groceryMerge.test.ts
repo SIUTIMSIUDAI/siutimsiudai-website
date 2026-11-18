@@ -43,6 +43,18 @@ describe("bilingual grocery merge", () => {
     expect(items[0].quantity).toBe(0);
   });
 
+  // Spec Q3 trade-off, pinned: a packaged pantry unit never matches a recipe's unit, so the item
+  // counts as covered (you have a box of eggs) rather than "buy 1 egg". Passes before the pantry
+  // unit type widens, on purpose, so that change cannot regress it.
+  test("a packaged pantry item covers a recipe that counts pieces", () => {
+    const pantry: PantryItem[] = [
+      { id: "p1", userId: "u", name: "Egg", nameZh: "雞蛋", quantity: 1, unit: "box", inStock: true, updatedAt: "" },
+    ];
+    const items = mergeIngredients([ing("Egg", "雞蛋", 2, "piece", "r1")], pantry);
+    expect(items[0].quantity).toBe(0);
+    expect(items[0].checked).toBe(true);
+  });
+
   test("partial pantry stock reduces the remaining quantity", () => {
     const pantry: PantryItem[] = [
       {

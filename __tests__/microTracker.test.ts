@@ -1,4 +1,5 @@
 import {
+  isLimitMicro,
   emptyMicroTotals,
   sanitizeMicros,
   sumMicroTotals,
@@ -43,21 +44,24 @@ describe("sumMicroTotals", () => {
     expect(sumMicroTotals([])).toEqual(emptyMicroTotals());
   });
 
-  it("adds the five tracked micros across entries and ignores null / absent captures", () => {
+  it("adds the six tracked micros across entries and ignores null / absent captures", () => {
     expect(
       sumMicroTotals([
-        { micros: { iron: 2, calcium: 100, potassium: 200, vitaminC: 10, vitaminD: 1 } },
+        { micros: { iron: 2, calcium: 100, potassium: 200, sodium: 600, vitaminC: 10, vitaminD: 1 } },
         { micros: null },
-        { micros: { iron: 1, potassium: 50 } },
+        { micros: { iron: 1, potassium: 50, sodium: 400 } },
         {},
       ]),
-    ).toEqual({ iron: 3, calcium: 100, potassium: 250, vitaminC: 10, vitaminD: 1 });
+    ).toEqual({ iron: 3, calcium: 100, potassium: 250, sodium: 1000, vitaminC: 10, vitaminD: 1 });
   });
 
-  it("never folds sodium into the tracked totals", () => {
+  // Owner, 2026-11-17: the estimator returns sodium, and the tracker charts it as a daily ceiling.
+  it("tracks sodium, as a ceiling", () => {
     const totals = sumMicroTotals([{ micros: { sodium: 999 } as EntryMicronutrients }]);
-    expect(Object.values(totals).every((v) => v === 0)).toBe(true);
-    expect(TRACKED_MICRO_KEYS).not.toContain("sodium" as never);
+    expect(totals.sodium).toBe(999);
+    expect(TRACKED_MICRO_KEYS).toContain("sodium");
+    expect(isLimitMicro("sodium")).toBe(true);
+    expect(isLimitMicro("iron")).toBe(false);
   });
 });
 
@@ -69,6 +73,7 @@ describe("microTotalsForDate is premium-only by construction", () => {
     iron: 2,
     calcium: 50,
     potassium: 100,
+    sodium: 300,
     vitaminC: 5,
     vitaminD: 1,
   };
@@ -87,6 +92,7 @@ describe("microTotalsForDate is premium-only by construction", () => {
         protein: 16,
         carbs: 40,
         fat: 5,
+        fiber: 3,
         mealType: "lunch",
         micros: CAPTURE,
       },
@@ -105,12 +111,78 @@ describe("microTotalsForDate is premium-only by construction", () => {
         protein: 16,
         carbs: 40,
         fat: 5,
+        fiber: 3,
         mealType: "lunch",
         micros: CAPTURE,
       },
       DATE,
     );
     expect(useNutritionStore.getState().microTotalsForDate(DATE)).toEqual(emptyMicroTotals());
+  });
+});
+
+// Re-estimating a logged meal from a corrected name flows fresh micros through editEntry. That
+// patch must obey the SAME free/paid gate as the log path, or a free user could edit premium
+// micros into their history the save path would have stripped. And a macro-only edit (no
+// re-estimate) must never touch a paid user's existing micros.
+describe("editEntry applies the micros tier-gate to a re-estimate patch", () => {
+  const DATE = "2026-07-13";
+  const CAPTURE: EntryMicronutrients = {
+    iron: 2,
+    calcium: 50,
+    potassium: 100,
+    sodium: 300,
+    vitaminC: 5,
+    vitaminD: 1,
+  };
+
+  beforeEach(() => {
+    useNutritionStore.setState({ logsByDate: {} });
+  });
+
+  function seed(micros?: EntryMicronutrients): string {
+    useNutritionStore.getState().addEntry(
+      {
+        name: "Congee",
+        nameZh: "粥",
+        calories: 270,
+        protein: 16,
+        carbs: 40,
+        fat: 5,
+        fiber: 3,
+        mealType: "lunch",
+        micros,
+      },
+      DATE,
+    );
+    return useNutritionStore.getState().entriesForDate(DATE)[0].id;
+  }
+
+  it("keeps re-estimated micros for a paid user's edited entry", () => {
+    useSubscriptionStore.setState({ activeTier: "pro" });
+    const id = seed();
+    useNutritionStore.getState().editEntry(DATE, id, { calories: 300, micros: CAPTURE });
+    const entry = useNutritionStore.getState().entriesForDate(DATE)[0];
+    expect(entry.calories).toBe(300);
+    expect(entry.micros).toEqual(CAPTURE);
+  });
+
+  it("drops re-estimated micros to null for a free user's edited entry", () => {
+    useSubscriptionStore.setState({ activeTier: "free" });
+    const id = seed();
+    useNutritionStore.getState().editEntry(DATE, id, { calories: 300, micros: CAPTURE });
+    const entry = useNutritionStore.getState().entriesForDate(DATE)[0];
+    expect(entry.calories).toBe(300);
+    expect(entry.micros).toBeNull();
+  });
+
+  it("leaves an existing paid entry's micros untouched on a macro-only edit (no re-estimate)", () => {
+    useSubscriptionStore.setState({ activeTier: "pro" });
+    const id = seed(CAPTURE);
+    useNutritionStore.getState().editEntry(DATE, id, { calories: 300 });
+    const entry = useNutritionStore.getState().entriesForDate(DATE)[0];
+    expect(entry.calories).toBe(300);
+    expect(entry.micros).toEqual(CAPTURE);
   });
 });
 

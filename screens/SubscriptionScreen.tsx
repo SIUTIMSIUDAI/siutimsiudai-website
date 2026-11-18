@@ -8,8 +8,14 @@ import { ScalableText } from "@/components/ScalableText";
 import { LegalLinks } from "@/components/LegalLinks";
 import { colors } from "@/constants/theme";
 import { useLocale } from "@/hooks/useLocale";
-import { SubscriptionTier, useSubscriptionStore } from "@/stores/useSubscriptionStore";
+import {
+  MAX_DAILY_FREE_AI_LOGS,
+  SubscriptionTier,
+  useSubscriptionStore,
+} from "@/stores/useSubscriptionStore";
 import { resolvePaywallCta } from "@/utils/paywallCta";
+import { FAMILY_MAX_MEMBERS } from "@/utils/familyInvite";
+import { purchaseSuccessBody, trialCta, trialPriceLine } from "@/utils/freeTrial";
 import {
   configureRevenueCat,
   getSubscriptionOfferings,
@@ -46,8 +52,8 @@ interface Plan {
 
 /**
  * Full-bleed, high-converting tier comparison. Three cards laid out casual-to-premium:
- * a plain Free card, a Milk Tea Amber Pro card, and a radiant Egg-Tart Gold Max card
- * ribboned as best value for the family.
+ * a plain Free card, a Milk Tea Amber Pro card ribboned as the plan most people pick, and a
+ * radiant Egg-Tart Gold Max card.
  *
  * The CTA has three modes, and keeping them apart is the point:
  *  - live: a real StoreKit purchase through RevenueCat.
@@ -57,7 +63,7 @@ interface Plan {
  *    one, which handed out a paid tier for nothing and announced a purchase that never happened.
  */
 export function SubscriptionScreen() {
-  const { tl } = useLocale();
+  const { tl, locale } = useLocale();
   const activeTier = useSubscriptionStore((s) => s.activeTier);
   const setTier = useSubscriptionStore((s) => s.setTier);
   const [annual, setAnnual] = useState(false);
@@ -99,6 +105,11 @@ export function SubscriptionScreen() {
   // Granting the tier would hand out Pro for free and tell the user they had paid for it.
   const billingUnavailable = isBillingConfigured && settled && (!live || offerings === null);
 
+  // Whether any plan card on screen offers a free trial, which brings in the trial small print.
+  const trialOnScreen = [offerings?.pro, offerings?.max].some(
+    (p) => (annual ? p?.annual : p?.monthly)?.trial != null,
+  );
+
   const plans: Plan[] = [
     {
       tier: "free",
@@ -112,10 +123,20 @@ export function SubscriptionScreen() {
       annualUnit: tl("/ forever", "/ 永遠"),
       annualSub: "",
       pitch: tl("Clock your daily calories, no strings attached.", "日日記低卡路里，唔使畀一蚊。"),
+      // Every feature line on these three cards must match what the app really does (gates live in
+      // hooks/useFeatureAccess.ts, plus isPaidTier for vitamins, history extras and family sync).
+      // Owner, 2026-10-18: the unbuilt household calendar and the untracked sugar/sodium claim are
+      // gone, and the free list says what is truly free. Owner, 2026-11-17: protein, carbs and fat
+      // are free, and the free photo log is daily (macro_drawer, MAX_DAILY_FREE_AI_LOGS).
       features: [
-        tl("Total daily calorie count", "每日總卡路里"),
-        tl("5 AI snap-logs a week", "每星期 5 次 AI 影相入數"),
-        tl("Standard local metrics", "本地標準計法"),
+        tl("Daily calories, plus protein, carbs and fat", "每日卡路里，加埋蛋白質、碳水同脂肪"),
+        tl("Unlimited logging by typing, voice or barcode", "打字、語音、掃碼記錄唔限次"),
+        tl(
+          `${MAX_DAILY_FREE_AI_LOGS} AI photo log${MAX_DAILY_FREE_AI_LOGS === 1 ? "" : "s"} a day`,
+          `每日 ${MAX_DAILY_FREE_AI_LOGS} 次 AI 影相入數`,
+        ),
+        tl("Fridge scan into your pantry", "影雪櫃自動記存貨"),
+        tl("1-tap 少甜 / 走甜 / 少底 on your meals", "記低嘅餐一撳少甜、走甜、少底"),
         tl("Personal grocery checklist", "個人購物清單"),
       ],
       cta: tl("Switch to Free", "轉返做街坊"),
@@ -142,10 +163,15 @@ export function SubscriptionScreen() {
       annualSub: tl("Just HK$41 / month, billed yearly", "折合每月 HK$41，全年結算"),
       pitch: tl("Cheaper than one lunch set a month.", "平過每個月一個午餐常餐。"),
       features: [
-        tl("Unlimited AI logging", "無限 AI 入數"),
-        tl("Full macro drawer: sugar, sodium, carbs", "完整營養抽屜：糖、鈉、碳水"),
+        tl("Unlimited AI photo logging", "無限次 AI 影相入數"),
+        tl("All nutrients: fibre, sodium, vitamins and minerals", "全部營養：纖維、鈉、維他命同礦物質"),
+        // Past days' calories, protein, carbs and fat are free since 2026-11-17 (macro_drawer); Pro
+        // adds the meal list (meal_history) and the nutrient report.
+        tl("Look back at past days: meals and nutrient report", "睇返過往每日食咗乜同營養報告"),
+        tl("Add a meal you forgot to a past day", "補記之前漏咗嘅餐"),
         tl("1-tap 少甜少底 recipe tweaks", "一撳 少甜少底 改食譜"),
-        tl("AI cookbook URL scraper", "AI 食譜連結擷取"),
+        tl("AI recipes from a link, a photo or your pantry", "AI 由連結、相片或者存貨變出食譜"),
+        tl("Scan receipts into your pantry", "掃描收據，直接入存貨"),
         tl("Wet-market unit converter (斤 / 兩)", "街市單位換算（斤 / 兩）"),
       ],
       cta: tl("Make me a regular", "收我做熟客"),
@@ -153,10 +179,13 @@ export function SubscriptionScreen() {
       accentColor: colors.brand,
       iconBg: "#F5EBE0",
       cardClass: "border-2 border-brand bg-surface",
+      // Owner's choice, 2026-10-18 (was 最抵之選 on the Max card). A factual claim about what
+      // subscribers pick, so it should stay true as real subscriptions come in.
+      ribbon: tl("Most popular", "最多人揀"),
       successTitle: tl("Welcome, regular!", "歡迎熟客！"),
       successBody: tl(
-        "Pro is on. Unlimited logging and the full macro drawer are yours.",
-        "Pro 已開通，無限入數同完整營養抽屜任你用。",
+        "Pro is on. Unlimited photo logs and every nutrient are yours.",
+        "Pro 已開通，無限次影相入數同全部營養任你睇。",
       ),
     },
     {
@@ -170,17 +199,36 @@ export function SubscriptionScreen() {
       annualPrice: "HK$828",
       annualUnit: tl("/ year", "/ 年"),
       annualSub: tl("Just HK$69 / month, billed yearly", "折合每月 HK$69，全年結算"),
-      pitch: tl(
-        "Bilingual helper sync and direct e-grocer pipelines.",
-        "雙語工人同步，直駁網上超市。",
-      ),
+      pitch: tl("Plan the family's week, with portions for everyone.", "一次過安排全家一週餐單，份量照顧到每個人。"),
+      // Each Max line is backed by real code (owner, 2026-10-19 and 2026-10-26): the weekly plan is
+      // FamilyPlanScreen + plan-week (pantry first), the portions and 食咗 are utils/weekPlan +
+      // log_family_meal (each member's own diary, through the inbox), helper mode is screens/Helper*
+      // in en / fil / id, the week's list goes through the same store sheet, the invite cap is
+      // FAMILY_MAX_MEMBERS minus the manager's own seat, add/remove is removeMember / revokeInvite, and
+      // the member view is FamilyMemberLogScreen (a helper's diary stays private unless she shares it,
+      // so the line says "family member"). Members keep their own plan: Max is not shared, so never
+      // say they "use one Max account".
       features: [
         tl("Everything in Pro", "Pro 全部功能"),
-        tl("Real-time bilingual family & helper sync", "即時雙語家庭同工人同步"),
-        tl("Multi-user household calendar", "多人家庭日曆"),
+        tl("A week of family meals, planned with your pantry first", "一週家庭餐單，優先用雪櫃食材"),
         tl(
-          "Shop what you're missing at HKTVmall, Wellcome or ParknShop",
-          "爭咩即刻去 HKTVmall、惠康、百佳買",
+          "Small, medium or large for each person; tap Eaten once to log everyone's portion in their own diary",
+          "每人揀細、中、大份，撳一下「食咗」，全家份量記入各自嘅記錄",
+        ),
+        tl("Helper mode in English, Filipino or Indonesian", "姐姐煮飯模式：英文、菲律賓文或印尼文"),
+        tl(
+          `Invite up to ${FAMILY_MAX_MEMBERS - 1} family members or helpers; add or remove any time`,
+          `邀請最多 ${FAMILY_MAX_MEMBERS - 1} 位屋企人或工人，隨時加減成員`,
+        ),
+        tl("See what each family member eats, with nutrients, day by day", "睇到每位屋企人每日食咗乜同營養"),
+        // What the tap really does (components/CartExportSheet.tsx, utils/cartExport.ts): lists the
+        // recipe's missing ingredients, copies them, opens the store's storefront (none of the three
+        // can search a combined list), then a checklist searches that store for one ingredient per
+        // tap and ticks it when the shopper comes back. It never adds to a cart, orders or arranges
+        // delivery, so never say 落單, 加入購物車 or 送貨 here.
+        tl(
+          "One shopping list for the week, then search HKTVmall, Wellcome or ParknShop item by item",
+          "一張清單買齊成個星期，再逐樣去 HKTVmall、惠康、百佳搵",
         ),
       ],
       cta: tl("Run the household", "話事人上場"),
@@ -188,11 +236,10 @@ export function SubscriptionScreen() {
       accentColor: colors.accentDark,
       iconBg: "#FBEAC4",
       cardClass: "border-2 border-accent bg-[#FCF3DD]",
-      ribbon: tl("Best value", "最抵之選"),
       successTitle: tl("You're the boss now", "你係老細"),
       successBody: tl(
-        "Max is on. Sync the whole household and push carts straight to the e-grocers.",
-        "Max 已開通，全家同步，直接送貨籃畀網上超市。",
+        "Max is on. Plan the family's week and search the stores for what you're missing.",
+        "Max 已開通，安排全家一週餐單，爭咩材料就去網上超市搵。",
       ),
     },
   ];
@@ -254,7 +301,11 @@ export function SubscriptionScreen() {
       if (Platform.OS !== "web") {
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
       }
-      Alert.alert(plan.successTitle, plan.successBody);
+      // The receipt, not the paywall, says whether a trial started, so the end date shown is Apple's.
+      Alert.alert(
+        plan.successTitle,
+        purchaseSuccessBody(plan.successBody, res.trialEndsAt, option.trial, locale, tl),
+      );
     } else {
       showFailure(res.reason);
     }
@@ -410,14 +461,16 @@ export function SubscriptionScreen() {
           const showPrice = option?.priceString ?? (annual ? plan.annualPrice : plan.price);
           const showUnit = annual ? plan.annualUnit : plan.priceUnit;
           const showSub = option ? "" : annual ? plan.annualSub : plan.priceSub;
+          // Only set when the store confirmed this person can still get the plan's free trial.
+          const trial = option?.trial ?? null;
           return (
             <View key={plan.tier} className={`rounded-2xl p-5 ${plan.cardClass}`}>
               {plan.ribbon ? (
                 <View
                   className="absolute -top-3 right-4 rounded-full border border-white px-3 py-1"
-                  style={{ backgroundColor: colors.accent }}
+                  style={{ backgroundColor: plan.ctaBg }}
                 >
-                  <ScalableText className="text-xs font-bold" style={{ color: colors.ink }}>
+                  <ScalableText className="text-xs font-bold" style={{ color: colors.white }}>
                     {plan.ribbon}
                   </ScalableText>
                 </View>
@@ -451,6 +504,13 @@ export function SubscriptionScreen() {
               </View>
               {showSub ? (
                 <ScalableText className="mt-0.5 text-xs text-ink-faint">{showSub}</ScalableText>
+              ) : null}
+              {/* Apple: the billed amount stays the most prominent price, so the trial sits under
+                  it in smaller type, stating its length and what is charged once it ends. */}
+              {trial && option ? (
+                <ScalableText className="mt-1 text-sm font-semibold" style={{ color: plan.accentColor }}>
+                  {trialPriceLine(trial, option.priceString, annual, tl)}
+                </ScalableText>
               ) : null}
 
               <ScalableText className="mt-3 text-sm text-ink-muted">{plan.pitch}</ScalableText>
@@ -488,7 +548,11 @@ export function SubscriptionScreen() {
                   className="text-base font-bold"
                   style={{ color: isCurrent ? colors.inkMuted : colors.white }}
                 >
-                  {isCurrent ? tl("You're all set", "你已經搞掂") : plan.cta}
+                  {isCurrent
+                    ? tl("You're all set", "你已經搞掂")
+                    : trial && plan.tier !== "free"
+                      ? trialCta(plan.tier, trial, tl)
+                      : plan.cta}
                 </ScalableText>
               </Pressable>
             </View>
@@ -533,6 +597,16 @@ export function SubscriptionScreen() {
                   "價錢以港幣計。示範找數，唔會真扣錢，隨時取消。",
                 )}
         </ScalableText>
+
+        {/* Billing disclosure, so it stays plain rather than playful. */}
+        {trialOnScreen ? (
+          <ScalableText className="px-1 text-center text-xs text-ink-faint">
+            {tl(
+              "Free trials turn into a paid plan when they end. Turn off renewal in Settings at least 24 hours before your trial ends to avoid being charged.",
+              "免費試用期結束後會自動轉為收費計劃。如不想被收費，請於試用期結束前最少 24 小時到「設定」關閉自動續訂。",
+            )}
+          </ScalableText>
+        ) : null}
 
         <Pressable
           onPress={restorePurchases}

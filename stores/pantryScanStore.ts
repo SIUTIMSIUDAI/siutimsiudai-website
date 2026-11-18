@@ -6,14 +6,21 @@ import { ScannedIngredient } from "@/types";
 // next scan. The camera writes the AI's guesses here, the review screen reads + edits them, and
 // Confirm/cancel clears them. Keeping this out of pantryStore keeps the persisted pantry clean of
 // unconfirmed AI output.
+
+// Where the draft came from. A fridge photo is what you have, so it adds new rows; a receipt is
+// what you bought, so it tops up what the pantry already holds.
+export type ScanSource = "fridge" | "receipt";
+
 interface PantryScanState {
   draft: ScannedIngredient[];
-  setDraft: (items: ScannedIngredient[]) => void;
+  source: ScanSource;
+  setDraft: (items: ScannedIngredient[], source?: ScanSource) => void;
   clearDraft: () => void;
 }
 
 export const usePantryScanStore = create<PantryScanState>((set) => ({
   draft: [],
-  setDraft: (items) => set({ draft: items }),
-  clearDraft: () => set({ draft: [] }),
+  source: "fridge",
+  setDraft: (items, source = "fridge") => set({ draft: items, source }),
+  clearDraft: () => set({ draft: [], source: "fridge" }),
 }));

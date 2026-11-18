@@ -33,6 +33,7 @@ export function parseMealText(text: string): ParsedMeal[] {
         protein: dish.protein,
         carbs: dish.carbs,
         fat: dish.fat,
+        fiber: 0,
         quantity: 1,
         unit: dish.portionLabel,
         mealType,

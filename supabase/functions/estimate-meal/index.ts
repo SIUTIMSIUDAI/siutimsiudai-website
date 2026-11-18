@@ -51,12 +51,65 @@ const SYSTEM_PROMPT = [
   "   in the totals and describe it in `quantity` + `unit`. If no amount is given, assume one normal",
   "   serving (quantity 1).",
   "3. ESTIMATE REALISTICALLY: Give sensible per-portion figures for a typical version of the food.",
-  "   calories in kcal; protein, carbs, fat in grams. These DESCRIBE the food — never tailor them to",
+  "   calories in kcal; protein, carbs, fat and dietary fibre in grams (fibre is 0 for foods that",
+  "   have none, e.g. plain meat or a sugary drink). These DESCRIBE the food — never tailor them to",
   "   anyone's calorie or macro target.",
-  "4. ALWAYS FILL MICROS: iron, calcium, potassium and vitamin C in milligrams (mg); vitamin D in",
-  "   micrograms (mcg). Use 0 for a micronutrient the food genuinely lacks, never null.",
+  "4. ALWAYS FILL MICROS: iron, calcium, potassium, sodium and vitamin C in milligrams (mg); vitamin D",
+  "   in micrograms (mcg). Use 0 for a micronutrient the food genuinely lacks, never null.",
   "5. NEVER DEAD-END: If the food is unclear, return your single best-guess entry rather than an",
   "   empty list. Only truly empty input yields an empty list.",
+  "6. ADDED SUGAR: addedSugar is the grams of sugar added when the food is made or served: table",
+  "   sugar, syrup, honey, condensed milk, a sweet sauce poured over. It is the part a customer could",
+  "   ask to leave out (少甜 / 走甜), e.g. the sugar in Hong Kong milk tea or lemon tea, or the syrup",
+  "   in a dessert soup. It is part of carbs, never more than carbs. Use 0 for foods with none",
+  "   (plain rice, meat, vegetables, unsweetened drinks).",
+  // Logged meals showed every salmon and mackerel dish at exactly 10 mcg of vitamin D and the same
+  // fish dish at anything from 2 to 10 (2026-11-15). Figures below are USDA FoodData Central. The
+  // rule is scoped to vitamin D in so many words: an earlier wording moved fish calories (smoked
+  // salmon 50 g from 70 to 117 kcal, its per-100 g figure).
+  "7. VITAMIN D ONLY. This rule sets the vitamin D figure and nothing else; estimate calories,",
+  "   protein, fat and every other field exactly as rules 1 to 6 say. Most foods have little or no",
+  "   vitamin D; plain rice, noodles, bread, vegetables and fruit have essentially none. The main food",
+  "   sources are fish and eggs. Vitamin D per 100 g (USDA FoodData Central): cooked farmed salmon",
+  "   13.1 mcg, smoked salmon 17.1 mcg, cooked tilapia (a lean white fish) 3.7 mcg, boiled egg 2.2 mcg",
+  "   (about 1.1 mcg per egg), cooked chicken breast 0.1 mcg. Scale by the weight of the fish or egg in",
+  "   the portion: a 150 g salmon fillet has about 20 mcg of vitamin D. There is no upper cap; never",
+  "   round a portion of oily fish down to 10 mcg.",
+  // A USDA check of every nutrient (2026-11-17) found vitamin C, potassium and iron for cooked
+  // vegetables and potatoes taken straight from the RAW figures (boiled broccoli at raw broccoli's
+  // exact 89.2 mg of vitamin C), and egg iron at nearly double. Rules 8 and 9 are scoped the way rule 7
+  // is, so they cannot move calories or macros. Figures are USDA FoodData Central (SR Legacy).
+  // The spinach iron (168463) and the luncheon meat (172951) and instant noodle (171177) sodium were
+  // added 2026-11-18 for gemini-3.5-flash-lite, which put spinach at 2.1 mg iron and luncheon meat at
+  // 360 to 580 mg sodium. The 臘腸 figure is the Centre for Food Safety's Nutrient Information Inquiry
+  // System ("Pork sausage, cured sausage, Canton style, small", 1,420 mg per 100 g, from the China CDC
+  // table CFC2002Ed2), added after the new model put a 臘味 clay-pot rice photo at 920 mg. That alone
+  // moved the photo only to 980 mg, because the model judged the pot as a whole, hence the last
+  // sentence of rule 9: add up the salty parts.
+  // The dish figures are medians from the Centre for Food Safety's lab tests of local dishes ("Nutrient
+  // Contents of Local Congee, Rice and Noodles Dishes", 73 dishes); 16 other dishes from the same table
+  // were held back to test them (2026-11-18). The new model had put wonton noodles at 1,450 mg against
+  // 2,300 measured.
+  "8. VITAMINS AND MINERALS AS EATEN. This rule sets iron, calcium, potassium and vitamin C and",
+  "   nothing else. Use the values for the food as it is eaten, cooked if it is cooked: never the raw",
+  "   figure for a boiled, steamed, stir-fried or roasted food. Cooking destroys some vitamin C, and per",
+  "   cooked gram the minerals differ from raw. Per 100 g as eaten (USDA FoodData Central): boiled",
+  "   broccoli 65 mg vitamin C (raw is 89), boiled spinach 10 mg vitamin C, 466 mg potassium and 3.6 mg iron,",
+  "   boiled peeled potato 7 mg vitamin C and 328 mg potassium.",
+  "   A boiled egg (about 50 g) has about 0.6 mg iron.",
+  "9. SODIUM ONLY. This rule sets the sodium figure and nothing else. Sodium comes mostly from what the",
+  "   food is made or served with: salt, soy sauce, oyster sauce, fish sauce, stock, seasoning packets,",
+  "   and cured or processed meat. One tablespoon of soy sauce has about 880 mg (USDA). Processed and",
+  "   preserved foods are salty (USDA): canned luncheon meat has about 1,400 mg per 100 g, and",
+  "   a 100 g pack of instant noodles cooked with all its seasoning about 1,850 mg. Chinese preserved",
+  "   sausage (臘腸) has about 1,400 mg per 100 g (Hong Kong Centre for Food Safety). Plain rice, fresh",
+  "   fruit and vegetables boiled without salt have almost none. Restaurant and takeaway dishes are",
+  "   seasoned, so count their sauce and seasoning.",
+  "   A mixed dish's sodium is the sum of its salty parts at the amounts in it: cured meat or sausage,",
+  "   sauce poured over, gravy, soup and seasoning. Add each one up, even when the dish is one entry.",
+  "   Hong Kong dishes as served, measured by the Centre for Food Safety, sodium per 100 g: egg or wheat",
+  "   noodles in soup about 460 mg and rice noodles (ho fan, rice vermicelli) in soup about 300 mg, soup",
+  "   included; fried or braised noodles and fried rice about 380 mg; rice with a topping about 250 mg.",
   "",
   "nameZh must be Traditional Chinese as used in Hong Kong (e.g. 雞胸肉, 奇異果, 多士).",
 ].join("\n");
@@ -85,12 +138,12 @@ function buildPhotoPrompt(): string {
     '  "meals": [',
     "    {",
     '      "name": "English food name", "nameZh": "中文名",',
-    '      "calories": <kcal>, "protein": <g>, "carbs": <g>, "fat": <g>,',
+    '      "calories": <kcal>, "protein": <g>, "carbs": <g>, "fat": <g>, "fiber": <g>, "addedSugar": <g>,',
     '      "quantity": <number>, "unit": "portion label, e.g. 1 bowl / 2 pieces / 100 g",',
     '      "unitZh": "中文份量, e.g. 一碗 / 兩件 / 100 克",',
     '      "mealType": "breakfast" | "lunch" | "dinner" | "snack",',
     '      "confidence": <0..1 - how sure you are the photo really shows this dish>,',
-    '      "micros": {"iron":<mg>,"calcium":<mg>,"potassium":<mg>,"vitaminC":<mg>,"vitaminD":<mcg>}',
+    '      "micros": {"iron":<mg>,"calcium":<mg>,"potassium":<mg>,"sodium":<mg>,"vitaminC":<mg>,"vitaminD":<mcg>}',
     "    }",
     "  ]",
     "}",
@@ -108,10 +161,10 @@ function buildPrompt(text: string): string {
     '  "meals": [',
     "    {",
     '      "name": "English food name", "nameZh": "中文名",',
-    '      "calories": <kcal>, "protein": <g>, "carbs": <g>, "fat": <g>,',
+    '      "calories": <kcal>, "protein": <g>, "carbs": <g>, "fat": <g>, "fiber": <g>, "addedSugar": <g>,',
     '      "quantity": <number>, "unit": "portion label, e.g. 1 bowl / 2 pieces / 100 g",',
     '      "mealType": "breakfast" | "lunch" | "dinner" | "snack",',
-    '      "micros": {"iron":<mg>,"calcium":<mg>,"potassium":<mg>,"vitaminC":<mg>,"vitaminD":<mcg>}',
+    '      "micros": {"iron":<mg>,"calcium":<mg>,"potassium":<mg>,"sodium":<mg>,"vitaminC":<mg>,"vitaminD":<mcg>}',
     "    }",
     "  ]",
     "}",
@@ -163,7 +216,7 @@ Deno.serve(async (req: Request) => {
       maxOutputTokens: 2048,
     });
 
-    const parsed = extractJson(raw) as { meals?: unknown };
+    const parsed = extractJson(raw, "meals") as { meals?: unknown };
     const meals = Array.isArray(parsed.meals) ? parsed.meals : [];
     // The client re-validates and sanitises every meal (parseMealResponse) before anything reaches
     // the log, so forwarding the model's list as-is is safe — the app never trusts it blindly.

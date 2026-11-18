@@ -1,4 +1,5 @@
 import { useCartRunStore } from "@/stores/cartRunStore";
+import { canonicalizeIngredient } from "@/constants/ingredientDictionary";
 
 // A shopping run is interrupted by definition: you tap HKTVmall, leave the app, buy three things,
 // and come back. These tests cover what has to survive that round trip, and one trap that would
@@ -151,5 +152,64 @@ describe("finishing", () => {
     const before = state().runs;
     state().clearRun(OTHER);
     expect(state().runs).toBe(before);
+  });
+});
+
+// Owner, 2026-10-19: search one item, pick it in the store, come back, and it's ticked for you. The app
+// can't see the store's cart, so coming back from searching it is what ticks it; untick stays one tap.
+describe("ticking the item you went to the store for", () => {
+  beforeEach(() => state().startRun(RECIPE, "hktvmall"));
+
+  it("ticks the searched item when you come back", () => {
+    state().markSearching(RECIPE, "Ginger");
+    expect(state().isChecked(RECIPE, "Ginger")).toBe(false);
+    expect(state().completePending(RECIPE)).toBe(canonicalizeIngredient("Ginger"));
+    expect(state().isChecked(RECIPE, "Ginger")).toBe(true);
+  });
+
+  it("only ticks once, however many times you come back", () => {
+    state().markSearching(RECIPE, "Ginger");
+    state().completePending(RECIPE);
+    expect(state().completePending(RECIPE)).toBeNull();
+    expect(state().isChecked(RECIPE, "Ginger")).toBe(true);
+  });
+
+  it("never unticks an item you had already ticked", () => {
+    state().toggleItem(RECIPE, "Ginger");
+    state().markSearching(RECIPE, "Ginger");
+    state().completePending(RECIPE);
+    expect(state().isChecked(RECIPE, "Ginger")).toBe(true);
+  });
+
+  it("ticks nothing if you never left to search", () => {
+    expect(state().completePending(RECIPE)).toBeNull();
+    expect(state().checkedCount(RECIPE, LIST)).toBe(0);
+  });
+
+  it("forgets the search if the store didn't open", () => {
+    state().markSearching(RECIPE, "Ginger");
+    state().clearPending(RECIPE);
+    expect(state().completePending(RECIPE)).toBeNull();
+    expect(state().isChecked(RECIPE, "Ginger")).toBe(false);
+  });
+
+  it("drops the pending search when you switch store", () => {
+    state().markSearching(RECIPE, "Ginger");
+    state().startRun(RECIPE, "wellcome");
+    expect(state().completePending(RECIPE)).toBeNull();
+  });
+
+  it("keeps the pending search in the saved run, so it still ticks if the app closed while you shopped", () => {
+    state().markSearching(RECIPE, "Ginger");
+    const saved = JSON.parse(JSON.stringify(state().runs));
+    useCartRunStore.setState({ runs: {} });
+    useCartRunStore.setState({ runs: saved });
+    expect(state().completePending(RECIPE)).toBe(canonicalizeIngredient("Ginger"));
+  });
+
+  it("does nothing for a recipe with no run", () => {
+    state().markSearching(OTHER, "Ginger");
+    expect(state().runs[OTHER]).toBeUndefined();
+    expect(state().completePending(OTHER)).toBeNull();
   });
 });

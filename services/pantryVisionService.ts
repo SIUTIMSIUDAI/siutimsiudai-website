@@ -1,4 +1,5 @@
-import { CanonicalUnit, ScannedIngredient } from "@/types";
+import { ScannedIngredient } from "@/types";
+import { parsePantryUnit } from "@/utils/pantryUnits";
 import { isSupabaseConfigured, supabase } from "./supabase";
 import { classifyInvokeError, InvokeFailure } from "./functionError";
 import { delay } from "./util";
@@ -41,26 +42,56 @@ export interface PantryScanFailure {
 
 export type PantryScanOutcome = PantryScanSuccess | PantryScanFailure;
 
+/** One photo of a receipt: raw base64 (no data: prefix) and its image type. */
+export interface ReceiptPhoto {
+  base64: string;
+  mediaType: string;
+}
+
 export interface PantryVisionService {
   // imageBase64 is a raw base64 JPEG (no data: prefix). Returns the raw ingredients the model
   // thinks it saw. The UI ALWAYS routes these into an editable review screen before anything is
   // saved, never a silent write: vision is fuzzy, so human confirmation is the guardrail.
   scan(imageBase64: string): Promise<PantryScanOutcome>;
+  // One to three photos of the same grocery receipt, read together in one request (one AI use).
+  // Returns the food and drink that was bought, in the same shape, for the same review screen.
+  scanReceipt(photos: ReceiptPhoto[]): Promise<PantryScanOutcome>;
 }
 
 const SCAN_FN = "pantry-scan";
-const UNITS: readonly CanonicalUnit[] = ["g", "ml", "piece"];
+
+export const RECEIPT_MAX_PHOTOS = 3;
+// All the photos of one receipt together, in base64 characters. No resize library is in the binary,
+// so photos go up as the camera or library hands them over (JPEG quality 0.4); this keeps a long
+// receipt comfortably inside what one Edge Function request carries.
+export const RECEIPT_MAX_BASE64 = 8_000_000;
+
+/** Whether these photos can go up as one receipt scan: one to three, and not too big together. */
+export function receiptFits(photos: ReceiptPhoto[]): boolean {
+  if (photos.length === 0 || photos.length > RECEIPT_MAX_PHOTOS) return false;
+  return photos.reduce((total, p) => total + p.base64.length, 0) <= RECEIPT_MAX_BASE64;
+}
+
+/**
+ * The image type of base64 image data, read from its first bytes rather than trusted from the
+ * picker: library screenshots can come back as PNG. Anything unrecognised is sent as JPEG, which is
+ * what the camera produces.
+ */
+export function imageTypeOf(base64: string): string {
+  return base64.startsWith("iVBORw0KGgo") ? "image/png" : "image/jpeg";
+}
 
 // Coerce one loosely-typed row from the proxy (or a future provider) into a clean ScannedIngredient.
-// Drops anything without a usable name, clamps the unit to our enum, and forces quantity to a
-// finite non-negative number so a bad model response can never inject junk into the pantry.
+// Drops anything without a usable name, reads the unit against the pantry's fixed list (plurals and
+// capitals included, anything unknown becomes a piece), and forces quantity to a finite
+// non-negative number so a bad model response can never inject junk into the pantry.
 function normalizeRow(raw: unknown): ScannedIngredient | null {
   if (!raw || typeof raw !== "object") return null;
   const r = raw as Record<string, unknown>;
   const name = typeof r.name === "string" ? r.name.trim() : "";
   const nameZh = typeof r.nameZh === "string" ? r.nameZh.trim() : "";
   if (!name && !nameZh) return null; // a row we can't label is useless on the review screen
-  const unit = UNITS.includes(r.unit as CanonicalUnit) ? (r.unit as CanonicalUnit) : "piece";
+  const unit = parsePantryUnit(r.unit) ?? "piece";
   const q = Number(r.quantity);
   const quantity = Number.isFinite(q) && q > 0 ? q : 0;
   const c = Number(r.confidence);
@@ -96,6 +127,26 @@ async function scanViaProxy(imageBase64: string): Promise<PantryScanOutcome> {
   return items === null ? { ok: false, error: "unavailable" } : { ok: true, items };
 }
 
+async function scanReceiptViaProxy(photos: ReceiptPhoto[]): Promise<PantryScanOutcome> {
+  if (!supabase) return { ok: false, error: "unavailable" };
+  const { data, error } = await supabase.functions.invoke<{ items?: unknown }>(SCAN_FN, {
+    body: { mode: "receipt", images: photos.map((p) => ({ data: p.base64, mediaType: p.mediaType })) },
+  });
+  if (error) return { ok: false, error: await classifyInvokeError(error) };
+  const items = parseScanResponse(data);
+  return items === null ? { ok: false, error: "unavailable" } : { ok: true, items };
+}
+
+// The DEMO receipt (no backend configured only): a typical small supermarket shop.
+const MOCK_RECEIPT: ScannedIngredient[] = [
+  { name: "Egg", nameZh: "雞蛋", quantity: 10, unit: "piece", confidence: 0.93 },
+  { name: "Milk", nameZh: "牛奶", quantity: 2, unit: "carton", confidence: 0.9 },
+  { name: "Choy sum", nameZh: "菜心", quantity: 1, unit: "bunch", confidence: 0.84 },
+  { name: "Pork", nameZh: "豬肉", quantity: 452, unit: "g", confidence: 0.88 },
+  { name: "Tofu", nameZh: "豆腐", quantity: 1, unit: "box", confidence: 0.86 },
+  { name: "Instant noodles", nameZh: "即食麵", quantity: 1, unit: "pack", confidence: 0.8 },
+];
+
 // A small pantry of common Hong Kong staples the DEMO mock rotates through, so repeated demo
 // captures in Expo Go surface different (but plausible) ingredients instead of the same list every
 // time. Reachable only when no backend is configured — never as a cover for a failed live scan.
@@ -103,7 +154,11 @@ const MOCK_POOL: ScannedIngredient[] = [
   { name: "Egg", nameZh: "雞蛋", quantity: 6, unit: "piece", confidence: 0.94 },
   { name: "Tomato", nameZh: "番茄", quantity: 3, unit: "piece", confidence: 0.9 },
   { name: "Spring onion", nameZh: "葱", quantity: 2, unit: "piece", confidence: 0.82 },
-  { name: "Choy sum", nameZh: "菜心", quantity: 200, unit: "g", confidence: 0.78 },
+  { name: "Choy sum", nameZh: "菜心", quantity: 1, unit: "bunch", confidence: 0.78 },
+  { name: "Blueberries", nameZh: "藍莓", quantity: 3, unit: "box", confidence: 0.9 },
+  { name: "Milk", nameZh: "牛奶", quantity: 1, unit: "carton", confidence: 0.88 },
+  { name: "Bottled water", nameZh: "樽裝水", quantity: 5, unit: "bottle", confidence: 0.92 },
+  { name: "Luncheon meat", nameZh: "午餐肉", quantity: 2, unit: "can", confidence: 0.85 },
   { name: "Pork", nameZh: "豬肉", quantity: 300, unit: "g", confidence: 0.86 },
   { name: "Tofu", nameZh: "豆腐", quantity: 1, unit: "piece", confidence: 0.8 },
   { name: "Garlic", nameZh: "蒜頭", quantity: 4, unit: "piece", confidence: 0.71 },
@@ -134,5 +189,15 @@ export const pantryVisionService: PantryVisionService = {
     // No backend at all: demo mode. Nothing to fail, nothing to misrepresent.
     await delay(1100); // let the capture screen show its "scanning" state in mock mode
     return { ok: true, items: mockScan() };
+  },
+
+  async scanReceipt(photos) {
+    if (isSupabaseConfigured) {
+      return await scanReceiptViaProxy(photos).catch(
+        () => ({ ok: false, error: "unavailable" }) as PantryScanOutcome,
+      );
+    }
+    await delay(1100);
+    return { ok: true, items: MOCK_RECEIPT.map((item) => ({ ...item })) };
   },
 };

@@ -8,6 +8,7 @@ import { Screen } from "@/components/Screen";
 import { ScalableText } from "@/components/ScalableText";
 import { Button } from "@/components/Button";
 import { ConfirmDialog } from "@/components/ConfirmDialog";
+import { Avatar } from "@/components/Avatar";
 import { colors } from "@/constants/theme";
 import { useLocale } from "@/hooks/useLocale";
 import { useAuthStore } from "@/stores/authStore";
@@ -19,6 +20,7 @@ import {
   removeMember,
   revokeInvite,
 } from "@/services/familyService";
+import { getAvatarUrls } from "@/services/avatarService";
 import { hasActiveMaxEntitlement } from "@/services/revenueCatService";
 import { createReasonKey, FAMILY_MAX_MEMBERS, isGroupFull, remainingSeats } from "@/utils/familyInvite";
 import type { FamilyInvite, FamilyMember } from "@/types/family";
@@ -70,6 +72,19 @@ export function InviteFamilyScreen() {
 
   const role = snapshot?.role ?? null;
   const members = snapshot?.members ?? [];
+  // Signed links for the members' photos, keyed on the paths themselves so a roster refresh that
+  // changes no photo does not sign them again.
+  const avatarKey = members.map((m) => m.avatarPath ?? "").join("|");
+  const [avatarUrls, setAvatarUrls] = useState<Record<string, string>>({});
+  useEffect(() => {
+    let active = true;
+    void getAvatarUrls(avatarKey.split("|").filter(Boolean)).then((urls) => {
+      if (active) setAvatarUrls(urls);
+    });
+    return () => {
+      active = false;
+    };
+  }, [avatarKey]);
   const invitations = snapshot?.invitations ?? [];
   const maxMembers = snapshot?.group?.maxMembers ?? FAMILY_MAX_MEMBERS;
   const groupFull = isGroupFull(members.length, maxMembers);
@@ -166,8 +181,8 @@ export function InviteFamilyScreen() {
               </View>
               <ScalableText className="text-sm leading-5 text-ink-muted">
                 {tl(
-                  "A family manager can view and manage your meal logs. You keep your own account and can leave at any time.",
-                  "家庭管理者可以查看及管理你嘅飲食記錄。你會保留自己嘅帳戶，並可隨時離開。",
+                  "Your food diary is shared with your family manager. They can see everything you log, including your meals, calories, and nutrients, but they cannot change it. To stop sharing, tap Leave family below.",
+                  "你嘅飲食記錄會分享畀家庭管理者。佢可以睇到你記錄嘅所有嘢，包括餐單、卡路里同營養素，但唔可以更改。想停止分享，可以㩒下面嘅「離開家庭」。",
                 )}
               </ScalableText>
               <Button
@@ -280,40 +295,52 @@ export function InviteFamilyScreen() {
                     </ScalableText>
                   </View>
                 ) : (
-                  members.map((m) => (
-                    <View
-                      key={m.userId}
-                      className="flex-row items-center gap-3 rounded-2xl border border-[#E4DCCB] bg-surface p-3"
-                    >
-                      <View className="h-10 w-10 items-center justify-center rounded-full bg-surface-sunken">
-                        <Ionicons
-                          name={m.role === "manager" ? "star" : "person"}
-                          size={18}
-                          color={colors.inkMuted}
+                  members.map((m) => {
+                    const openable = m.role === "dependent" && m.userId !== uid;
+                    const Row = openable ? Pressable : View;
+                    return (
+                      <Row
+                        key={m.userId}
+                        {...(openable
+                          ? {
+                              accessibilityRole: "button" as const,
+                              accessibilityLabel: tl("View log", "查看記錄"),
+                              onPress: () =>
+                                router.push(
+                                  `/family/${m.userId}?name=${encodeURIComponent(memberName(m))}`,
+                                ),
+                            }
+                          : {})}
+                        className="flex-row items-center gap-3 rounded-2xl border border-[#E4DCCB] bg-surface p-3 active:opacity-70"
+                      >
+                        <Avatar
+                          uri={m.avatarPath ? avatarUrls[m.avatarPath] : null}
+                          size={40}
+                          fallbackIcon={m.role === "manager" ? "star" : "person"}
                         />
-                      </View>
-                      <View className="flex-1">
-                        <ScalableText className="text-base font-semibold text-ink" numberOfLines={1}>
-                          {memberName(m)}
-                        </ScalableText>
-                        <ScalableText className="text-xs text-ink-muted">
-                          {m.role === "manager" ? t("family.roleManager") : t("family.roleDependent")}
-                        </ScalableText>
-                      </View>
-                      {m.role === "dependent" && m.userId !== uid ? (
-                        <Pressable
-                          onPress={() => setRemoveTarget(m)}
-                          accessibilityRole="button"
-                          accessibilityLabel={t("family.remove")}
-                          className="min-h-[36px] items-center justify-center rounded-lg px-3 active:opacity-70"
-                        >
-                          <ScalableText className="text-sm font-semibold" style={{ color: "#C2554B" }}>
-                            {t("family.remove")}
+                        <View className="flex-1">
+                          <ScalableText className="text-base font-semibold text-ink" numberOfLines={1}>
+                            {memberName(m)}
                           </ScalableText>
-                        </Pressable>
-                      ) : null}
-                    </View>
-                  ))
+                          <ScalableText className="text-xs text-ink-muted">
+                            {m.role === "manager" ? t("family.roleManager") : t("family.roleDependent")}
+                          </ScalableText>
+                        </View>
+                        {m.role === "dependent" && m.userId !== uid ? (
+                          <Pressable
+                            onPress={() => setRemoveTarget(m)}
+                            accessibilityRole="button"
+                            accessibilityLabel={t("family.remove")}
+                            className="min-h-[36px] items-center justify-center rounded-lg px-3 active:opacity-70"
+                          >
+                            <ScalableText className="text-sm font-semibold" style={{ color: "#C2554B" }}>
+                              {t("family.remove")}
+                            </ScalableText>
+                          </Pressable>
+                        ) : null}
+                      </Row>
+                    );
+                  })
                 )}
               </View>
 

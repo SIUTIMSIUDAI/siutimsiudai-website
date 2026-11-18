@@ -15,6 +15,7 @@
 // Runs in the Supabase Deno runtime, excluded from the app tsconfig. `Deno` is a runtime global.
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { reportServerError } from "../_shared/sentry.ts";
 
 const CORS: Record<string, string> = {
   "Access-Control-Allow-Origin": "*",
@@ -51,11 +52,26 @@ Deno.serve(async (req: Request) => {
   const userId = userData?.user?.id;
   if (userErr || !userId) return json({ error: "unauthorized" }, 401);
 
+  // Profile photos sit in Storage, which is not removed along with the auth user. Delete them first;
+  // if that fails, stop, so the user's retry finishes the job instead of a photo being left behind.
+  const avatars = admin.storage.from("avatars");
+  const { data: photos, error: listErr } = await avatars.list(userId);
+  let photoErr = listErr;
+  if (!photoErr && photos && photos.length > 0) {
+    ({ error: photoErr } = await avatars.remove(photos.map((p) => `${userId}/${p.name}`)));
+  }
+  if (photoErr) {
+    console.error("[delete-account] photo cleanup failed:", photoErr.message);
+    reportServerError(photoErr, { fn: "delete-account", code: "photo_cleanup_failed", status: 500 });
+    return json({ error: "delete_failed" }, 500);
+  }
+
   // Deletes the auth user; any app tables keyed to auth.users with ON DELETE CASCADE go with it.
   const { error: delErr } = await admin.auth.admin.deleteUser(userId);
   if (delErr) {
     // Full reason stays in the server logs only, never in the client response.
     console.error("[delete-account] deleteUser failed:", delErr.message);
+    reportServerError(delErr, { fn: "delete-account", code: "delete_failed", status: 500 });
     return json({ error: "delete_failed" }, 500);
   }
 

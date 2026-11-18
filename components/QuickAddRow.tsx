@@ -1,4 +1,5 @@
-import { Pressable, ScrollView, View } from "react-native";
+import { Alert, Pressable, ScrollView, View } from "react-native";
+import { router } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { ScalableText } from "./ScalableText";
 import { colors } from "@/constants/theme";
@@ -17,6 +18,7 @@ export function QuickAddRow({ date }: Props) {
   const meals = useSavedMealsStore((s) => s.meals);
   const topMeals = useSavedMealsStore((s) => s.topMeals);
   const markUsed = useSavedMealsStore((s) => s.markUsed);
+  const removeMeal = useSavedMealsStore((s) => s.removeMeal);
   const addEntry = useNutritionStore((s) => s.addEntry);
 
   // Subscribing to `meals` above keeps this reactive; topMeals re-sorts on every change.
@@ -26,9 +28,25 @@ export function QuickAddRow({ date }: Props) {
 
   return (
     <View className="gap-2">
-      <ScalableText className="px-1 text-sm font-semibold text-ink-muted">
-        {t("dashboard.recents")}
-      </ScalableText>
+      <View className="flex-row items-center justify-between px-1">
+        <ScalableText className="text-sm font-semibold text-ink-muted">
+          {t("dashboard.recents")}
+        </ScalableText>
+        {/* Jump to the full Manage screen to edit or tidy the whole set (delete also lives on each
+            chip via long-press). */}
+        <Pressable
+          onPress={() => router.push("/usuals")}
+          accessibilityRole="button"
+          accessibilityLabel={tl("Manage The usual", "管理老規矩")}
+          hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+          className="min-h-[44px] flex-row items-center gap-1 active:opacity-70"
+        >
+          <Ionicons name="options-outline" size={14} color={colors.brand} />
+          <ScalableText className="text-sm font-semibold text-brand">
+            {tl("Manage", "管理")}
+          </ScalableText>
+        </Pressable>
+      </View>
       <ScrollView
         horizontal
         showsHorizontalScrollIndicator={false}
@@ -39,6 +57,26 @@ export function QuickAddRow({ date }: Props) {
             key={m.id}
             accessibilityRole="button"
             accessibilityLabel={`${t("common.add")} ${tl(m.name, m.nameZh)}`}
+            accessibilityHint={tl("Hold to remove from The usual", "長按可移除")}
+            // Long-press to prune a usual you no longer eat (including a seeded one). Confirmed first
+            // so a stray hold never silently drops a chip.
+            onLongPress={() =>
+              Alert.alert(
+                tl("Remove from The usual?", "移除呢個老規矩？"),
+                tl(
+                  `"${m.name}" won't show up here anymore.`,
+                  `「${m.nameZh || m.name}」以後唔會再喺呢度出現。`,
+                ),
+                [
+                  { text: t("common.cancel"), style: "cancel" },
+                  {
+                    text: tl("Remove", "移除"),
+                    style: "destructive",
+                    onPress: () => removeMeal(m.id),
+                  },
+                ],
+              )
+            }
             onPress={() => {
               addEntry(
                 {
@@ -48,8 +86,10 @@ export function QuickAddRow({ date }: Props) {
                   protein: m.protein,
                   carbs: m.carbs,
                   fat: m.fat,
+                  fiber: m.fiber,
                   mealType: m.defaultMealType,
                   source: "manual",
+                  addedSugar: m.addedSugar,
                 },
                 date,
               );

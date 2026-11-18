@@ -10,8 +10,8 @@ interface Props {
   onClose: () => void;
 }
 
-// The contextual paywall that pops when a free user spends their fifth AI log of the week and
-// reaches for a sixth. It floats over the log sheet, so manual entry stays free right behind it;
+// The contextual paywall that pops when a free user has spent today's free photo log and
+// reaches for another. It floats over the log sheet, so manual entry stays free right behind it;
 // the Milk Tea Amber CTA hands off to the full subscription screen. Positioning stays strictly
 // nutrition-ledger: this is a metabolic bookkeeping quota, never a food-ordering limit.
 export function PaywallModal({ visible, onClose }: Props) {
@@ -50,13 +50,13 @@ export function PaywallModal({ visible, onClose }: Props) {
           </View>
 
           <ScalableText className="text-center text-xl font-bold text-ink">
-            {tl("Weekly Quota Fully Booked", "呢個星期嘅健康 quota 已用完！")}
+            {tl("Today's Free Photo Log Is Used", "今日嘅免費影相入數用咗喇！")}
           </ScalableText>
 
           <ScalableText className="text-center text-sm leading-6 text-ink-muted">
             {tl(
-              "Boss, your 5 free AI ledger entries for the week are fully spent! Even the kitchen needs a break. Want to scan your macros anytime without restrictions? Upgrade to our Pro Plan to unlock unlimited AI recognition and fully automate your healthy routine!",
-              "老細，你今個禮拜嘅 5 次免費 AI 記帳 Quota 已經用晒喇！廚房都要休息㗎。想隨時隨地無限制影相入數？升級到 Pro 計劃，即刻解鎖無限次 AI 識別，全面自動化你嘅少甜少底生活！",
+              "Boss, today's free AI photo log is spent! Typing and voice logs stay free and unlimited, and tomorrow brings another photo. Want to snap every meal? Upgrade to Pro to unlock unlimited AI photo recognition.",
+              "老細，今日嘅免費 AI 影相入數用咗喇！打字同語音記錄照樣免費無限用，聽日又有一次。想餐餐都影相入數？升級 Pro，即刻解鎖無限次 AI 影相識別。",
             )}
           </ScalableText>
 
@@ -79,7 +79,7 @@ export function PaywallModal({ visible, onClose }: Props) {
             className="min-h-[44px] w-full items-center justify-center py-1"
           >
             <ScalableText className="text-sm font-semibold text-ink-faint">
-              {tl("Maybe later, manual entry is free", "遲啲先，手動入數照樣免費")}
+              {tl("Maybe later, typing, voice and barcode stay free", "遲啲先，打字、語音同掃碼照樣免費")}
             </ScalableText>
           </Pressable>
         </View>

@@ -47,6 +47,12 @@ const MISSING: GroceryListItem[] = [
   gli({ name: "Shaoxing wine", nameZh: "紹興酒", quantity: 15, unit: "ml" }),
 ];
 
+// A store whose search ORs several terms. None of the three does today: HKTVmall's website did, but
+// its app answers 系統異常 to "Egg Soy sauce" opened through our link (owner's phone, 2026-10-19), so
+// it searches one item at a time like the others. The combining path stays tested for any store that
+// can, using HKTVmall's real URL shape.
+const COMBINING = { ...RETAILERS.hktvmall, supportsMultiTermSearch: true };
+
 describe("searchTermFor — the language rule", () => {
   it("hands HKTVmall (en) the English name", () => {
     expect(searchTermFor(MISSING[0], "en")).toBe("Chicken");
@@ -120,9 +126,7 @@ describe("searchQueryFor — how many ingredients one URL may carry", () => {
   it("gives a store that ORs terms the WHOLE missing list, not just the first line", () => {
     // This is the bug the shopping run exists to fix: four missing ingredients used to produce a
     // search for one of them, and the other three were silently dropped.
-    expect(searchQueryFor(RETAILERS.hktvmall, MISSING)).toBe(
-      "Chicken Dark soy sauce Ginger Shaoxing wine",
-    );
+    expect(searchQueryFor(COMBINING, MISSING)).toBe("Chicken Dark soy sauce Ginger Shaoxing wine");
   });
 
   it("gives a store that cannot combine exactly one term", () => {
@@ -140,7 +144,7 @@ describe("searchQueryFor — how many ingredients one URL may carry", () => {
 
 describe("buildSearchUrl — encoded, per-store language, per-store term count", () => {
   it("builds HKTVmall's real search URL: search_a/ + keyword=, never search?q=", () => {
-    const { webUrl, deepLinkUrl } = buildSearchUrl(RETAILERS.hktvmall, MISSING);
+    const { webUrl, deepLinkUrl } = buildSearchUrl(COMBINING, MISSING);
     // Path and parameter both come from HKTVmall's own header form. `search?q=` is what shipped
     // before and it silently redirected to an unrelated category page instead of searching.
     expect(webUrl).toBe(
@@ -215,9 +219,7 @@ describe("buildItemSearchUrl — one checklist row, one search", () => {
 
 describe("buildStoreEntryUrl — where tapping the store row itself lands", () => {
   it("sends a combining store straight to results for the entire list", () => {
-    expect(buildStoreEntryUrl(RETAILERS.hktvmall, MISSING).webUrl).toBe(
-      buildSearchUrl(RETAILERS.hktvmall, MISSING).webUrl,
-    );
+    expect(buildStoreEntryUrl(COMBINING, MISSING).webUrl).toBe(buildSearchUrl(COMBINING, MISSING).webUrl);
   });
 
   it("sends a non-combining store to its storefront, not a search for one arbitrary item", () => {
@@ -238,7 +240,7 @@ describe("buildStoreEntryUrl — where tapping the store row itself lands", () =
   });
 
   it("falls back to the storefront for a combining store when nothing is missing", () => {
-    expect(buildStoreEntryUrl(RETAILERS.hktvmall, []).webUrl).toBe("https://www.hktvmall.com/");
+    expect(buildStoreEntryUrl(COMBINING, []).webUrl).toBe("https://www.hktvmall.com/");
   });
 
   it("mirrors the web URL as the deep link, so the launcher skips the canOpenURL probe", () => {
@@ -249,12 +251,25 @@ describe("buildStoreEntryUrl — where tapping the store row itself lands", () =
   });
 });
 
+describe("HKTVmall searches one item at a time, like Wellcome and PARKnSHOP", () => {
+  it("no longer combines terms, because its app errors on a combined search", () => {
+    expect(RETAILERS.hktvmall.supportsMultiTermSearch).toBe(false);
+    expect(searchQueryFor(RETAILERS.hktvmall, MISSING)).toBe("Chicken");
+  });
+
+  it("opens its storefront from the store row, and searches each item from the checklist", () => {
+    expect(buildStoreEntryUrl(RETAILERS.hktvmall, MISSING).webUrl).toBe("https://www.hktvmall.com/");
+    expect(buildItemSearchUrl(RETAILERS.hktvmall, MISSING[1]).webUrl).toBe(
+      `https://www.hktvmall.com/hktv/en/search_a/?keyword=${encodeURIComponent("Dark soy sauce")}`,
+    );
+  });
+});
+
 describe("cartExportService.buildExport — language-correct clipboard + URLs", () => {
-  it("gives HKTVmall an English clipboard list and a search for the whole list", () => {
+  it("gives HKTVmall an English clipboard list and its storefront, like the other two", () => {
     const p = cartExportService.buildExport("hktvmall", MISSING);
     expect(p.clipboardText.split("\n")[0]).toBe("Chicken 400g");
-    expect(p.webUrl).toContain("search_a");
-    expect(p.webUrl).toContain(encodeURIComponent("Shaoxing wine")); // the LAST item, not just the first
+    expect(p.webUrl).toBe("https://www.hktvmall.com/");
     expect(p.retailer).toBe("hktvmall");
   });
 
@@ -335,6 +350,33 @@ describe("missingItemsFromRecipe — pantry-aware, reuses the grocery merge", ()
     const keys = missingCanonicalKeys(recipe, pantry);
     expect(keys.has(ingredientCanonicalKey(recipe.ingredients[0]))).toBe(true); // Chicken
     expect(keys.has(ingredientCanonicalKey(recipe.ingredients[1]))).toBe(false); // Egg
+  });
+
+  it("never lets pantry chicken stand in for chicken stock or chicken breast", () => {
+    // Owner, 2026-10-26: 雞湯 was matched as 雞肉 because its Chinese name contains 雞, so chicken in
+    // the pantry quietly ticked off the stock, and a breast-only recipe too. Only true matches count.
+    const soup: Recipe = {
+      ...recipe,
+      ingredients: [ing("Chicken stock", "雞湯", 300, "ml"), ing("Chicken breast", "雞胸肉", 200, "g")],
+    };
+    const chickenInPantry: PantryItem[] = [
+      { ...pantry[0], id: "p-chicken", name: "Chicken", nameZh: "雞肉", quantity: 1000, unit: "g" },
+    ];
+    expect(missingItemsFromRecipe(soup, chickenInPantry).map((m) => [m.name, m.nameZh, m.quantity, m.unit])).toEqual([
+      ["Chicken stock", "雞湯", 300, "ml"],
+      ["Chicken breast", "雞胸肉", 200, "g"],
+    ]);
+    const keys = missingCanonicalKeys(soup, chickenInPantry);
+    expect(soup.ingredients.every((i) => keys.has(ingredientCanonicalKey(i)))).toBe(true);
+  });
+
+  it("still matches a pantry item by an exact name in either language", () => {
+    // 生抽 is one of soy sauce's listed names, so a bottle labelled that way covers the recipe's.
+    const soy: Recipe = { ...recipe, ingredients: [ing("Soy sauce", "豉油", 15, "ml")] };
+    const bottle: PantryItem[] = [
+      { ...pantry[0], id: "p-soy", name: "Light soy (bottle)", nameZh: "生抽", quantity: 1, unit: "bottle" },
+    ];
+    expect(missingItemsFromRecipe(soy, bottle)).toEqual([]);
   });
 
   it("keeps the recipe badges and the cart list in exact agreement", () => {

@@ -30,6 +30,7 @@ export const macroColors = {
   protein: "#2AA06A", // jade family (health)
   carbs: "#E0A63A", // egg-tart gold family
   fat: "#D2683F", // warm clay
+  fiber: "#8A7B4F", // wheat bran — earthy olive, distinct from gold carbs and jade protein
 } as const;
 
 // One colour per tracked micronutrient for the premium daily tracker bars. Warm-palette friendly
@@ -38,6 +39,7 @@ export const microColors = {
   iron: "#C2554B", // rust red
   calcium: "#4E93A6", // mineral teal
   potassium: "#7FA653", // leaf green
+  sodium: "#7D8597", // sea-salt slate
   vitaminC: "#EBA524", // egg-tart gold (citrus)
   vitaminD: "#E0803A", // sunlight orange
 } as const;
@@ -67,6 +69,7 @@ export const darkMacroColors = {
   protein: "#3FC489",
   carbs: "#EFBB4E",
   fat: "#E27C54",
+  fiber: "#B3A469", // wheat bran lifted for charcoal
 } as const;
 
 // Minimum accessible touch target (pt). Pair with icon + label.

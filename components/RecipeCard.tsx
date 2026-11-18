@@ -14,6 +14,7 @@ const SOURCE_ICON: Record<RecipeSourceType, keyof typeof Ionicons.glyphMap> = {
   url: "link-outline",
   ocr: "scan-outline",
   manual: "create-outline",
+  photo: "camera-outline",
 };
 
 function Meta({ icon, label }: { icon: keyof typeof Ionicons.glyphMap; label: string }) {

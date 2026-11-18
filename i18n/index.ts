@@ -5,10 +5,15 @@ import { Locale } from "@/types";
 import { PASSWORD_MIN_LENGTH } from "@/utils/passwordSchema";
 import enStrings from "./en.json";
 import zhStrings from "./zh-Hant.json";
+// Helper mode only (Filipino, Indonesian): the rest of the app is English or Traditional Chinese.
+import filStrings from "./fil.json";
+import idStrings from "./id.json";
 
 const resources = {
   en: { translation: enStrings },
   "zh-Hant": { translation: zhStrings },
+  fil: { translation: filStrings },
+  id: { translation: idStrings },
 };
 
 export function detectInitialLocale(): Locale {

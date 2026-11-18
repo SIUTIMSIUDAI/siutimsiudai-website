@@ -23,6 +23,9 @@ export interface FamilyMember {
   // each dependent's profile). Null when hidden by RLS (e.g. a dependent viewing the manager) or
   // simply unset.
   displayName: string | null;
+  // The member's profile photo (a path in the avatars bucket), readable under the same rule as
+  // displayName. Null when hidden by RLS or not set.
+  avatarPath: string | null;
 }
 
 export interface FamilyInvitation {

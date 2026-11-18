@@ -12,6 +12,7 @@ import {
   useSubscriptionStore,
 } from "@/stores/useSubscriptionStore";
 import { resolveBillingKey } from "@/utils/billingKey";
+import { resolveFreeTrial, trialEndFromEntitlements, type FreeTrial } from "@/utils/freeTrial";
 import { PurchasesSDK } from "./purchasesModule";
 
 /**
@@ -220,6 +221,9 @@ export async function hasActiveMaxEntitlement(): Promise<boolean> {
 export interface TierOption {
   package: PurchasesPackage;
   priceString: string;
+  // The free trial buying this package starts, or null: none on offer, already used, or the store
+  // couldn't confirm this person's eligibility. See utils/freeTrial.ts.
+  trial: FreeTrial | null;
 }
 export interface TierPricing {
   monthly: TierOption | null;
@@ -230,11 +234,45 @@ export interface LiveOfferings {
   max: TierPricing;
 }
 
-function offeringToPricing(offering: PurchasesOffering | null | undefined): TierPricing {
+// Eligibility status per product id, as returned by checkTrialOrIntroductoryPriceEligibility.
+type TrialEligibility = Record<string, number>;
+
+function offeringToPricing(
+  offering: PurchasesOffering | null | undefined,
+  eligibility: TrialEligibility,
+): TierPricing {
   const toOption = (p: PurchasesPackage | null): TierOption | null =>
-    p ? { package: p, priceString: p.product.priceString } : null;
+    p
+      ? {
+          package: p,
+          priceString: p.product.priceString,
+          trial: resolveFreeTrial(p.product.introPrice, eligibility[p.product.identifier]),
+        }
+      : null;
   if (!offering) return { monthly: null, annual: null };
   return { monthly: toOption(offering.monthly), annual: toOption(offering.annual) };
+}
+
+/**
+ * Ask the store which of these packages this person can still get a free trial on. Only products
+ * carrying an introductory price are asked about. iOS only in practice: Android always answers
+ * "unknown". Any failure reads as "not eligible", so the paywall falls back to normal prices, which
+ * is the safe direction. Never throws.
+ */
+async function trialEligibility(packages: (PurchasesPackage | null)[]): Promise<TrialEligibility> {
+  if (!PurchasesSDK) return {};
+  const ids = packages
+    .filter((p): p is PurchasesPackage => p != null && p.product.introPrice != null)
+    .map((p) => p.product.identifier);
+  if (ids.length === 0) return {};
+  try {
+    const result = await PurchasesSDK.checkTrialOrIntroductoryPriceEligibility(ids);
+    const statuses: TrialEligibility = {};
+    for (const [id, e] of Object.entries(result)) statuses[id] = e.status;
+    return statuses;
+  } catch {
+    return {};
+  }
 }
 
 /**
@@ -249,9 +287,15 @@ export async function getSubscriptionOfferings(): Promise<LiveOfferings | null> 
     const offerings = await PurchasesSDK.getOfferings();
     const proOffering = offerings.all["pro"] ?? offerings.current ?? null;
     const maxOffering = offerings.all["max"] ?? offerings.current ?? null;
+    const eligibility = await trialEligibility([
+      proOffering?.monthly ?? null,
+      proOffering?.annual ?? null,
+      maxOffering?.monthly ?? null,
+      maxOffering?.annual ?? null,
+    ]);
     return {
-      pro: offeringToPricing(proOffering),
-      max: offeringToPricing(maxOffering),
+      pro: offeringToPricing(proOffering, eligibility),
+      max: offeringToPricing(maxOffering, eligibility),
     };
   } catch {
     return null;
@@ -260,15 +304,24 @@ export async function getSubscriptionOfferings(): Promise<LiveOfferings | null> 
 
 // --- Purchase / restore ---------------------------------------------------------------------
 export type PurchaseResult =
-  | { ok: true; tier: SubscriptionTier }
+  // trialEndsAt: when the free trial this receipt is in ends (ISO), or null when it isn't in one.
+  | { ok: true; tier: SubscriptionTier; trialEndsAt: string | null }
   | { ok: false; reason: PurchaseFailure };
+
+function purchased(info: CustomerInfo): PurchaseResult {
+  return {
+    ok: true,
+    tier: syncTierFromCustomerInfo(info),
+    trialEndsAt: trialEndFromEntitlements(info.entitlements.active),
+  };
+}
 
 /** Buy a package. On success the store tier is synced from the returned, server-validated receipt. */
 export async function purchaseSubscription(pkg: PurchasesPackage): Promise<PurchaseResult> {
   if (!isRevenueCatAvailable() || !PurchasesSDK) return { ok: false, reason: "error" };
   try {
     const { customerInfo } = await PurchasesSDK.purchasePackage(pkg);
-    return { ok: true, tier: syncTierFromCustomerInfo(customerInfo) };
+    return purchased(customerInfo);
   } catch (err) {
     return { ok: false, reason: classifyError(err) };
   }
@@ -279,7 +332,7 @@ export async function restoreSubscription(): Promise<PurchaseResult> {
   if (!isRevenueCatAvailable() || !PurchasesSDK) return { ok: false, reason: "error" };
   try {
     const customerInfo = await PurchasesSDK.restorePurchases();
-    return { ok: true, tier: syncTierFromCustomerInfo(customerInfo) };
+    return purchased(customerInfo);
   } catch (err) {
     return { ok: false, reason: classifyError(err) };
   }

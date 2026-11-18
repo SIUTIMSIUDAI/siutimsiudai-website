@@ -49,3 +49,6 @@ describe("Hong Kong wet-market unit conversions", () => {
     expect(d.quantity).toBeCloseTo(2, 1);
   });
 });
+
+// 個 is how Cantonese counts food (兩個洋蔥), so "piece" reads 個 everywhere, recipes included.
+it("counts pieces with 個", () => expect(displayInSystem(2, "piece", "metric").unitZh).toBe("個"));

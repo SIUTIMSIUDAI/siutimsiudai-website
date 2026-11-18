@@ -2,9 +2,16 @@
 //
 // Server-side proxy for Google Cloud Vertex AI (Gemini). The billable credential lives HERE as a
 // Supabase secret (GCP_SERVICE_ACCOUNT_KEY) and never ships to a device or the app bundle. The
-// client (services/recipeGenerationService.ts) sends { ingredients: [{name,nameZh,quantity?,unit?}] };
-// we ask Gemini for ONE simple recipe that uses only a sensible subset of those ingredients (plus
-// basic staples) and return it as a StructuredRecipe-shaped JSON object.
+// client is services/recipeGenerationService.ts. Three request modes; the first two return one
+// StructuredRecipe-shaped JSON object as { recipe }, the third a list of them as { recipes }:
+//   - Pantry mode: { ingredients: [{name,nameZh,quantity?,unit?}] } -> ONE simple recipe from a
+//     sensible subset of those ingredients (plus basic staples). See SYSTEM_PROMPT.
+//   - Dish mode: { dish: { name, nameZh? } } -> a faithful recreation of that named dish, NOT a
+//     healthier version (the photo-recipe flow). See DISH_SYSTEM_PROMPT.
+//   - Suggestion mode: { ingredients, count, avoid? } -> up to `count` (at most 3) different dishes
+//     the pantry can really make, from ONE model call, so it costs one AI use. `avoid` lists dishes
+//     already shown ("More ideas"). Older apps never send `count` and stay on pantry mode. See
+//     SUGGEST_SYSTEM_PROMPT and ./suggest.ts.
 //
 // Deploy:  supabase functions deploy generate-recipe
 // Secrets: shared with pantry-scan — see that function's header (GCP_SERVICE_ACCOUNT_KEY, and
@@ -20,6 +27,7 @@
 import { CORS, extractJson, json, proxyError, vertexGenerateContent } from "../_shared/vertex.ts";
 import { requireUser } from "../_shared/requireUser.ts";
 import { enforceAiQuota } from "../_shared/aiQuota.ts";
+import { avoidTitles, pickRecipes, suggestCount } from "./suggest.ts";
 
 const MODEL = Deno.env.get("VERTEX_MODEL") || "gemini-2.5-flash";
 
@@ -51,6 +59,85 @@ const SYSTEM_PROMPT = [
   "Chinese as used in Hong Kong.",
 ].join("\n");
 
+// The faithful-recreation brief. The user names a dish; recreate it as it is genuinely made, NOT a
+// lighter or modified version (the app offers a separate "Make it Healthy" action elsewhere).
+const DISH_SYSTEM_PROMPT = [
+  "You are a practical Hong Kong home cook. The user names a dish they want to recreate faithfully.",
+  "Write ONE realistic, authentic recipe for that exact dish as it is normally made and eaten.",
+  "Rules:",
+  "1. FAITHFUL, NOT HEALTHIER: recreate the real dish. Do not lighten it, cut fat/sugar/salt, or",
+  "   swap ingredients for 'healthier' ones. Authenticity over nutrition.",
+  "2. ASSUME BASICS: you may assume water, a neutral cooking oil, salt and black pepper.",
+  "3. If the name is ambiguous, pick the most common Hong Kong version and commit to it.",
+  "Write for a Hong Kong home kitchen. Every nameZh / titleZh / instructionZh must be Traditional",
+  "Chinese as used in Hong Kong.",
+].join("\n");
+
+// The suggestion brief: SYSTEM_PROMPT's kitchen rules for a few dishes at once, plus the promise the
+// app makes on screen, that every suggestion can really be cooked from the pantry. Keep the shared
+// rules (subset, one lane, basics, no tailoring) in step with SYSTEM_PROMPT.
+const SUGGEST_SYSTEM_PROMPT = [
+  "You are a practical home cook suggesting a few different, realistic, edible, appetising recipes",
+  "from a list of ingredients someone already has. Follow these rules strictly:",
+  "",
+  "1. REALLY COOKABLE (most important): every dish must be cookable from the listed ingredients plus",
+  "   the basics in rule 4, and nothing else. Never suggest a dish that needs anything missing, not",
+  "   even a small extra such as a sauce, a spice or a garnish. If the list only supports one or two",
+  "   good dishes, return only those: fewer dishes is better than a stretched one. If nothing",
+  "   sensible can be cooked, return no dishes.",
+  "2. SUBSET SELECTION: a dish does not need every ingredient. Use only the ingredients that",
+  "   genuinely belong together in that dish and leave the rest. Using an ingredient that does not",
+  "   fit is a worse mistake than leaving it out.",
+  "3. ONE LANE PER DISH: never mix sweet / breakfast items (cocoa, chocolate, yogurt, berries, honey,",
+  "   cereal, oats, banana) with savoury / dinner items (meat, fish, soy sauce, onion, garlic,",
+  "   vegetables) in the same dish.",
+  "4. ASSUME BASICS: You may assume the cook has water, a neutral cooking oil, salt, and black",
+  "   pepper, even if not listed. Do NOT assume any other ingredient that is not in the list.",
+  "5. DIFFERENT DISHES: no two dishes may be the same dish or a close variation of each other.",
+  "6. NO NUTRITION TAILORING: Do not optimise for calories, macros, or any health target. This is",
+  "   simply a practical way to use up what the cook already has.",
+  "7. In each dish's `ingredients` array, list ONLY the ingredients that dish actually uses.",
+  "",
+  "Write for a Hong Kong home kitchen. Every nameZh / titleZh / instructionZh must be Traditional",
+  "Chinese as used in Hong Kong.",
+].join("\n");
+
+// The recipe object every mode asks for, one per dish. Kept as one constant so the prompts can never
+// drift into asking for different JSON shapes.
+const RECIPE_SHAPE = [
+  "{",
+  '  "title": "English title", "titleZh": "中文標題",',
+  '  "servings": <number>, "totalMinutes": <number>, "sourceUrl": null,',
+  '  "ingredients": [{"name":"English","nameZh":"中文","quantity":<number>,"unit":"g"|"ml"|"piece","displayUnit":"g|ml|piece|bowl|...","rawText":"e.g. 2 pieces egg","substitutedFrom":null}],',
+  '  "steps": [{"stepNumber":<1-based int>,"instruction":"English","instructionZh":"中文","imageUri":null,"durationSeconds":<number or null>}],',
+  '  "micros": {"iron":<mg>,"calcium":<mg>,"potassium":<mg>,"sodium":<mg>,"vitaminC":<mg>,"vitaminD":<mcg>}',
+  "}",
+];
+
+// The required response contract for pantry and dish mode: one recipe object.
+const JSON_SHAPE_INSTRUCTIONS = [
+  "Also estimate the nutrition for ONE serving of the finished dish and fill in `micros`: iron,",
+  "calcium, potassium, sodium and vitamin C in milligrams (mg), vitamin D in micrograms (mcg). Count",
+  "the salt, soy sauce, oyster sauce and stock in the recipe in its sodium. These are rough",
+  "per-serving estimates that DESCRIBE the dish — do not tailor them to anyone's targets.",
+  "",
+  "Respond with ONLY a JSON object, no prose, in exactly this shape:",
+  ...RECIPE_SHAPE,
+].join("\n");
+
+// Suggestion mode's contract: the same recipe object, in a list.
+const SUGGEST_JSON_SHAPE_INSTRUCTIONS = [
+  "For EACH dish, also estimate the nutrition for ONE serving and fill in `micros`: iron, calcium,",
+  "potassium, sodium and vitamin C in milligrams (mg), vitamin D in micrograms (mcg). Count the salt,",
+  "soy sauce, oyster sauce and stock in the recipe in its sodium. These are rough per-serving",
+  "estimates that DESCRIBE the dish, never tailored to anyone's targets.",
+  "",
+  'Respond with ONLY a JSON object, no prose, of the shape {"recipes": [<dish>, ...]}, where every',
+  "<dish> is exactly this shape:",
+  ...RECIPE_SHAPE,
+  'If nothing sensible can be cooked, respond with {"recipes": []}.',
+].join("\n");
+
 interface SeedIngredient {
   name?: unknown;
   nameZh?: unknown;
@@ -58,8 +145,8 @@ interface SeedIngredient {
   unit?: unknown;
 }
 
-function buildPrompt(ingredients: SeedIngredient[]): string {
-  const lines = ingredients
+function pantryLines(ingredients: SeedIngredient[]): string {
+  return ingredients
     .map((i) => {
       const en = typeof i.name === "string" ? i.name : "";
       const zh = typeof i.nameZh === "string" ? i.nameZh : "";
@@ -69,26 +156,48 @@ function buildPrompt(ingredients: SeedIngredient[]): string {
     })
     .filter(Boolean)
     .join("\n");
+}
 
+function buildPrompt(ingredients: SeedIngredient[]): string {
   return [
     "Here is everything the cook has in the pantry. Choose a compatible subset (see your rules) and",
     "build ONE recipe from it.",
     "",
     "Pantry ingredients:",
-    lines || "- (none provided)",
+    pantryLines(ingredients) || "- (none provided)",
     "",
-    "Also estimate the nutrition for ONE serving of the finished dish and fill in `micros`: iron,",
-    "calcium, potassium and vitamin C in milligrams (mg), vitamin D in micrograms (mcg). These are",
-    "rough per-serving estimates that DESCRIBE the dish — do not tailor them to anyone's targets.",
+    JSON_SHAPE_INSTRUCTIONS,
+  ].join("\n");
+}
+
+function buildSuggestPrompt(ingredients: SeedIngredient[], count: number, avoid: string[]): string {
+  return [
+    `Here is everything the cook has in the pantry. Suggest up to ${count} different dishes the cook`,
+    "can really make from it (see your rules).",
     "",
-    "Respond with ONLY a JSON object, no prose, in exactly this shape:",
-    "{",
-    '  "title": "English title", "titleZh": "中文標題",',
-    '  "servings": <number>, "totalMinutes": <number>, "sourceUrl": null,',
-    '  "ingredients": [{"name":"English","nameZh":"中文","quantity":<number>,"unit":"g"|"ml"|"piece","displayUnit":"g|ml|piece|bowl|...","rawText":"e.g. 2 pieces egg","substitutedFrom":null}],',
-    '  "steps": [{"stepNumber":<1-based int>,"instruction":"English","instructionZh":"中文","imageUri":null,"durationSeconds":<number or null>}],',
-    '  "micros": {"iron":<mg>,"calcium":<mg>,"potassium":<mg>,"vitaminC":<mg>,"vitaminD":<mcg>}',
-    "}",
+    "Pantry ingredients:",
+    pantryLines(ingredients) || "- (none provided)",
+    ...(avoid.length > 0
+      ? [
+          "",
+          "The cook has already seen these dishes. Suggest different ones, not these or close variations:",
+          ...avoid.map((title) => `- ${title}`),
+        ]
+      : []),
+    "",
+    SUGGEST_JSON_SHAPE_INSTRUCTIONS,
+  ].join("\n");
+}
+
+function buildDishPrompt(dish: { name?: unknown; nameZh?: unknown }): string {
+  const en = typeof dish.name === "string" ? dish.name.trim() : "";
+  const zh = typeof dish.nameZh === "string" ? dish.nameZh.trim() : "";
+  const label = [en, zh].filter(Boolean).join(" / ");
+  return [
+    `Recreate this dish faithfully: ${label || "(unnamed dish)"}.`,
+    "Write ONE authentic recipe for exactly this dish.",
+    "",
+    JSON_SHAPE_INSTRUCTIONS,
   ].join("\n");
 }
 
@@ -109,18 +218,44 @@ Deno.serve(async (req: Request) => {
   if (!quota.ok) return quota.response;
 
   try {
-    const { ingredients } = await req.json();
-    if (!Array.isArray(ingredients) || ingredients.length === 0) {
+    const body = await req.json();
+    const dish = body?.dish;
+    const ingredients = body?.ingredients;
+    const count = suggestCount(body?.count);
+
+    let text: string;
+    if (dish && typeof dish.name === "string" && dish.name.trim()) {
+      // Dish mode: faithful recreation from a named dish (photo-recipe flow). Same JSON contract as
+      // pantry mode, but the "recreate it authentically, do not make it healthier" brief.
+      text = await vertexGenerateContent(MODEL, {
+        system: DISH_SYSTEM_PROMPT,
+        parts: [{ text: buildDishPrompt(dish) }],
+        maxOutputTokens: 4096,
+      });
+    } else if (Array.isArray(ingredients) && ingredients.length > 0 && count !== null) {
+      // Suggestion mode: up to `count` different dishes from ONE call, so one AI use however many
+      // come back. Each dish is a full bilingual recipe with micros, so each gets pantry mode's budget.
+      text = await vertexGenerateContent(MODEL, {
+        system: SUGGEST_SYSTEM_PROMPT,
+        parts: [{ text: buildSuggestPrompt(ingredients, count, avoidTitles(body?.avoid)) }],
+        maxOutputTokens: 4096 * count,
+      });
+      const recipes = pickRecipes(extractJson(text, "recipes"), count);
+      if (recipes === null) throw new Error(`bad_model_json no_recipe_list len=${text.length}`);
+      // As in the other modes, the client re-validates every recipe before it reaches the store.
+      return json({ recipes }, 200);
+    } else if (Array.isArray(ingredients) && ingredients.length > 0) {
+      // Pantry mode: unchanged "use up what you have" behaviour.
+      text = await vertexGenerateContent(MODEL, {
+        system: SYSTEM_PROMPT,
+        parts: [{ text: buildPrompt(ingredients) }],
+        // By far the largest response we ask for: title, servings, every ingredient and every step,
+        // all doubled into EN + zh-Hant, plus micros. 1500 truncated real recipes mid-object.
+        maxOutputTokens: 4096,
+      });
+    } else {
       return json({ error: "bad_request" }, 400);
     }
-
-    const text = await vertexGenerateContent(MODEL, {
-      system: SYSTEM_PROMPT,
-      parts: [{ text: buildPrompt(ingredients) }],
-      // By far the largest response we ask for: title, servings, every ingredient and every step,
-      // all doubled into EN + zh-Hant, plus micros. 1500 truncated real recipes mid-object.
-      maxOutputTokens: 4096,
-    });
 
     const recipe = extractJson(text);
     // The client re-validates and sanitises the whole shape (parseRecipeResponse) before it ever

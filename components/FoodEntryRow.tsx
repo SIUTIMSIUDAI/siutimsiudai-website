@@ -4,12 +4,18 @@ import { ScalableText } from "./ScalableText";
 import { colors } from "@/constants/theme";
 import { useLocale } from "@/hooks/useLocale";
 import { formatCalories, shortTime } from "@/utils/formatters";
-import { ALL_CUSTOMIZATIONS, effectiveMacros } from "@/utils/customizations";
+import { formatAmountLabel } from "@/utils/manualAmount";
+import {
+  availableCustomizations,
+  customizationLabelKey,
+  effectiveMacros,
+} from "@/utils/customizations";
 import { tick } from "@/utils/haptics";
 import { FoodEntry, LogSource, MealCustomization } from "@/types";
 
 interface Props {
   entry: FoodEntry;
+  onEdit: () => void;
   onRemove: () => void;
   onToggleCustomization: (customization: MealCustomization) => void;
 }
@@ -23,45 +29,54 @@ const SOURCE_ICON: Record<LogSource, keyof typeof Ionicons.glyphMap> = {
   manual: "create-outline",
 };
 
-const CUSTOM_LABEL: Record<MealCustomization, string> = {
-  less_sugar: "custom.lessSugar",
-  less_rice: "custom.lessRice",
-};
 
-export function FoodEntryRow({ entry, onRemove, onToggleCustomization }: Props) {
+export function FoodEntryRow({ entry, onEdit, onRemove, onToggleCustomization }: Props) {
   const { t, tl, locale } = useLocale();
   const active = entry.customizations ?? [];
   const eff = effectiveMacros(entry, active);
   const saved = entry.calories - eff.calories;
+  // The amount the user logged ("1 bowl", "200 g", "x2"), or null for a plain single serving.
+  const amount = formatAmountLabel(entry.quantity, entry.unit);
 
   return (
     <View className="gap-2 border-b border-[#E8E1D2] py-3">
       <View className="flex-row items-center gap-3">
-        <View className="h-10 w-10 items-center justify-center rounded-full bg-surface-sunken">
-          <Ionicons name={SOURCE_ICON[entry.source]} size={18} color={colors.inkMuted} />
-        </View>
-        <View className="flex-1">
-          <ScalableText className="text-base font-semibold text-ink" numberOfLines={1}>
-            {tl(entry.name, entry.nameZh)}
-          </ScalableText>
-          <ScalableText className="text-xs text-ink-muted">
-            {t(`mealType.${entry.mealType}`)} · {shortTime(entry.loggedAt, locale)}
-          </ScalableText>
-        </View>
-        <View className="items-end">
-          {saved > 0 && (
-            <ScalableText className="text-xs text-ink-faint line-through">
-              {formatCalories(entry.calories)}
+        {/* Tapping the item's icon / name / calories opens the editor. The trash button and the
+            少甜 / 少底 chips stay outside this Pressable so they keep their own actions. */}
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel={tl(`Edit ${entry.name}`, `編輯${entry.nameZh}`)}
+          accessibilityHint={tl("Opens the editor for this item", "開啟呢項嘅編輯")}
+          onPress={onEdit}
+          className="flex-1 flex-row items-center gap-3 active:opacity-60"
+        >
+          <View className="h-10 w-10 items-center justify-center rounded-full bg-surface-sunken">
+            <Ionicons name={SOURCE_ICON[entry.source]} size={18} color={colors.inkMuted} />
+          </View>
+          <View className="flex-1">
+            <ScalableText className="text-base font-semibold text-ink" numberOfLines={1}>
+              {tl(entry.name, entry.nameZh)}
             </ScalableText>
-          )}
-          <ScalableText
-            className="text-base font-bold"
-            style={{ color: saved > 0 ? colors.jade : colors.ink }}
-          >
-            {formatCalories(eff.calories)}
-          </ScalableText>
-          <ScalableText className="text-xs text-ink-faint">kcal</ScalableText>
-        </View>
+            <ScalableText className="text-xs text-ink-muted">
+              {t(`mealType.${entry.mealType}`)} · {shortTime(entry.loggedAt, locale)}
+              {amount ? ` · ${amount}` : ""}
+            </ScalableText>
+          </View>
+          <View className="items-end">
+            {saved > 0 && (
+              <ScalableText className="text-xs text-ink-faint line-through">
+                {formatCalories(entry.calories)}
+              </ScalableText>
+            )}
+            <ScalableText
+              className="text-base font-bold"
+              style={{ color: saved > 0 ? colors.jade : colors.ink }}
+            >
+              {formatCalories(eff.calories)}
+            </ScalableText>
+            <ScalableText className="text-xs text-ink-faint">kcal</ScalableText>
+          </View>
+        </Pressable>
         <Pressable
           accessibilityRole="button"
           accessibilityLabel={t("common.delete")}
@@ -72,16 +87,19 @@ export function FoodEntryRow({ entry, onRemove, onToggleCustomization }: Props) 
         </Pressable>
       </View>
 
-      {/* Order tweaks: tick 少甜 / 少底 like a waiter marking a notepad. */}
+      {/* Order tweaks: tick 少甜 / 走甜 / 少底 like a waiter marking a notepad. Sugar ones on drinks and
+          sweet desserts, 少底 on savoury dishes. The chips carry no figure (the owner found it
+          cluttered); ticking one lowers this item's kcal above by the realistic amount. */}
       <View className="flex-row flex-wrap gap-2" style={{ paddingLeft: 52 }}>
-        {ALL_CUSTOMIZATIONS.map((key) => {
+        {availableCustomizations(entry).map((key) => {
           const on = active.includes(key);
+          const label = t(customizationLabelKey(key, entry));
           return (
             <Pressable
               key={key}
               accessibilityRole="button"
               accessibilityState={{ selected: on }}
-              accessibilityLabel={t(CUSTOM_LABEL[key])}
+              accessibilityLabel={label}
               onPress={() => {
                 tick();
                 onToggleCustomization(key);
@@ -98,7 +116,7 @@ export function FoodEntryRow({ entry, onRemove, onToggleCustomization }: Props) 
               <ScalableText
                 className={`text-xs font-semibold ${on ? "text-white" : "text-ink-muted"}`}
               >
-                {t(CUSTOM_LABEL[key])}
+                {label}
               </ScalableText>
             </Pressable>
           );

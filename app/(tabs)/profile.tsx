@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { ActivityIndicator, Pressable, ScrollView, Switch, TextInput, View } from "react-native";
 import { router } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
@@ -8,18 +8,26 @@ import { Button } from "@/components/Button";
 import { UnitToggle } from "@/components/UnitToggle";
 import { HealthProfileSheet } from "@/components/HealthProfileSheet";
 import { ConfirmDialog } from "@/components/ConfirmDialog";
+import { Avatar } from "@/components/Avatar";
+import { ActionSheet, type ActionSheetOption } from "@/components/ActionSheet";
+import { NameDialog } from "@/components/NameDialog";
 import { LegalLinks } from "@/components/LegalLinks";
 import { SourcesLink } from "@/components/SourcesLink";
 import { colors } from "@/constants/theme";
 import { useLocale } from "@/hooks/useLocale";
 import { useBiometricLogin } from "@/hooks/useBiometricLogin";
+import { getMyDisplayName, setMyDisplayName } from "@/services/profileService";
+import { getMyAvatarUrl, removeMyAvatar, saveMyAvatar } from "@/services/avatarService";
+import { normaliseDisplayName } from "@/utils/displayName";
+import { pickImageBase64 } from "@/utils/pickImageBase64";
 import * as biometricAuth from "@/services/biometricAuth";
 import { biometricNameKey } from "@/utils/biometricLogin";
 import { useAppStore } from "@/stores/appStore";
 import { useAuthStore } from "@/stores/authStore";
 import { useNutritionStore } from "@/stores/nutritionStore";
 import { SubscriptionTier, useSubscriptionStore } from "@/stores/useSubscriptionStore";
-import { computeNutritionTargets } from "@/utils/nutritionTargets";
+import { computeNutritionTargets, targetCoverage } from "@/utils/nutritionTargets";
+import { TargetCoverageNote } from "@/components/TargetCoverageNote";
 import { hasPasswordIdentity, socialProviderNames } from "@/utils/authIdentity";
 import { HealthProfile, Locale } from "@/types";
 
@@ -43,11 +51,21 @@ export default function ProfileScreen() {
   const healthProfile = useNutritionStore((s) => s.healthProfile);
   const setHealthProfile = useNutritionStore((s) => s.setHealthProfile);
   const clearHealthProfile = useNutritionStore((s) => s.clearHealthProfile);
-  const [targetText, setTargetText] = useState(String(target));
+  const [targetText, setTargetText] = useState(target === null ? "" : String(target));
+  // The name family members see, shown at the top in place of "Signed in" and changed in NameDialog.
+  // Null until loaded, or when none is set ("Add your name").
+  const [displayName, setDisplayName] = useState<string | null>(null);
+  const [nameDialogOpen, setNameDialogOpen] = useState(false);
   const [healthSheetOpen, setHealthSheetOpen] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [deleteError, setDeleteError] = useState(false);
+  // The profile photo: a signed link (null for none), whether a save or removal is running, and which
+  // of the two failed so the right message shows.
+  const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
+  const [avatarBusy, setAvatarBusy] = useState(false);
+  const [avatarError, setAvatarError] = useState<"save" | "remove" | null>(null);
+  const [photoMenuOpen, setPhotoMenuOpen] = useState(false);
 
   const session = useAuthStore((s) => s.session);
   const biometric = useBiometricLogin();
@@ -92,19 +110,100 @@ export default function ProfileScreen() {
   const canChangePassword = hasPasswordIdentity(user?.identities);
   const socialNames = socialProviderNames(user?.identities);
 
-  function commitTarget() {
-    const next = Math.max(0, Math.round(Number(targetText) || 0)) || 2000;
-    setCalorieTarget(next);
-    setTargetText(String(next));
+  // Load the saved name once for the heading. A signed-out or unconfigured session resolves to null,
+  // which shows "Add your name".
+  useEffect(() => {
+    let active = true;
+    void getMyDisplayName().then((saved) => {
+      if (active) setDisplayName(saved);
+    });
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  // Load the photo once, like the name above. No photo, signed out or no backend all resolve to null,
+  // which shows the person icon.
+  useEffect(() => {
+    let active = true;
+    void getMyAvatarUrl().then((url) => {
+      if (active) setAvatarUrl(url);
+    });
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  async function changeAvatar() {
+    setAvatarError(null);
+    const picked = await pickImageBase64("library", { square: true });
+    // Backing out of the picker is a decision, not a failure.
+    if (picked.status === "cancel") return;
+    if (picked.status !== "ok") {
+      setAvatarError("save");
+      return;
+    }
+    setAvatarBusy(true);
+    const result = await saveMyAvatar(picked.base64);
+    setAvatarBusy(false);
+    if (result.ok) setAvatarUrl(result.url);
+    else setAvatarError("save");
   }
+
+  // Chosen from the photo menu, which is itself the confirmation, so it removes straight away.
+  async function removeAvatar() {
+    setAvatarError(null);
+    setAvatarBusy(true);
+    const result = await removeMyAvatar();
+    setAvatarBusy(false);
+    if (result.ok) setAvatarUrl(null);
+    else setAvatarError("remove");
+  }
+
+  // A typed target is the user's own and is kept. Clearing the box goes back to the calculated target,
+  // or to none for someone the reference doesn't cover.
+  function commitTarget() {
+    const typed = Math.max(0, Math.round(Number(targetText) || 0));
+    const next = typed > 0 ? typed : (targets?.calories ?? null);
+    setCalorieTarget(next);
+    setTargetText(next === null ? "" : String(next));
+  }
+
+  // Saved from NameDialog. The heading shows exactly what was stored (trimmed, capped), and saving an
+  // empty name clears it back to "Add your name".
+  async function saveName(text: string): Promise<boolean> {
+    const clean = normaliseDisplayName(text);
+    const res = await setMyDisplayName(clean);
+    if (res.ok) setDisplayName(clean);
+    return res.ok;
+  }
+
+  // Remove is offered only when there is a photo to remove.
+  const photoOptions: ActionSheetOption[] = [
+    {
+      label: tl("Choose from photo library", "喺相簿揀相"),
+      icon: "images-outline",
+      onPress: () => void changeAvatar(),
+    },
+    ...(avatarUrl
+      ? [
+          {
+            label: tl("Remove profile photo", "移除頭像"),
+            icon: "trash-outline" as const,
+            destructive: true,
+            onPress: () => void removeAvatar(),
+          },
+        ]
+      : []),
+  ];
 
   function handleHealthSaved(profile: HealthProfile) {
     setHealthProfile(profile);
     // Push the freshly calculated goal straight into the daily target the log page reads, so
     // the calorie ring updates immediately instead of waiting for a second manual save.
-    const calculated = computeNutritionTargets(profile).calories;
+    const calculated = computeNutritionTargets(profile)?.calories ?? null;
     setCalorieTarget(calculated);
-    setTargetText(String(calculated));
+    setTargetText(calculated === null ? "" : String(calculated));
   }
 
   async function confirmDelete() {
@@ -160,18 +259,60 @@ export default function ProfileScreen() {
 
         <View className="gap-3 rounded-2xl border border-[#E4DCCB] bg-surface p-4">
           <View className="flex-row items-center gap-3">
-            <View className="h-12 w-12 items-center justify-center rounded-full bg-surface-sunken">
-              <Ionicons name="person" size={22} color={colors.inkMuted} />
-            </View>
-            <View className="flex-1">
-              <ScalableText className="text-base font-bold text-ink">
-                {tl("Signed in", "已登入")}
-              </ScalableText>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel={tl("Profile photo options", "頭像選項")}
+              disabled={avatarBusy}
+              onPress={() => setPhotoMenuOpen(true)}
+              className="active:opacity-70"
+            >
+              <Avatar uri={avatarUrl} size={48} fallbackIcon="person" />
+              {/* A small camera badge says the circle can be tapped. */}
+              <View className="absolute -bottom-0.5 -right-0.5 h-5 w-5 items-center justify-center rounded-full border-2 border-surface bg-ink">
+                <Ionicons name="camera" size={10} color="#FFFFFF" />
+              </View>
+              {avatarBusy ? (
+                <View className="absolute inset-0 items-center justify-center rounded-full bg-black/30">
+                  <ActivityIndicator color="#FFFFFF" />
+                </View>
+              ) : null}
+            </Pressable>
+            {/* The name family members see, in place of "Signed in". Tapping anywhere here edits it. */}
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel={
+                displayName ? tl("Change your name", "更改名稱") : tl("Add your name", "填你個名")
+              }
+              onPress={() => setNameDialogOpen(true)}
+              className="min-h-[44px] flex-1 justify-center active:opacity-70"
+            >
+              <View className="flex-row items-center gap-1.5">
+                <ScalableText
+                  className={`shrink text-base font-bold ${displayName ? "text-ink" : "text-ink-muted"}`}
+                  numberOfLines={1}
+                >
+                  {displayName ?? tl("Add your name", "填你個名")}
+                </ScalableText>
+                <Ionicons name="pencil" size={14} color={colors.inkMuted} />
+              </View>
               <ScalableText className="text-xs text-ink-muted" numberOfLines={1}>
                 {user?.email ?? tl("Synced to your account", "已同步到你的帳戶")}
               </ScalableText>
-            </View>
+            </Pressable>
           </View>
+          {avatarError ? (
+            <ScalableText className="text-xs text-[#C0392B]">
+              {avatarError === "save"
+                ? tl(
+                    "Your photo could not be saved. Please check your connection and try again.",
+                    "未能儲存頭像，請檢查網絡後再試。",
+                  )
+                : tl(
+                    "Your photo could not be removed. Please check your connection and try again.",
+                    "未能移除頭像，請檢查網絡後再試。",
+                  )}
+            </ScalableText>
+          ) : null}
           {canChangePassword ? (
             <Pressable
               accessibilityRole="button"
@@ -225,23 +366,8 @@ export default function ProfileScreen() {
                   {t("auth.biometricEnableFailed", { method: biometricName })}
                 </ScalableText>
               )}
-              {/* Said plainly, because it changes what the button below does. Signing out keeps the
-                  session alive behind the sensor so the shortcut still works next time. */}
-              {biometric.enabled && !biometricError && (
-                <ScalableText className="text-xs text-ink-muted">
-                  {t("auth.biometricSignOutNotice", { method: biometricName })}
-                </ScalableText>
-              )}
             </View>
           )}
-          <Button
-            label={tl("Sign out", "登出")}
-            icon="log-out-outline"
-            variant="secondary"
-            onPress={() => {
-              void signOut();
-            }}
-          />
         </View>
 
         <View className="gap-3 rounded-2xl border border-[#E4DCCB] bg-surface p-4">
@@ -337,10 +463,12 @@ export default function ProfileScreen() {
             <View className="flex-1">
               <ScalableText className="text-base font-bold text-ink">{t("health.title")}</ScalableText>
               <ScalableText className="text-xs text-ink-muted">
-                {targets ? t("health.subtitle") : t("health.summaryUnset")}
+                {healthProfile ? t("health.subtitle") : t("health.summaryUnset")}
               </ScalableText>
             </View>
           </View>
+
+          {healthProfile && !targets ? <TargetCoverageNote coverage={targetCoverage(healthProfile)} /> : null}
 
           {targets && (
             <View className="gap-1">
@@ -356,9 +484,9 @@ export default function ProfileScreen() {
           )}
 
           <Button
-            label={targets ? t("health.edit") : t("health.setup")}
-            icon={targets ? "create-outline" : "calculator-outline"}
-            variant={targets ? "secondary" : "primary"}
+            label={healthProfile ? t("health.edit") : t("health.setup")}
+            icon={healthProfile ? "create-outline" : "calculator-outline"}
+            variant={healthProfile ? "secondary" : "primary"}
             onPress={() => setHealthSheetOpen(true)}
           />
 
@@ -398,6 +526,16 @@ export default function ProfileScreen() {
             <LegalLinks align="start" />
           </View>
         </View>
+
+        {/* Account exits sit together at the end, with the permanent one last. */}
+        <Button
+          label={tl("Sign out", "登出")}
+          icon="log-out-outline"
+          variant="secondary"
+          onPress={() => {
+            void signOut();
+          }}
+        />
 
         <View className="gap-2">
           <Pressable
@@ -462,6 +600,17 @@ export default function ProfileScreen() {
         initial={healthProfile}
         onClose={() => setHealthSheetOpen(false)}
         onSaved={handleHealthSaved}
+      />
+      <ActionSheet
+        visible={photoMenuOpen}
+        options={photoOptions}
+        onClose={() => setPhotoMenuOpen(false)}
+      />
+      <NameDialog
+        visible={nameDialogOpen}
+        initial={displayName}
+        onSave={saveName}
+        onClose={() => setNameDialogOpen(false)}
       />
       <ConfirmDialog
         visible={deleteOpen}

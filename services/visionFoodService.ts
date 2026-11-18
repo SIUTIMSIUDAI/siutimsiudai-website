@@ -1,6 +1,7 @@
 import { FoodRecognitionResult } from "@/types";
 import { HK_DISHES, HkDish } from "@/constants/hkDishes";
 import { sanitizeMicros } from "@/utils/micros";
+import { parseAddedSugar } from "@/utils/addedSugar";
 import { isSupabaseConfigured, supabase } from "./supabase";
 import { classifyInvokeError, InvokeFailure } from "./functionError";
 import { delay } from "./util";
@@ -60,18 +61,22 @@ function toRecognitionRow(raw: unknown): FoodRecognitionResult | null {
   const unitZh = typeof r.unitZh === "string" && r.unitZh.trim() ? r.unitZh.trim() : unit;
   const c = Number(r.confidence);
   const micros = sanitizeMicros(r.micros);
+  const carbs = toNonNegative(r.carbs);
+  const addedSugar = parseAddedSugar(r.addedSugar, carbs);
   return {
     name: name || nameZh,
     nameZh: nameZh || name,
     calories: toNonNegative(r.calories),
     protein: toNonNegative(r.protein),
-    carbs: toNonNegative(r.carbs),
+    carbs,
     fat: toNonNegative(r.fat),
+    fiber: toNonNegative(r.fiber),
     // Deliberately middling default: an unlabelled guess should not wear a high-confidence badge.
     confidence: Number.isFinite(c) ? Math.min(1, Math.max(0, c)) : 0.6,
     portionLabel: unit,
     portionLabelZh: unitZh,
     ...(micros ? { micros } : {}),
+    ...(addedSugar !== undefined ? { addedSugar } : {}),
   };
 }
 
@@ -95,7 +100,8 @@ async function recognizeViaProxy(imageBase64: string): Promise<VisionFoodOutcome
 
 function toResult(dish: HkDish, confidence: number): FoodRecognitionResult {
   const { keywords, ...macros } = dish;
-  return { ...macros, confidence };
+  // Curated HK dishes carry no measured fibre; honest 0 in the offline demo rather than a guess.
+  return { ...macros, fiber: 0, confidence };
 }
 
 // Rotate through a few photogenic dishes so repeated captures during an offline demo vary.

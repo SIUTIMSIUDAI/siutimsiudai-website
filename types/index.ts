@@ -10,12 +10,29 @@ export type LogSource = "photo" | "voice" | "barcode" | "label" | "manual";
 
 // Cha-chaan-teng-style order tweaks the user can tick on a logged item. Each one deducts a
 // fixed macro delta (see utils/customizations.ts) and is fully reversible.
-export type MealCustomization = "less_sugar" | "less_rice";
+export type MealCustomization = "less_sugar" | "no_sugar" | "less_rice";
 
-export type RecipeSourceType = "url" | "ocr" | "manual";
+export type RecipeSourceType = "url" | "ocr" | "manual" | "photo";
 
 /** Units we persist in. Everything is normalised to one of these. */
 export type CanonicalUnit = "g" | "ml" | "piece";
+
+/**
+ * Units a pantry item or scan result can carry: the canonical three plus the real-world count units
+ * a fridge holds ("3 boxes of blueberries", "5 bottles of water"). Recipes and grocery lists stay on
+ * CanonicalUnit. The list and its labels live in constants/pantryUnits.ts.
+ */
+export type PantryUnit =
+  | CanonicalUnit
+  | "box"
+  | "carton"
+  | "bottle"
+  | "jar"
+  | "can"
+  | "pack"
+  | "bag"
+  | "bunch"
+  | "loaf";
 
 export type MeasurementSystem = "metric" | "imperial" | "hk_market";
 
@@ -24,6 +41,7 @@ export interface MacroNutrients {
   protein: number; // grams
   carbs: number; // grams
   fat: number; // grams
+  fiber: number; // grams
 }
 
 // --- Health profile & daily nutrient needs ---
@@ -34,6 +52,10 @@ export type ActivityLevel = "sedentary" | "light" | "moderate" | "active" | "ver
 
 export type WeightGoal = "lose" | "maintain" | "gain" | "muscle";
 
+// Asked of women only, and optional. Either answer means the app shows a talk-to-your-doctor note
+// instead of targets (utils/nutritionTargets targetCoverage).
+export type LifeStage = "pregnant" | "breastfeeding";
+
 // What the user enters. Metric only (cm / kg) since that is the HK norm.
 export interface HealthProfile {
   sex: Sex;
@@ -42,12 +64,12 @@ export interface HealthProfile {
   weightKg: number;
   activityLevel: ActivityLevel;
   goal: WeightGoal;
+  lifeStage?: LifeStage | null;
 }
 
 // Per-meal micronutrient amounts. These are the premium "vitamins & minerals" set. The daily
-// tracker charts five of them (iron, calcium, potassium, vitamin C, vitamin D); sodium is captured
-// when a source provides it but shown as a ceiling elsewhere, and fibre stays a macro and is never
-// gated here. Every field is optional because a capture (photo/voice AI, label scan) may only know
+// tracker charts all six (utils/micros TRACKED_MICRO_KEYS), sodium as a ceiling rather than a target;
+// fibre stays a macro and is never gated here. Every field is optional because a capture (photo/voice AI, label scan) may only know
 // a subset. Retained in history for paid tiers only, stripped to null for free users at the save
 // path (see retainMicrosForTier in stores/nutritionStore).
 export interface EntryMicronutrients {
@@ -60,7 +82,7 @@ export interface EntryMicronutrients {
 }
 
 // One micronutrient reference line. isLimit marks a ceiling (e.g. sodium) rather than a
-// floor to reach.
+// floor to reach. status and sourceId trace it to its row in constants/nutrientReference.
 export interface MicronutrientTarget {
   key: string;
   label: string;
@@ -68,14 +90,26 @@ export interface MicronutrientTarget {
   amount: number;
   unit: string; // "mg" | "mcg" | "g"
   isLimit: boolean;
+  status: "verified" | "partial";
+  sourceId: string;
+}
+
+// WHO upper limits in grams for the day's energy. Kept for when food logging records these
+// nutrients; not shown yet.
+export interface NutrientLimits {
+  freeSugar: number;
+  saturatedFat: number;
+  transFat: number;
 }
 
 // The full daily target set computed from a HealthProfile.
 export interface NutritionTargets extends MacroNutrients {
-  fiber: number; // grams
   bmr: number; // basal metabolic rate, kcal
-  tdee: number; // maintenance energy, kcal
+  tdee: number; // Mifflin maintenance energy, kcal
+  maintenance: number; // tdee after the ±10% check against the Chinese EER, kcal
+  eer: number | null; // the verified Chinese EER that check used, or null where there is none
   micros: MicronutrientTarget[];
+  limits: NutrientLimits;
 }
 
 export interface Profile {
@@ -99,10 +133,14 @@ export interface FoodEntry extends MacroNutrients {
   imageUri: string | null;
   barcode: string | null;
   loggedAt: string;
-  // Active order tweaks (少甜 / 少底). The stored macros above are always the untweaked
+  // Active order tweaks (少甜 / 走甜 / 少底). The stored macros above are always the untweaked
   // base; effective values are derived on read via utils/customizations.ts, so toggling
   // is lossless.
   customizations?: MealCustomization[];
+  // Grams of sugar added when it was made (sugar, syrup, honey, condensed milk), estimated by the
+  // AI at logging: what 少甜 halves and 走甜 removes. 0 for none (and for packaged products, whose
+  // sugar can't be taken out); absent when there is no estimate (older or typed-in entries).
+  addedSugar?: number;
   // Premium per-meal vitamins & minerals. Only retained in history for paid tiers; the save
   // path drops it to null for free users (see retainMicrosForTier). Absent on today's entries
   // since no capture flow populates it yet, but the gate is codified for when micro capture ships.
@@ -124,6 +162,8 @@ export interface SavedMeal extends MacroNutrients {
   defaultMealType: MealType;
   useCount: number;
   lastUsedAt: string | null;
+  // Added-sugar estimate carried from the logged meal it was saved from, for 少甜 / 走甜.
+  addedSugar?: number;
 }
 
 export interface RecipeIngredient {
@@ -168,11 +208,36 @@ export interface Recipe {
   // Set once a URL-imported recipe has had its English title/ingredients/steps rendered into
   // Traditional Chinese by translationService, so the lazy translation runs at most once.
   zhTranslated?: boolean;
+  // One serving's estimated nutrition, filled in the first time the recipe is opened.
+  nutrition?: RecipeNutrition | null;
 }
 
 export interface RecipeHealthySnapshot {
   ingredients: RecipeIngredient[];
   steps: RecipeStep[];
+  // The estimate for the original ingredients, so undoing the swaps brings it back without a call.
+  nutrition?: RecipeNutrition | null;
+}
+
+/**
+ * One serving's estimated nutrition, saved on the recipe (see utils/recipeNutrition.ts). `basis`
+ * fingerprints the one-serving ingredient list it was estimated from: a changed list is estimated
+ * again, a rescaled one (same serving, more servings) is not.
+ */
+export interface RecipeNutrition {
+  perServing: MacroNutrients;
+  // The vitamins and minerals the diary tracks (sodium among them), or null when the estimator
+  // returned none.
+  micros: {
+    iron: number;
+    calcium: number;
+    potassium: number;
+    sodium: number;
+    vitaminC: number;
+    vitaminD: number;
+  } | null;
+  basis: string;
+  estimatedAt: string; // ISO
 }
 
 export interface PantryItem {
@@ -181,7 +246,7 @@ export interface PantryItem {
   name: string;
   nameZh: string;
   quantity: number;
-  unit: CanonicalUnit;
+  unit: PantryUnit;
   inStock: boolean;
   updatedAt: string;
 }
@@ -245,6 +310,8 @@ export interface FoodRecognitionResult extends MacroNutrients {
   // Premium per-serving vitamins & minerals the vision AI estimated for this dish. Threaded into
   // the logged entry (paid tiers) to feed the daily micronutrient tracker.
   micros?: EntryMicronutrients;
+  // Grams of sugar added when it was made, for 少甜 / 走甜. Absent when the reply had none.
+  addedSugar?: number;
 }
 
 // One raw ingredient the pantry vision service thinks it saw in a photo. Deliberately NOT
@@ -256,7 +323,7 @@ export interface ScannedIngredient {
   name: string;
   nameZh: string;
   quantity: number;
-  unit: CanonicalUnit;
+  unit: PantryUnit;
   confidence?: number; // 0..1 from the model; undefined for manually added rows
 }
 
@@ -269,6 +336,8 @@ export interface ParsedMeal extends MacroNutrients {
   // Premium per-serving vitamins & minerals the NLP AI estimated for this dish. Threaded into the
   // logged entry (paid tiers) to feed the daily micronutrient tracker.
   micros?: EntryMicronutrients;
+  // Grams of sugar added when it was made, for 少甜 / 走甜. Absent when the reply had none.
+  addedSugar?: number;
 }
 
 export interface BarcodeProduct extends MacroNutrients {

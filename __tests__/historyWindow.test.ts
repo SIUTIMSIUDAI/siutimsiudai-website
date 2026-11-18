@@ -1,10 +1,12 @@
 // The history gate is a paywall boundary (free users get today only), so its date math gets
 // pinned here. Everything is pure and takes an explicit `today`, so no clock mocking is needed.
-// expo-router is stubbed only so importing the hook module (which references `router`) stays
-// side-effect free.
-jest.mock("expo-router", () => ({ router: { push: jest.fn() } }));
 
-import { daysAgo, isWithinHistoryWindow, HISTORY_WINDOW_DAYS } from "@/hooks/useFeatureAccess";
+import {
+  daysAgo,
+  isBackfillableDate,
+  isWithinHistoryWindow,
+  HISTORY_WINDOW_DAYS,
+} from "@/utils/historyWindow";
 
 const TODAY = "2026-07-05";
 
@@ -49,6 +51,34 @@ describe("isWithinHistoryWindow", () => {
 
   it("treats future dates as inside the window", () => {
     expect(isWithinHistoryWindow("2026-07-10", TODAY)).toBe(true);
+  });
+});
+
+// Adding a forgotten meal is allowed on any past day the History strip shows (35 days, today
+// included), so the oldest backfillable day is 34 days back.
+describe("isBackfillableDate", () => {
+  it("allows yesterday", () => {
+    expect(isBackfillableDate("2026-07-04", TODAY)).toBe(true);
+  });
+
+  it("allows the oldest day on the History strip, 34 days back", () => {
+    expect(isBackfillableDate("2026-06-01", TODAY)).toBe(true);
+  });
+
+  it("refuses a day older than the strip, 35 days back", () => {
+    expect(isBackfillableDate("2026-05-31", TODAY)).toBe(false);
+  });
+
+  it("refuses today, which the Log tab already covers", () => {
+    expect(isBackfillableDate(TODAY, TODAY)).toBe(false);
+  });
+
+  it("refuses a future day", () => {
+    expect(isBackfillableDate("2026-07-06", TODAY)).toBe(false);
+  });
+
+  it("refuses an unparseable date key", () => {
+    expect(isBackfillableDate("not-a-date", TODAY)).toBe(false);
   });
 });
 

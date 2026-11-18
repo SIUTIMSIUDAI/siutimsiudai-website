@@ -84,6 +84,7 @@ describe("reason to i18n key maps", () => {
   it("maps every known accept reason and falls back generically", () => {
     expect(acceptReasonKey("expired")).toBe("family.errExpired");
     expect(acceptReasonKey("already_linked")).toBe("family.errAlreadyLinked");
+    expect(acceptReasonKey("manages_family")).toBe("family.errManagesFamily");
     expect(acceptReasonKey("self")).toBe("family.errSelf");
     expect(acceptReasonKey("revoked")).toBe("family.errInvalid");
     expect(acceptReasonKey("something_new")).toBe("family.errAcceptGeneric");

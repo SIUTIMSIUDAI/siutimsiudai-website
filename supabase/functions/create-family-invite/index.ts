@@ -25,17 +25,15 @@
 // Runs in the Supabase Deno runtime, excluded from the app tsconfig. `Deno` is a runtime global.
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { reportServerError } from "../_shared/sentry.ts";
+import { hasActiveMax } from "../_shared/maxEntitlement.ts";
+import { ensureOwnGroup } from "../_shared/familyGroup.ts";
 
 const CORS: Record<string, string> = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
   "Access-Control-Allow-Methods": "POST, OPTIONS",
 };
-
-// The entitlement id that unlocks Max. Mirrors ENTITLEMENT_TIER_MAP in stores/useSubscriptionStore
-// and MAX_ENTITLEMENT_ID in services/revenueCatService. Self-contained here: the Edge runtime cannot
-// import the app's modules.
-const MAX_ENTITLEMENT_ID = "max_tier";
 
 // The public landing domain that hosts the AASA / assetlinks files and the /invite page. Keep in
 // lockstep with INVITE_WEB_BASE in utils/familyInvite.ts.
@@ -64,28 +62,6 @@ async function sha256Hex(input: string): Promise<string> {
   return Array.from(new Uint8Array(digest))
     .map((b) => b.toString(16).padStart(2, "0"))
     .join("");
-}
-
-// Ask RevenueCat whether this app user currently holds an active Max entitlement. The client keys the
-// RevenueCat subscriber by the Supabase user id (Purchases.logIn(userId) in identifyUser), so we look
-// the subscriber up by that same id. Returns "error" (distinct from false) so the caller can fail
-// closed on any transport/API problem rather than silently treating it as "not Max".
-async function hasActiveMax(appUserId: string, secretKey: string): Promise<boolean | "error"> {
-  try {
-    const res = await fetch(
-      `https://api.revenuecat.com/v1/subscribers/${encodeURIComponent(appUserId)}`,
-      { headers: { Authorization: `Bearer ${secretKey}`, "Content-Type": "application/json" } },
-    );
-    if (!res.ok) return "error";
-    const body = await res.json();
-    const ent = body?.subscriber?.entitlements?.[MAX_ENTITLEMENT_ID];
-    if (!ent) return false;
-    // A null expiry is a non-expiring grant; otherwise it must be in the future to count as active.
-    const expires = ent.expires_date as string | null | undefined;
-    return expires == null || Date.parse(expires) > Date.now();
-  } catch {
-    return "error";
-  }
 }
 
 Deno.serve(async (req: Request) => {
@@ -127,50 +103,11 @@ Deno.serve(async (req: Request) => {
   if (maxState === "error") return json({ error: "verification_failed" }, 502);
   if (maxState === false) return json({ error: "max_required" }, 403);
 
-  // Find-or-create the caller's one household. The unique index family_groups_one_per_owner keeps it
-  // to exactly one per owner; on a lost insert race we simply re-select the winner's row.
-  let groupId: string | null = null;
-  let maxMembers = 6;
-  {
-    const { data: existing } = await admin
-      .from("family_groups")
-      .select("id, max_members")
-      .eq("owner_id", uid)
-      .maybeSingle();
-    if (existing) {
-      groupId = existing.id;
-      maxMembers = existing.max_members;
-    } else {
-      const { data: inserted, error: insErr } = await admin
-        .from("family_groups")
-        .insert({ owner_id: uid })
-        .select("id, max_members")
-        .single();
-      if (!insErr && inserted) {
-        groupId = inserted.id;
-        maxMembers = inserted.max_members;
-      } else {
-        const { data: retry } = await admin
-          .from("family_groups")
-          .select("id, max_members")
-          .eq("owner_id", uid)
-          .maybeSingle();
-        if (retry) {
-          groupId = retry.id;
-          maxMembers = retry.max_members;
-        }
-      }
-    }
-  }
-  if (!groupId) return json({ error: "insert_failed" }, 500);
-
-  // Ensure the caller is recorded as this group's manager (idempotent).
-  await admin
-    .from("family_members")
-    .upsert({ group_id: groupId, user_id: uid, role: "manager" }, {
-      onConflict: "group_id,user_id",
-      ignoreDuplicates: true,
-    });
+  // Find-or-create the caller's one household, with the caller as its manager. See
+  // ../_shared/familyGroup.ts.
+  const group = await ensureOwnGroup(admin, uid);
+  if (!group) return json({ error: "insert_failed" }, 500);
+  const { groupId, maxMembers } = group;
 
   // Enforce the group-size cap (1 manager + up to 5 dependents). A full household can't be invited to.
   const { count } = await admin
@@ -193,6 +130,7 @@ Deno.serve(async (req: Request) => {
   });
   if (invErr) {
     console.error("[create-family-invite] invitation insert failed:", invErr.message);
+    reportServerError(invErr, { fn: "create-family-invite", code: "insert_failed", status: 500 });
     return json({ error: "insert_failed" }, 500);
   }
 

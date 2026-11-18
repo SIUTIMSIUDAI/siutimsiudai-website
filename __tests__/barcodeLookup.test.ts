@@ -47,6 +47,7 @@ describe("barcodeService.lookup — reading a real record", () => {
           proteins_serving: 4.5,
           carbohydrates_serving: 2.75,
           fat_serving: 3,
+          fiber_serving: 1.5,
         },
       }),
     );
@@ -56,6 +57,7 @@ describe("barcodeService.lookup — reading a real record", () => {
     expect(p).not.toBeNull();
     expect(p!.calories).toBe(55); // the serving, not the 100 ml figure
     expect(p!.protein).toBe(4.5);
+    expect(p!.fiber).toBe(1.5); // fibre read from the per-serving figure like the other macros
     expect(p!.servingSize).toBe("250 mL");
     expect(p!.brand).toBe("Vitasoy Calci-Plus Hi-Calcium"); // first brand only
     expect(p!.isHongKong).toBe(true);
@@ -128,6 +130,7 @@ describe("barcodeService.lookup — reading a real record", () => {
     expect(p!.protein).toBe(0);
     expect(p!.carbs).toBe(0);
     expect(p!.fat).toBe(0);
+    expect(p!.fiber).toBe(0); // fibre absent on the record reads as 0, not invented
     expect(p!.brand).toBeNull();
   });
 });

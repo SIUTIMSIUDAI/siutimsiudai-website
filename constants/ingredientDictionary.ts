@@ -65,6 +65,14 @@ export function canonicalizeIngredient(raw: string): string {
   return norm;
 }
 
+/**
+ * The canonical key for a term only when it IS a known name or alias, with no partial Chinese
+ * matching: "雞湯" (stock) is not chicken just because it contains 雞. Null when unknown.
+ */
+export function exactCanonical(raw: string): string | null {
+  return aliasIndex.get(normalizeTerm(raw)) ?? null;
+}
+
 export function dictionaryEntry(canonical: string): IngredientDictionaryEntry | undefined {
   return INGREDIENT_DICTIONARY.find((e) => e.canonical === canonical);
 }

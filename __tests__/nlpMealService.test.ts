@@ -36,10 +36,14 @@ describe("parseMealResponse", () => {
 
   it("clamps negative / non-numeric macros to 0 and rounds the rest", () => {
     const meals = parseMealResponse(
-      { meals: [{ name: "Mystery", nameZh: "神秘", calories: "-50", protein: "abc", carbs: 22.6, fat: 7.2 }] },
+      {
+        meals: [
+          { name: "Mystery", nameZh: "神秘", calories: "-50", protein: "abc", carbs: 22.6, fat: 7.2, fiber: 3.6 },
+        ],
+      },
       "dinner",
     );
-    expect(meals?.[0]).toMatchObject({ calories: 0, protein: 0, carbs: 23, fat: 7 });
+    expect(meals?.[0]).toMatchObject({ calories: 0, protein: 0, carbs: 23, fat: 7, fiber: 4 });
   });
 
   it("falls back to the detected meal type when the model's is missing or invalid", () => {
@@ -84,5 +88,26 @@ describe("parseMealResponse", () => {
       "snack",
     );
     expect(meals?.[0].micros).toBeUndefined();
+  });
+});
+
+describe("parseMealResponse: added sugar for 少甜 / 走甜", () => {
+  it("carries the model's added sugar, capped at the item's carbs", () => {
+    const [tea, cake] = parseMealResponse(
+      {
+        meals: [
+          { name: "Iced lemon tea", nameZh: "凍檸茶", calories: 160, carbs: 38, addedSugar: 22 },
+          { name: "Sponge cake", nameZh: "海綿蛋糕", calories: 200, carbs: 25, addedSugar: 40 },
+        ],
+      },
+      "lunch",
+    )!;
+    expect(tea.addedSugar).toBe(22);
+    expect(cake.addedSugar).toBe(25);
+  });
+
+  it("leaves added sugar out when an older server doesn't send it", () => {
+    const [meal] = parseMealResponse({ meals: [{ name: "Rice", nameZh: "白飯", calories: 200, carbs: 45 }] }, "lunch")!;
+    expect(meal).not.toHaveProperty("addedSugar");
   });
 });

@@ -11,6 +11,7 @@ import {
 import { Ionicons } from "@expo/vector-icons";
 import { ScalableText } from "./ScalableText";
 import { Button } from "./Button";
+import { PhotoRecipeTab } from "./PhotoRecipeTab";
 import { colors } from "@/constants/theme";
 import { useLocale } from "@/hooks/useLocale";
 import { useFeatureAccess } from "@/hooks/useFeatureAccess";
@@ -28,10 +29,11 @@ interface Props {
 // No "ocr" tab. RecipeSourceType still carries "ocr" for recipes captured by older builds, but
 // there is no card reader to capture a new one with: the old one returned the same sample recipe
 // for every photo, which is worse than not offering the feature.
-type Tab = "url" | "manual";
+type Tab = "url" | "photo" | "manual";
 
 const TABS: { key: Tab; icon: keyof typeof Ionicons.glyphMap; labelKey: string }[] = [
   { key: "url", icon: "link-outline", labelKey: "recipes.fromUrl" },
+  { key: "photo", icon: "camera-outline", labelKey: "recipes.fromPhoto" },
   { key: "manual", icon: "create-outline", labelKey: "recipes.manual" },
 ];
 
@@ -299,6 +301,8 @@ export function AddRecipeSheet({ visible, onClose, onCreated }: Props) {
                   </View>
                 </Pressable>
               ))}
+
+            {tab === "photo" && <PhotoRecipeTab onCreated={finish} />}
 
             {tab === "manual" && (
               <View className="gap-3">

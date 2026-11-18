@@ -11,8 +11,11 @@ import { IngredientRow } from "@/components/IngredientRow";
 import { SubstitutionSheet } from "@/components/SubstitutionSheet";
 import { CartExportButton } from "@/components/CartExportButton";
 import { CartExportSheet } from "@/components/CartExportSheet";
+import { RecipeNutritionCard } from "@/components/RecipeNutritionCard";
+import { MissingIngredientsCallout } from "@/components/MissingIngredientsCallout";
 import { PlanPickerSheet } from "@/components/PlanPickerSheet";
 import { ConfirmDialog } from "@/components/ConfirmDialog";
+import { PantryUpdateSheet } from "@/components/PantryUpdateSheet";
 import { SourcesLink } from "@/components/SourcesLink";
 import { healthySwapService } from "@/services";
 import { colors } from "@/constants/theme";
@@ -22,7 +25,7 @@ import { useAppStore } from "@/stores/appStore";
 import { useRecipeStore } from "@/stores/recipeStore";
 import { useMealPlanStore } from "@/stores/mealPlanStore";
 import { usePantryStore } from "@/stores/pantryStore";
-import { ingredientCanonicalKey, missingCanonicalKeys } from "@/utils/cartExport";
+import { ingredientCanonicalKey, missingItemsFromRecipe } from "@/utils/cartExport";
 import { MeasurementSystem, RecipeIngredient } from "@/types";
 
 export default function RecipeDetailScreen() {
@@ -44,15 +47,21 @@ export default function RecipeDetailScreen() {
   const [planOpen, setPlanOpen] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [cartOpen, setCartOpen] = useState(false);
+  const [cookedOpen, setCookedOpen] = useState(false);
   const [healthyLoading, setHealthyLoading] = useState(false);
 
-  // The pantry-gap set: which required ingredients are not on hand. Derived from the exact same
-  // merge path the cart-export sheet uses, so a "Missing" badge on a row and that ingredient
-  // appearing in the "Buy missing ingredients" list can never disagree.
+  // The pantry gap, computed once from the exact merge path the cart-export sheet uses, then reused
+  // two ways: the callout below "Make it Healthy" lists what's short (and by how much), and the
+  // key set marks the matching rows in the full ingredient list. One source of truth, so a row's
+  // "Missing" badge, the callout, and the "Buy missing ingredients" list can never disagree.
   const pantry = usePantryStore((s) => s.items);
-  const missingKeys = useMemo(
-    () => (recipe ? missingCanonicalKeys(recipe, pantry) : new Set<string>()),
+  const missingItems = useMemo(
+    () => (recipe ? missingItemsFromRecipe(recipe, pantry) : []),
     [recipe, pantry],
+  );
+  const missingKeys = useMemo(
+    () => new Set(missingItems.map(ingredientCanonicalKey)),
+    [missingItems],
   );
 
   // Remove the recipe and any meal-plan assignments that point at it, then leave the now
@@ -143,6 +152,9 @@ export default function RecipeDetailScreen() {
           </View>
         </View>
 
+        {/* One serving: does it fit today, and what does it give you (calories free, the rest Pro). */}
+        <RecipeNutritionCard recipe={recipe} />
+
         <View className="gap-4 rounded-2xl border border-[#E4DCCB] bg-surface p-4">
           <View className="flex-row items-center justify-between">
             <ScalableText className="text-sm font-semibold text-ink-muted">
@@ -191,6 +203,11 @@ export default function RecipeDetailScreen() {
               healthyApplied: applying swaps is a Pro perk, and a free user reading the button's
               promise deserves the same link as a paying one. */}
           <SourcesLink />
+
+          {/* What the pantry is short of for this dish, marked with an X and the amount still to
+              buy. Sits right above the full list so the gap is the first thing read; the list below
+              keeps its own per-row "Missing" badges. Renders nothing when nothing is short. */}
+          <MissingIngredientsCallout items={missingItems} />
 
           <View className="rounded-2xl border border-[#E4DCCB] bg-surface px-4 py-1">
             {recipe.ingredients.map((ing) => (
@@ -247,6 +264,13 @@ export default function RecipeDetailScreen() {
             icon="flame"
             onPress={() => router.push({ pathname: "/cook/[id]", params: { id: recipe.id } })}
           />
+          {/* Cooked without cook mode: the same pantry update that cook mode's Finish offers. */}
+          <Button
+            label={t("recipes.cookedIt")}
+            icon="checkmark-done"
+            variant="secondary"
+            onPress={() => setCookedOpen(true)}
+          />
           <Button
             label={t("recipes.planAdd")}
             icon="calendar-outline"
@@ -270,6 +294,11 @@ export default function RecipeDetailScreen() {
       />
       <CartExportSheet visible={cartOpen} recipe={recipe} onClose={() => setCartOpen(false)} />
       <PlanPickerSheet visible={planOpen} recipeId={recipe.id} onClose={() => setPlanOpen(false)} />
+      <PantryUpdateSheet
+        visible={cookedOpen}
+        ingredients={recipe.ingredients}
+        onClose={() => setCookedOpen(false)}
+      />
       <ConfirmDialog
         visible={deleteOpen}
         title={t("recipes.deleteTitle")}

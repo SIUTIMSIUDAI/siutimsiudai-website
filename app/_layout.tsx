@@ -1,7 +1,11 @@
 import "../global.css";
 import "@/i18n";
 
+import * as Sentry from "@sentry/react-native";
+import { initSentry } from "@/services/sentry";
+
 import { useEffect, useState } from "react";
+import { AppState } from "react-native";
 import { Stack, useRootNavigationState, useRouter, useSegments } from "expo-router";
 import { StatusBar } from "expo-status-bar";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
@@ -16,6 +20,11 @@ import { SplashOverlay } from "@/components/SplashOverlay";
 import { configureRevenueCat } from "@/services/revenueCatService";
 import { useInviteDeepLink } from "@/hooks/useInviteDeepLink";
 import { isAtTarget, isPreAppRoute, resolveGate } from "@/utils/authGate";
+import { flushDirtyDates, syncAllWindowedDays } from "@/services/nutritionSyncService";
+import { importFamilyInbox } from "@/services/familyInboxService";
+
+// Bring up crash/error reporting as early as possible. No-op without a DSN or in dev (services/sentry.ts).
+initSentry();
 
 // The launch flow gate. Reads live store state, asks the pure resolver where the user belongs, and
 // redirects there — but only once the navigator is mounted and the stores have settled, so it
@@ -58,7 +67,7 @@ function useRouteGate() {
   }, [navState?.key, target, segments, router]);
 }
 
-export default function RootLayout() {
+function RootLayout() {
   const hasHydrated = useAppStore((s) => s.hasHydrated);
   const authReady = useAuthStore((s) => s.initialized);
   const [splashDone, setSplashDone] = useState(false);
@@ -84,6 +93,20 @@ export default function RootLayout() {
     configureRevenueCat(() => useAuthStore.getState().session?.user?.id).catch(() => {});
   }, []);
 
+  // On every return to foreground, retry any failed days and re-publish the windowed diary, and bring
+  // in any 食咗 the family's planner logged for us. Cheap and best-effort; no-ops for guests and when
+  // Supabase is unconfigured.
+  useEffect(() => {
+    const sub = AppState.addEventListener("change", (s) => {
+      if (s === "active") {
+        void flushDirtyDates();
+        void syncAllWindowedDays();
+        void importFamilyInbox();
+      }
+    });
+    return () => sub.remove();
+  }, []);
+
   useRouteGate();
   // Capture any family-invite deep link and resume onto the Accept screen once the user is past
   // the launch-flow gate (signed in, verified, profile complete).
@@ -106,9 +129,18 @@ export default function RootLayout() {
           <Stack.Screen name="cook/[id]" options={{ presentation: "fullScreenModal", animation: "fade" }} />
           <Stack.Screen name="subscription" options={{ presentation: "modal" }} />
           <Stack.Screen name="family/invite" />
+          <Stack.Screen name="family/plan" />
+          {/* Helper mode (姐姐煮飯模式): the plan in the helper's own language. */}
+          <Stack.Screen name="helper/index" />
+          <Stack.Screen name="helper/dish/[id]" />
+          <Stack.Screen name="helper/shopping" />
+          <Stack.Screen name="family/[memberId]" />
           <Stack.Screen name="invite/[token]" />
           <Stack.Screen name="pantry-scan" />
           <Stack.Screen name="pantry-review" />
+          {/* Manage The usual: edit / remove the saved quick-add templates. Reached from the
+              QuickAddRow header on the dashboard. */}
+          <Stack.Screen name="usuals" />
           {/* Citations for every health number the app shows (Guideline 1.4.1). Reachable from
               profile setup too, which sits BEFORE the tabs in the launch flow, so it must be a
               root-stack route rather than something nested under (tabs). */}
@@ -121,3 +153,6 @@ export default function RootLayout() {
     </GestureHandlerRootView>
   );
 }
+
+// Wrap the root so Sentry installs the app's error boundary. With tracing off this adds no perf cost.
+export default Sentry.wrap(RootLayout);

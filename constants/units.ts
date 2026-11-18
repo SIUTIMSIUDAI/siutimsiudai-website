@@ -38,7 +38,7 @@ export const MARKET_UNITS: MarketUnit[] = [
   { key: "catty", en: "catty", zh: "斤", system: "hk_market", base: "mass", gramsPerUnit: GRAMS_PER_CATTY },
   { key: "tael", en: "tael", zh: "兩", system: "hk_market", base: "mass", gramsPerUnit: GRAMS_PER_TAEL },
   { key: "bowl", en: "bowl", zh: "碗", system: "hk_market", base: "volume", mlPerUnit: ML_PER_BOWL },
-  { key: "piece", en: "piece", zh: "件", system: "metric", base: "count" },
+  { key: "piece", en: "piece", zh: "個", system: "metric", base: "count" },
 ];
 
 export const SYSTEM_LABELS: Record<MeasurementSystem, { en: string; zh: string }> = {

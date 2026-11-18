@@ -11,26 +11,20 @@ import { credentialMatchesUser } from "@/utils/biometricLogin";
 import { useAppStore } from "./appStore";
 import { useSubscriptionStore } from "./useSubscriptionStore";
 import { useFamilyStore } from "./familyStore";
-
-// The persisted stores that hold the user's own content. Cleared from the device on account
-// deletion so nothing personal is left at rest. Device preferences that are not personal data
-// (siutimsiudai-app: locale / units / onboarding) are left alone, and the subscription mirror is reset
-// separately by applySession(null).
-const PERSONAL_DATA_KEYS = [
-  "siutimsiudai-nutrition",
-  "siutimsiudai-recipes",
-  "siutimsiudai-pantry",
-  "siutimsiudai-meal-plan",
-  "siutimsiudai-grocery",
-  "siutimsiudai-saved-meals",
-  "siutimsiudai-family",
-];
+import { useFamilyPlanStore } from "./familyPlanStore";
+import { syncAllWindowedDays } from "@/services/nutritionSyncService";
+import { importFamilyInbox } from "@/services/familyInboxService";
+import { PERSONAL_DATA_KEYS, scopedKeyFor } from "@/utils/persistScope";
+import { reconcileDataScope } from "./dataScope";
 
 // Best-effort wipe of the on-device copy of the user's data. Runs only after the account is already
-// gone server-side, so a failure here must never block the sign-out that follows.
-async function wipeLocalUserData(): Promise<void> {
+// gone server-side, so a failure here must never block the sign-out that follows. Wipes the deleted
+// account's SCOPED keys — with scoping active its data no longer sits on the bare keys. Device
+// preferences that are not personal data (siutimsiudai-app: locale / units / onboarding) are left
+// alone, and the subscription mirror is reset separately by applySession(null).
+async function wipeLocalUserData(userId: string): Promise<void> {
   try {
-    await AsyncStorage.multiRemove(PERSONAL_DATA_KEYS);
+    await AsyncStorage.multiRemove(PERSONAL_DATA_KEYS.map((name) => scopedKeyFor(name, userId)));
   } catch {
     // Ignore: the account is deleted regardless; the keys clear on the next launch at worst.
   }
@@ -178,6 +172,21 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       if (event === "TOKEN_REFRESHED" || event === "SIGNED_IN") {
         void syncBiometricCredential(session);
       }
+      // Re-point on-device storage at whoever is now signed in (deduped per account), then — only
+      // once that reload has finished — publish this account's kept diary. Reconciling BEFORE the
+      // sync is what stops the previous account's leftover in-memory entries from uploading under the
+      // new account's id (the account-switch data-mixing bug).
+      void (async () => {
+        await reconcileDataScope(session?.user?.id ?? null);
+        if (event === "SIGNED_IN") {
+          // Publish any already-kept diary so a manager who links sees history without waiting for
+          // the next edit. Best-effort and windowed on the dependent's device.
+          void syncAllWindowedDays();
+        }
+        // Bring in any 食咗 the family's planner logged for this person, now that their own diary is
+        // the one loaded.
+        if (session) void importFamilyInbox();
+      })();
       // Supabase raises this when it recognises a recovery session itself. It does not fire on
       // every path we support (the manual verifyOtp the deep-link handler runs may not trigger
       // it), so the link resolution below sets the flag too. Both routes converge on the same
@@ -218,6 +227,9 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       // Re-assert after applySession, which clears both recovery flags when there is no session: a
       // recovery link that failed to produce one must not pin the user to the reset screen.
       if (recovery && data.session) set({ recoveryPending: true });
+      // Load this account's scoped data before the gate opens, so the first screen never renders the
+      // previous account's diary or pantry. Deduped against the INITIAL_SESSION event above.
+      await reconcileDataScope(data.session?.user?.id ?? null);
       set({ initialized: true });
     })();
   },
@@ -244,6 +256,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       // Clear any cached family roster and pending invite so the next account starts clean and a
       // previous user's household never leaks onto a shared device.
       useFamilyStore.getState().reset();
+      useFamilyPlanStore.getState().reset();
       // Detach from RevenueCat so the next account starts from its own anonymous receipt.
       forgetUser().catch(() => {});
     }
@@ -268,9 +281,15 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     // onAuthStateChange will also fire on the revoking path; clear locally for an instant response,
     // and because the preserving path makes no server call and so raises no event at all.
     get().applySession(null);
+    // Reload the personal stores under the guest scope. The revoking path also reconciles via its
+    // SIGNED_OUT event (deduped), but the biometric-preserving path raises no event, so this is the
+    // only reload on that path.
+    await reconcileDataScope(null);
   },
 
   deleteAccount: async () => {
+    // Capture the id before applySession(null) clears it: it names the scoped keys to wipe.
+    const deletedUserId = get().user?.id ?? null;
     const outcome = await authService.deleteAccount();
     if (!outcome.ok) return outcome;
     // Account is gone server-side: erase this device's copy of the user's data, then clear the
@@ -278,8 +297,10 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     // The keychain credential goes too, or the sign-in screen would offer Face ID for an account
     // that no longer exists.
     await biometricAuth.disable();
-    await wipeLocalUserData();
+    if (deletedUserId) await wipeLocalUserData(deletedUserId);
     get().applySession(null);
+    // Reload under the guest scope so the deleted account's data does not linger in memory.
+    await reconcileDataScope(null);
     return outcome;
   },
 }));

@@ -28,6 +28,18 @@ export function AiConsentSheet() {
     { icon: "chatbubble-ellipses-outline", text: tl("Meal descriptions you type", "你打嘅餐點描述") },
     { icon: "link-outline", text: tl("Recipe links you import", "你匯入嘅食譜連結") },
     { icon: "swap-horizontal-outline", text: tl("Ingredients you ask us to swap", "你要求更換嘅食材") },
+    // Opening a recipe estimates one serving's nutrition from its ingredient list (recipe card).
+    { icon: "nutrition-outline", text: tl("Ingredients of recipes you open, to estimate nutrition", "你打開嘅食譜材料，用嚟估算營養") },
+    // The weekly family plan (Max): plan-week gets the planner's pantry and everyone's "foods I don't
+    // eat" lists, without names, and translates the plan's recipes for a helper.
+    {
+      icon: "calendar-outline",
+      text: tl(
+        "For the family meal plan: your pantry list and the foods your family says they don't eat, allergies included",
+        "一週家庭餐單：你嘅存貨清單，同家人填咗唔食嘅食物（包括致敏食物）",
+      ),
+    },
+    { icon: "language-outline", text: tl("The family plan's recipes, to translate them for your helper", "家庭餐單嘅食譜，用嚟翻譯畀姐姐睇") },
   ];
 
   return (
@@ -61,8 +73,8 @@ export function AiConsentSheet() {
             </View>
             <ScalableText className="mt-3 px-1 text-xs leading-5 text-ink-faint">
               {tl(
-                "Your content is processed only to provide the feature and is never sold. You can still log meals and browse recipes manually without AI. See our Privacy Policy for details.",
-                "你嘅內容只會用嚟提供該功能，絕不出售。你亦可以唔用 AI，自行手動記錄餐點同瀏覽食譜。詳情請睇我哋嘅私隱政策。",
+                "Your content is processed only to provide the feature and is never sold. You can still log meals manually without AI. See our Privacy Policy for details.",
+                "你嘅內容只會用嚟提供該功能，絕不出售。你亦可以唔用 AI，自行手動記錄餐點。詳情請睇我哋嘅私隱政策。",
               )}
             </ScalableText>
           </ScrollView>
