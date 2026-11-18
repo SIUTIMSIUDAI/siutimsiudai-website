@@ -67,6 +67,14 @@ describe("translatePrompt", () => {
     expect(prompt).toContain('"steps":["Cook the rice.","Poach the chicken for 25 minutes."]');
     expect(prompt).not.toContain("590");
   });
+
+  it("asks for the everyday word for every ingredient, with an example in the helper's language", () => {
+    const fil = translatePrompt([dishToTranslate(row)!], "fil");
+    expect(fil).toContain("Translate every ingredient into the everyday word");
+    expect(fil).toContain("itlog, not egg");
+    expect(fil).not.toContain("keep its English name");
+    expect(translatePrompt([dishToTranslate(row)!], "id")).toContain("telur, not egg");
+  });
 });
 
 describe("pickTranslations", () => {

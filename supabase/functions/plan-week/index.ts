@@ -37,6 +37,7 @@ import { ensureOwnGroup } from "../_shared/familyGroup.ts";
 import {
   type CheckedDish,
   type Slot,
+  OUTLINE_TOKENS,
   PLAN_SYSTEM_PROMPT,
   REGEN_LIMIT,
   dayPrompt,
@@ -104,7 +105,7 @@ async function generateDay(input: Parameters<typeof dayPrompt>[0], slots: Slot[]
     parts: [{ text: dayPrompt(input) }],
     maxOutputTokens: TOKENS_PER_DISH * slots.length,
   });
-  return pickDayDishes(extractJson(text), slots, exclusions);
+  return pickDayDishes(extractJson(text, "dishes"), slots, exclusions);
 }
 
 // Charge one AI use per model call, before making it.
@@ -151,9 +152,9 @@ async function generate(admin: Admin, uid: string, body: Record<string, unknown>
     const outlineText = await vertexGenerateContent(MODEL, {
       system: PLAN_SYSTEM_PROMPT,
       parts: [{ text: outlinePrompt({ days, slots, pantry: body.pantry, exclusions }) }],
-      maxOutputTokens: 4096,
+      maxOutputTokens: OUTLINE_TOKENS,
     });
-    const outline = pickOutline(extractJson(outlineText), days, slots);
+    const outline = pickOutline(extractJson(outlineText, "days"), days, slots, exclusions);
     const allTitles = Array.from(outline.values()).map((o) => `${o.title} / ${o.titleZh}`);
 
     const results = await Promise.allSettled(
@@ -325,7 +326,7 @@ async function translate(admin: Admin, uid: string, rcSecret: string, body: Reco
         parts: [{ text: translatePrompt(group, language) }],
         maxOutputTokens: 1024 * group.length,
       });
-      return pickTranslations(extractJson(text), group);
+      return pickTranslations(extractJson(text, "dishes"), group);
     }),
   );
   let saved = 0;

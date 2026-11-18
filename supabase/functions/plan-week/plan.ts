@@ -1,7 +1,10 @@
 // Prompts, answer checking and week rules for plan-week, the weekly family meal plan (Max). Pure on
-// purpose: no Deno globals and no imports, so the app's Jest suite can test it (index.ts calls
-// Deno.serve at module scope and cannot be imported). The Edge runtime can't import the app's modules
-// either, so the slot and category lists below mirror constants/portionSizes.ts; keep them in step.
+// purpose: no Deno globals, and its one import is the pure exclusions.ts beside it, so the app's Jest
+// suite can test it (index.ts calls Deno.serve at module scope and cannot be imported). The Edge
+// runtime can't import the app's modules either, so the slot and category lists below mirror
+// constants/portionSizes.ts; keep them in step.
+
+import { alsoCovers, exclusionTerms, foldText, namesTerm } from "./exclusions.ts";
 
 export const PLAN_SLOTS = ["breakfast", "lunch", "dinner", "snack"] as const;
 export type Slot = (typeof PLAN_SLOTS)[number];
@@ -112,8 +115,10 @@ export const PLAN_SYSTEM_PROMPT = [
   "You are a practical Hong Kong home cook planning a week of family meals. Follow these rules strictly:",
   "",
   "1. NEVER USE (most important): never use anything listed under 'Never use', not as an ingredient,",
-  "   a garnish, a sauce or a stock. These are allergies and foods family members don't eat. When a",
-  "   dish would normally contain one, choose a different dish. When in doubt, leave it out.",
+  "   a garnish, a sauce or a stock. These are allergies and foods family members don't eat.",
+  "   An entry covers every food made from it, including those named in its brackets:",
+  "   pork includes ham, bacon, char siu, spare ribs, sausages and luncheon meat.",
+  "   When a dish would normally contain one, choose a different dish. When in doubt, leave it out.",
   "2. ONE PLATE PER SLOT: each meal slot is one complete plate for one person. Lunch and dinner are a",
   "   home-style main served with rice or noodles; include the rice or noodles in the ingredients and in",
   "   the nutrition. Breakfast and snacks are everyday Hong Kong home breakfasts and snacks.",
@@ -127,15 +132,28 @@ export const PLAN_SYSTEM_PROMPT = [
   "Chinese as used in Hong Kong.",
 ].join("\n");
 
+/** One 'Never use' line, with what a common exclusion also covers: "- pork (also: ham, bacon, ...)". */
+function neverUseLine(exclusion: string): string {
+  const also = alsoCovers(exclusion);
+  return also.length > 0 ? `- ${exclusion} (also: ${also.join(", ")})` : `- ${exclusion}`;
+}
+
 function familyLines(pantry: unknown, exclusions: string[]): string[] {
   return [
     "Never use:",
-    exclusions.length > 0 ? exclusions.map((e) => `- ${e}`).join("\n") : "- (nothing)",
+    exclusions.length > 0 ? exclusions.map(neverUseLine).join("\n") : "- (nothing)",
     "",
     "Pantry:",
     pantryLines(pantry) || "- (empty)",
   ];
 }
+
+/**
+ * The outline's output ceiling. A full week of names is about 1,100 tokens; the room is for a model
+ * that writes more than asked. gemini-2.5-flash wrote whole recipes into the outline and ran out at
+ * 4,096 every time for a 7-day week (2026-11-18). Vertex bills the tokens produced, not the ceiling.
+ */
+export const OUTLINE_TOKENS = 8192;
 
 /** Step one of a full week: just the dish names for every day and slot, so the week can vary. */
 export function outlinePrompt(input: { days: string[]; slots: Slot[]; pantry: unknown; exclusions: string[] }): string {
@@ -145,6 +163,7 @@ export function outlinePrompt(input: { days: string[]; slots: Slot[]; pantry: un
     "",
     ...familyLines(input.pantry, input.exclusions),
     "",
+    "Names only: no ingredients, steps or nutrition. Each day's recipes are written later.",
     "Respond with ONLY a JSON object, no prose, in exactly this shape:",
     '{"days": [{"date": "YYYY-MM-DD", "meals": [{"slot": "breakfast", "title": "English title", "titleZh": "中文菜名"}]}]}',
   ].join("\n");
@@ -280,17 +299,13 @@ export function checkDish(raw: unknown, slots: Slot[]): CheckedDish | null {
 /**
  * The second line of defence behind rule 1: a dish whose title or any ingredient names something a
  * member listed is dropped, so a slip by the model empties a slot rather than serving an allergen.
- * Literal matching only ("pork" catches "pork belly"; "shellfish" won't catch "shrimp", which is why
- * the app still asks the cook to check), and it errs towards dropping.
+ * Word matching, widened by exclusions.ts: "pork" also catches ham and 叉燒, "peanuts" catches peanut
+ * oil. A food outside its groups is matched by its own words only, which is why the app still asks
+ * the cook to check. It errs towards dropping.
  */
 export function breaksExclusions(dish: Pick<CheckedDish, "title" | "titleZh" | "ingredients">, exclusions: string[]): boolean {
-  const haystack = [dish.title, dish.titleZh, ...dish.ingredients.flatMap((i) => [i.name, i.nameZh])]
-    .join("\n")
-    .toLowerCase();
-  return exclusions.some((e) => {
-    const term = e.trim().toLowerCase();
-    return term.length > 0 && haystack.includes(term);
-  });
+  const haystack = foldText([dish.title, dish.titleZh, ...dish.ingredients.flatMap((i) => [i.name, i.nameZh])].join("\n"));
+  return exclusions.some((e) => exclusionTerms(e).some((t) => namesTerm(haystack, t)));
 }
 
 /** A day's dishes from a parsed answer {"dishes": [...]}: checked, one per slot, none that break an exclusion. */
@@ -306,11 +321,16 @@ export function pickDayDishes(parsed: unknown, slots: Slot[], exclusions: string
   return slots.filter((s) => bySlot.has(s)).map((s) => bySlot.get(s) as CheckedDish);
 }
 
-/** The week's outline from a parsed answer: dish names by "date|slot", for the requested days and slots only. */
+/**
+ * The week's outline from a parsed answer: dish names by "date|slot", for the requested days and slots
+ * only. A name that already breaks an exclusion is left out, so its day is planned afresh rather than
+ * written up and then dropped.
+ */
 export function pickOutline(
   parsed: unknown,
   days: string[],
   slots: Slot[],
+  exclusions: string[] = [],
 ): Map<string, { slot: Slot; title: string; titleZh: string }> {
   const out = new Map<string, { slot: Slot; title: string; titleZh: string }>();
   const list = parsed && typeof parsed === "object" ? (parsed as { days?: unknown }).days : null;
@@ -323,7 +343,9 @@ export function pickOutline(
       const title = text(m?.title, 120);
       const titleZh = text(m?.titleZh, 120);
       const key = `${date}|${slot}`;
-      if (slot && slots.includes(slot) && title && titleZh && !out.has(key)) out.set(key, { slot, title, titleZh });
+      if (!slot || !slots.includes(slot) || !title || !titleZh || out.has(key)) continue;
+      if (breaksExclusions({ title, titleZh, ingredients: [] }, exclusions)) continue;
+      out.set(key, { slot, title, titleZh });
     }
   }
   return out;

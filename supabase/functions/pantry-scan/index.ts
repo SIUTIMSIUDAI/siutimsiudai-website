@@ -114,7 +114,7 @@ Deno.serve(async (req: Request) => {
           { text: RECEIPT_INSTRUCTION },
         ],
       });
-      const receipt = extractJson(receiptText) as { items?: unknown };
+      const receipt = extractJson(receiptText, "items") as { items?: unknown };
       // Re-validated row by row in the app (parseScanResponse) and always reviewed before saving.
       return json({ items: Array.isArray(receipt.items) ? receipt.items : [] }, 200);
     }
@@ -135,7 +135,7 @@ Deno.serve(async (req: Request) => {
       ],
     });
 
-    const parsed = extractJson(text) as { items?: unknown };
+    const parsed = extractJson(text, "items") as { items?: unknown };
     const items = Array.isArray(parsed.items) ? parsed.items : [];
     // The client re-validates and sanitises every row (parseScanResponse), so we can forward the
     // model's list as-is; the app never trusts it blindly and always routes it through the human

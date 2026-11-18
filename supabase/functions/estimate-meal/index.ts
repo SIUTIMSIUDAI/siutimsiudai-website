@@ -79,15 +79,21 @@ const SYSTEM_PROMPT = [
   // vegetables and potatoes taken straight from the RAW figures (boiled broccoli at raw broccoli's
   // exact 89.2 mg of vitamin C), and egg iron at nearly double. Rules 8 and 9 are scoped the way rule 7
   // is, so they cannot move calories or macros. Figures are USDA FoodData Central (SR Legacy).
+  // The spinach iron (168463) and the luncheon meat (172951) and instant noodle (171177) sodium were
+  // added 2026-11-18 for gemini-3.5-flash-lite, which put spinach at 2.1 mg iron and luncheon meat at
+  // 360 to 580 mg sodium.
   "8. VITAMINS AND MINERALS AS EATEN. This rule sets iron, calcium, potassium and vitamin C and",
   "   nothing else. Use the values for the food as it is eaten, cooked if it is cooked: never the raw",
   "   figure for a boiled, steamed, stir-fried or roasted food. Cooking destroys some vitamin C, and per",
   "   cooked gram the minerals differ from raw. Per 100 g as eaten (USDA FoodData Central): boiled",
-  "   broccoli 65 mg vitamin C (raw is 89), boiled spinach 10 mg vitamin C and 466 mg potassium, boiled",
-  "   peeled potato 7 mg vitamin C and 328 mg potassium. A boiled egg (about 50 g) has about 0.6 mg iron.",
+  "   broccoli 65 mg vitamin C (raw is 89), boiled spinach 10 mg vitamin C, 466 mg potassium and 3.6 mg iron,",
+  "   boiled peeled potato 7 mg vitamin C and 328 mg potassium.",
+  "   A boiled egg (about 50 g) has about 0.6 mg iron.",
   "9. SODIUM ONLY. This rule sets the sodium figure and nothing else. Sodium comes mostly from what the",
   "   food is made or served with: salt, soy sauce, oyster sauce, fish sauce, stock, seasoning packets,",
-  "   and cured or processed meat. One tablespoon of soy sauce has about 880 mg (USDA). Plain rice, fresh",
+  "   and cured or processed meat. One tablespoon of soy sauce has about 880 mg (USDA). Processed and",
+  "   preserved foods are salty (USDA): canned luncheon meat has about 1,400 mg per 100 g, and",
+  "   a 100 g pack of instant noodles cooked with all its seasoning about 1,850 mg. Plain rice, fresh",
   "   fruit and vegetables boiled without salt have almost none. Restaurant and takeaway dishes are",
   "   seasoned, so count their sauce and seasoning.",
   "",
@@ -196,7 +202,7 @@ Deno.serve(async (req: Request) => {
       maxOutputTokens: 2048,
     });
 
-    const parsed = extractJson(raw) as { meals?: unknown };
+    const parsed = extractJson(raw, "meals") as { meals?: unknown };
     const meals = Array.isArray(parsed.meals) ? parsed.meals : [];
     // The client re-validates and sanitises every meal (parseMealResponse) before anything reaches
     // the log, so forwarding the model's list as-is is safe — the app never trusts it blindly.

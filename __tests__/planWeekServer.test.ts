@@ -9,6 +9,7 @@ import {
   pantryLines,
   pickDayDishes,
   pickOutline,
+  PLAN_SYSTEM_PROMPT,
   planSlots,
   targetWeek,
   weekStartOf,
@@ -98,8 +99,19 @@ describe("what the model is asked", () => {
     });
     expect(prompt).toContain("Plan these meal slots: lunch, dinner, for each of these days:");
     expect(prompt).toContain("- Saturday 2026-10-31\n- Sunday 2026-11-01");
-    expect(prompt).toContain("Never use:\n- peanuts\n- 蝦");
+    expect(prompt).toContain("Never use:\n- peanuts (also: satay, kung pao, 沙嗲, 宮保)\n- 蝦 (also: XO sauce,");
     expect(prompt).toContain("Pantry:\n- (empty)");
+  });
+
+  it("asks the outline for dish names only, so a full week fits in one answer", () => {
+    const prompt = outlinePrompt({ days: ["2026-10-31"], slots: ["dinner"], pantry: [], exclusions: [] });
+    expect(prompt).toContain("Names only: no ingredients, steps or nutrition");
+  });
+
+  it("spells out that an exclusion covers the foods made from it", () => {
+    expect(PLAN_SYSTEM_PROMPT).toContain("pork includes ham, bacon, char siu, spare ribs, sausages and luncheon meat");
+    const prompt = outlinePrompt({ days: ["2026-10-31"], slots: ["dinner"], pantry: [], exclusions: ["pork", "芫茜"] });
+    expect(prompt).toMatch(/\n- pork \(also: ham, bacon, [^\n]*叉燒[^\n]*\)\n- 芫茜\n/);
   });
 
   it("says so when nothing is excluded", () => {
@@ -196,6 +208,13 @@ describe("breaksExclusions: the check behind the prompt's first rule", () => {
     expect(breaksExclusions({ ...dish, ingredients: [...dish.ingredients, { name: "Peanut oil", nameZh: "花生油", quantity: 5, unit: "ml", category: "dry_goods" }] }, ["花生"])).toBe(true);
   });
 
+  it("catches what a common exclusion covers: ham and 火腿 for pork", () => {
+    const ham = checkDish(goodDish({ title: "Ham and egg sandwich", titleZh: "火腿蛋治" }), ["dinner"])!;
+    expect(breaksExclusions(ham, ["pork"])).toBe(true);
+    expect(breaksExclusions(ham, ["唔食豬肉"])).toBe(true);
+    expect(breaksExclusions(dish, ["蔥"])).toBe(true);
+  });
+
   it("lets everything else through", () => {
     expect(breaksExclusions(dish, ["pork", "peanuts"])).toBe(false);
     expect(breaksExclusions(dish, [])).toBe(false);
@@ -238,5 +257,25 @@ describe("pickDayDishes and pickOutline: reading the model's answers", () => {
     expect(Array.from(outline.entries())).toEqual([
       ["2026-10-26|dinner", { slot: "dinner", title: "Steamed fish", titleZh: "蒸魚" }],
     ]);
+  });
+
+  it("leaves out an outline dish that breaks an exclusion, so its day is planned afresh", () => {
+    const outline = pickOutline(
+      {
+        days: [
+          {
+            date: "2026-10-26",
+            meals: [
+              { slot: "breakfast", title: "Ham and egg sandwich", titleZh: "火腿蛋治" },
+              { slot: "dinner", title: "Steamed fish", titleZh: "蒸魚" },
+            ],
+          },
+        ],
+      },
+      ["2026-10-26"],
+      ["breakfast", "dinner"],
+      ["pork"],
+    );
+    expect(Array.from(outline.keys())).toEqual(["2026-10-26|dinner"]);
   });
 });

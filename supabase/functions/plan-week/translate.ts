@@ -42,13 +42,22 @@ export const TRANSLATE_SYSTEM_PROMPT = [
   "native speaker says it in the kitchen and at the market: short, plain, everyday words.",
 ].join("\n");
 
+// An example of rule 3 in each language. gemini-3.5-flash-lite read the old rule 3 ("keep its English
+// name" where there is no everyday one) as leave-it-in-English and translated no ingredient at all
+// into Filipino (2026-11-18).
+const MARKET_WORDS: Record<TranslateLanguage, string> = {
+  fil: "itlog, not egg; mantika, not cooking oil",
+  id: "telur, not egg; minyak goreng, not cooking oil",
+};
+
 export function translatePrompt(dishes: DishToTranslate[], language: TranslateLanguage): string {
   return [
     `Translate these recipes into ${LANGUAGE_NAMES[language]}. Rules:`,
     "1. Keep every number, unit, time and temperature exactly as written.",
     "2. Translate the title, each ingredient and each step separately, in the same order. Never merge,",
     "   split, add or drop an ingredient or a step.",
-    `3. Where an ingredient has no everyday name in ${LANGUAGE_NAMES[language]}, keep its English name.`,
+    `3. Translate every ingredient into the everyday word a cook uses at the market (${MARKET_WORDS[language]}).`,
+    `   Keep English only for a brand, or a food with no name of its own in ${LANGUAGE_NAMES[language]}.`,
     "4. Do not write any Chinese. The app shows the Chinese names separately.",
     "",
     "Recipes:",

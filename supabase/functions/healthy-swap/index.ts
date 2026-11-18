@@ -95,7 +95,7 @@ Deno.serve(async (req: Request) => {
       maxOutputTokens: 2048,
     });
 
-    const parsed = extractJson(text) as { swaps?: unknown };
+    const parsed = extractJson(text, "swaps") as { swaps?: unknown };
     const swaps = Array.isArray(parsed?.swaps) ? parsed.swaps : [];
     // The client re-validates every row (swapsFromProxy) and rejoins it to an ingredient id before
     // anything reaches the recipe store, so forwarding the parsed array as-is is safe.

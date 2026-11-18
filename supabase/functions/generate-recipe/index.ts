@@ -240,7 +240,7 @@ Deno.serve(async (req: Request) => {
         parts: [{ text: buildSuggestPrompt(ingredients, count, avoidTitles(body?.avoid)) }],
         maxOutputTokens: 4096 * count,
       });
-      const recipes = pickRecipes(extractJson(text), count);
+      const recipes = pickRecipes(extractJson(text, "recipes"), count);
       if (recipes === null) throw new Error(`bad_model_json no_recipe_list len=${text.length}`);
       // As in the other modes, the client re-validates every recipe before it reaches the store.
       return json({ recipes }, 200);

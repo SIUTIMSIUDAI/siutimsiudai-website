@@ -62,29 +62,9 @@ export function proxyError(err: unknown): Response {
   return json({ error: code }, status);
 }
 
-// Gemini is asked to answer with pure JSON (generationConfig.responseMimeType), but never trust it:
-// strip a ```json fence and grab the first balanced {...} so a stray sentence can't break parsing.
-//
-// Both failure modes throw with a "bad_model_json" prefix so proxyError classifies them as an
-// UPSTREAM problem (502), not an internal bug (500). This mattered: a truncated response used to
-// surface as a bare JSON.parse SyntaxError -> "internal_error", which sent us hunting for a broken
-// credential when the model had actually answered fine and just run out of output budget.
-export function extractJson(text: string): unknown {
-  const fenced = text.match(/```(?:json)?\s*([\s\S]*?)```/i);
-  const body = (fenced ? fenced[1] : text).trim();
-  const start = body.indexOf("{");
-  const end = body.lastIndexOf("}");
-  if (start === -1 || end === -1 || end < start) {
-    throw new Error(`bad_model_json no_json len=${body.length} head=${body.slice(0, 200)}`);
-  }
-  try {
-    return JSON.parse(body.slice(start, end + 1));
-  } catch {
-    // Nearly always truncation: the model ran out of maxOutputTokens mid-object. Log the tail so
-    // the shape of the cut is obvious at a glance.
-    throw new Error(`bad_model_json unparseable len=${body.length} tail=${body.slice(-160)}`);
-  }
-}
+// Reading the model's JSON reply lives in modelJson.ts (pure, so Jest can test it). Re-exported here
+// so every function keeps one import line for the Vertex helpers.
+export { extractJson } from "./modelJson.ts";
 
 // --- Service account + OAuth ------------------------------------------------------------------
 
@@ -218,6 +198,13 @@ function thinkingBudgetFor(model: string): number | undefined {
   return /2\.5-pro/.test(model) ? 128 : 0;
 }
 
+// The host that serves a Vertex location. Regional locations (us-central1, the default) have their own
+// host; the global location, where Google offers its newer models (gemini-3.5-flash-lite among them),
+// is served from aiplatform.googleapis.com. VERTEX_LOCATION picks the location; this picks its host.
+export function vertexHost(location: string): string {
+  return location === "global" ? "aiplatform.googleapis.com" : `${location}-aiplatform.googleapis.com`;
+}
+
 // Call a Gemini model on Vertex AI and return the raw text of the first candidate. Forces JSON-only
 // output via responseMimeType; the caller still runs extractJson + full shape validation, so the
 // model is never trusted. Throws (never returns partial junk) so the client reports a failed call.
@@ -226,7 +213,7 @@ export async function vertexGenerateContent(model: string, opts: GenerateContent
   const location = Deno.env.get("VERTEX_LOCATION") || "us-central1";
   const project = projectId();
   const endpoint =
-    `https://${location}-aiplatform.googleapis.com/v1/projects/${project}` +
+    `https://${vertexHost(location)}/v1/projects/${project}` +
     `/locations/${location}/publishers/google/models/${model}:generateContent`;
 
   const thinkingBudget = thinkingBudgetFor(model);
