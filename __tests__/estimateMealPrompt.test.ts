@@ -15,4 +15,8 @@ describe("estimate-meal prompt anchors (USDA FoodData Central, SR Legacy)", () =
     expect(source).toContain("canned luncheon meat has about 1,400 mg per 100 g");
     expect(source).toContain("a 100 g pack of instant noodles cooked with all its seasoning about 1,850 mg");
   });
+
+  it("gives Chinese sausage its sodium (Centre for Food Safety, 臘腸: 1,420 mg per 100 g)", () => {
+    expect(source).toContain("sausage (臘腸) has about 1,400 mg per 100 g (Hong Kong Centre for Food Safety)");
+  });
 });

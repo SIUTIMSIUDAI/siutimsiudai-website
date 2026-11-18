@@ -81,7 +81,9 @@ const SYSTEM_PROMPT = [
   // is, so they cannot move calories or macros. Figures are USDA FoodData Central (SR Legacy).
   // The spinach iron (168463) and the luncheon meat (172951) and instant noodle (171177) sodium were
   // added 2026-11-18 for gemini-3.5-flash-lite, which put spinach at 2.1 mg iron and luncheon meat at
-  // 360 to 580 mg sodium.
+  // 360 to 580 mg sodium. The 臘腸 figure is the Centre for Food Safety's Nutrient Information Inquiry
+  // System ("Pork sausage, cured sausage, Canton style, small", 1,420 mg per 100 g, from the China CDC
+  // table CFC2002Ed2), added after the new model put a 臘味 clay-pot rice photo at 920 mg.
   "8. VITAMINS AND MINERALS AS EATEN. This rule sets iron, calcium, potassium and vitamin C and",
   "   nothing else. Use the values for the food as it is eaten, cooked if it is cooked: never the raw",
   "   figure for a boiled, steamed, stir-fried or roasted food. Cooking destroys some vitamin C, and per",
@@ -93,7 +95,8 @@ const SYSTEM_PROMPT = [
   "   food is made or served with: salt, soy sauce, oyster sauce, fish sauce, stock, seasoning packets,",
   "   and cured or processed meat. One tablespoon of soy sauce has about 880 mg (USDA). Processed and",
   "   preserved foods are salty (USDA): canned luncheon meat has about 1,400 mg per 100 g, and",
-  "   a 100 g pack of instant noodles cooked with all its seasoning about 1,850 mg. Plain rice, fresh",
+  "   a 100 g pack of instant noodles cooked with all its seasoning about 1,850 mg. Chinese preserved",
+  "   sausage (臘腸) has about 1,400 mg per 100 g (Hong Kong Centre for Food Safety). Plain rice, fresh",
   "   fruit and vegetables boiled without salt have almost none. Restaurant and takeaway dishes are",
   "   seasoned, so count their sauce and seasoning.",
   "",
