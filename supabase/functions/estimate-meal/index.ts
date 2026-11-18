@@ -86,6 +86,10 @@ const SYSTEM_PROMPT = [
   // table CFC2002Ed2), added after the new model put a 臘味 clay-pot rice photo at 920 mg. That alone
   // moved the photo only to 980 mg, because the model judged the pot as a whole, hence the last
   // sentence of rule 9: add up the salty parts.
+  // The dish figures are medians from the Centre for Food Safety's lab tests of local dishes ("Nutrient
+  // Contents of Local Congee, Rice and Noodles Dishes", 73 dishes); 16 other dishes from the same table
+  // were held back to test them (2026-11-18). The new model had put wonton noodles at 1,450 mg against
+  // 2,300 measured.
   "8. VITAMINS AND MINERALS AS EATEN. This rule sets iron, calcium, potassium and vitamin C and",
   "   nothing else. Use the values for the food as it is eaten, cooked if it is cooked: never the raw",
   "   figure for a boiled, steamed, stir-fried or roasted food. Cooking destroys some vitamin C, and per",
@@ -103,6 +107,9 @@ const SYSTEM_PROMPT = [
   "   seasoned, so count their sauce and seasoning.",
   "   A mixed dish's sodium is the sum of its salty parts at the amounts in it: cured meat or sausage,",
   "   sauce poured over, gravy, soup and seasoning. Add each one up, even when the dish is one entry.",
+  "   Hong Kong dishes as served, measured by the Centre for Food Safety, sodium per 100 g: egg or wheat",
+  "   noodles in soup about 460 mg and rice noodles (ho fan, rice vermicelli) in soup about 300 mg, soup",
+  "   included; fried or braised noodles and fried rice about 380 mg; rice with a topping about 250 mg.",
   "",
   "nameZh must be Traditional Chinese as used in Hong Kong (e.g. 雞胸肉, 奇異果, 多士).",
 ].join("\n");

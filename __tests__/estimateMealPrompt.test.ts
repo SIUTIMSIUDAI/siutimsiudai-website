@@ -24,4 +24,10 @@ describe("estimate-meal prompt anchors (USDA FoodData Central, SR Legacy)", () =
     expect(source).toContain("A mixed dish's sodium is the sum of its salty parts at the amounts in it");
     expect(source).toContain("Add each one up, even when the dish is one entry.");
   });
+
+  it("gives Hong Kong noodle soups, fried noodles and rice plates their measured sodium per 100 g", () => {
+    expect(source).toContain("Hong Kong dishes as served, measured by the Centre for Food Safety, sodium per 100 g");
+    expect(source).toContain("noodles in soup about 460 mg and rice noodles (ho fan, rice vermicelli) in soup about 300 mg");
+    expect(source).toContain("fried or braised noodles and fried rice about 380 mg; rice with a topping about 250 mg.");
+  });
 });
