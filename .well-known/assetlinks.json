@@ -4,7 +4,12 @@
     "target": {
       "namespace": "android_app",
       "package_name": "app.siutimsiudai.mobile",
-      "sha256_cert_fingerprints": ["34:3E:54:31:E8:47:64:6A:3C:29:57:55:F4:DA:20:48:91:7C:A0:DB:14:CC:44:F3:A4:97:A5:71:E6:2A:C9:9B"]
+      "sha256_cert_fingerprints": [
+        "0B:9E:A8:D5:D8:45:88:36:D9:8C:D5:F9:10:73:C1:5D:3A:AE:EE:87:CF:91:85:EE:A3:79:83:2B:BF:A4:DB:36",
+        "7E:49:20:69:A0:8C:13:E4:DF:20:B4:85:BE:A4:9C:71:E5:83:C4:8A:DB:7C:C5:2E:0C:AB:64:AF:5A:34:08:B4",
+        "13:7E:2B:43:05:DC:F5:2C:DE:43:5A:27:9C:65:22:FF:30:68:55:80:95:69:5B:3C:3F:39:4B:C9:09:11:03:15",
+        "58:D6:DD:97:75:61:4F:51:5C:86:D3:C7:A9:6A:D3:71:98:D2:E6:E1:69:AF:56:20:53:40:BB:E8:76:8F:FE:94"
+      ]
     }
   }
 ]
